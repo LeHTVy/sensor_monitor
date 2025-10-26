@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}Database Console - Admin{% endblock %}
+{% block page_title %}Database Console{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-terminal"></i> Database Console
+                    <small class="text-muted">(Interactive SQL Shell)</small>
+                </h6>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-success" onclick="clearConsole()">
+                        <i class="fas fa-eraser"></i> Clear
+                    </button>
+                    <button class="btn btn-sm btn-info" onclick="saveHistory()">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                    <button class="btn btn-sm btn-warning" onclick="loadHistory()">
+                        <i class="fas fa-history"></i> History
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Console Output -->
+                <div class="console-output" id="consoleOutput" style="
+                    background-color: #1e1e1e; 
+                    color: #d4d4d4; 
+                    font-family: 'Courier New', monospace; 
+                    padding: 15px; 
+                    border-radius: 5px; 
+                    height: 400px; 
+                    overflow-y: auto;
+                    white-space: pre-wrap;
+                    font-size: 14px;
+                ">
+                    <div class="text-success">MySQL 8.0.25 - Database Console</div>
+                    <div class="text-info">Connected to: 172.235.245.60:3306</div>
+                    <div class="text-warning">Database: admin_panel</div>
+                    <div class="text-muted">Type 'help;' for help or 'quit;' to exit</div>
+                    <br>
+                    {% if output %}
+                    <div class="text-white">{{ output }}</div>
+                    {% endif %}
+                </div>
+                
+                <!-- Command Input -->
+                <form method="POST" id="consoleForm">
+                    <div class="input-group mt-3">
+                        <span class="input-group-text bg-dark text-white">
+                            <i class="fas fa-terminal"></i>
+                        </span>
+                        <input type="text" class="form-control bg-dark text-white" 
+                               id="commandInput" name="command" 
+                               placeholder="Enter SQL command..." 
+                               autocomplete="off"
+                               style="border: 1px solid #444; font-family: 'Courier New', monospace;">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-play"></i> Execute
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Commands -->
+<div class="row mt-4">
+    <div class="col-lg-6">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-bolt"></i> Quick Commands
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="executeCommand('SHOW TABLES;')">
+                            Show Tables
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="executeCommand('SELECT * FROM users;')">
+                            Show Users
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="executeCommand('SHOW DATABASES;')">
+                            Show Databases
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="executeCommand('SELECT VERSION();')">
+                            Show Version
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="executeCommand('SHOW PROCESSLIST;')">
+                            Show Processes
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="executeCommand('SHOW STATUS;')">
+                            Show Status
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-info-circle"></i> System Information
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">Database Server</small>
+                        <div class="fw-bold">MySQL 8.0.25</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Status</small>
+                        <div class="fw-bold text-success">Online</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Host</small>
+                        <div class="fw-bold">172.235.245.60:3306</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Uptime</small>
+                        <div class="fw-bold">15 days, 3 hours</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Connections</small>
+                        <div class="fw-bold">12/100</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Memory Usage</small>
+                        <div class="fw-bold">2.1 GB</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Command History -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-history"></i> Command History
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Time</th>
+                                <th>Command</th>
+                                <th>Result</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>14:30:25</td>
+                                <td><code>SELECT * FROM users;</code></td>
+                                <td><span class="badge bg-success">Success</span></td>
+                                <td>0.002s</td>
+                            </tr>
+                            <tr>
+                                <td>14:28:12</td>
+                                <td><code>SHOW TABLES;</code></td>
+                                <td><span class="badge bg-success">Success</span></td>
+                                <td>0.001s</td>
+                            </tr>
+                            <tr>
+                                <td>14:25:45</td>
+                                <td><code>INSERT INTO users...</code></td>
+                                <td><span class="badge bg-success">Success</span></td>
+                                <td>0.005s</td>
+                            </tr>
+                            <tr>
+                                <td>14:20:33</td>
+                                <td><code>DROP TABLE logs;</code></td>
+                                <td><span class="badge bg-warning">Pending</span></td>
+                                <td>-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Console functionality
+    const consoleOutput = document.getElementById('consoleOutput');
+    const commandInput = document.getElementById('commandInput');
+    const consoleForm = document.getElementById('consoleForm');
+    
+    // Focus on input
+    commandInput.focus();
+    
+    // Command history
+    let commandHistory = [];
+    let historyIndex = -1;
+    
+    // Execute command function
+    function executeCommand(command) {
+        commandInput.value = command;
+        consoleForm.submit();
+    }
+    
+    // Clear console
+    function clearConsole() {
+        consoleOutput.innerHTML = `
+            <div class="text-success">MySQL 8.0.25 - Database Console</div>
+            <div class="text-info">Connected to: 172.235.245.60:3306</div>
+            <div class="text-warning">Database: admin_panel</div>
+            <div class="text-muted">Type 'help;' for help or 'quit;' to exit</div>
+            <br>
+        `;
+    }
+    
+    // Save history
+    function saveHistory() {
+        localStorage.setItem('consoleHistory', JSON.stringify(commandHistory));
+        alert('Command history saved!');
+    }
+    
+    // Load history
+    function loadHistory() {
+        const saved = localStorage.getItem('consoleHistory');
+        if (saved) {
+            commandHistory = JSON.parse(saved);
+            alert('Command history loaded!');
+        }
+    }
+    
+    // Keyboard shortcuts
+    commandInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const command = commandInput.value.trim();
+            if (command) {
+                commandHistory.push(command);
+                historyIndex = commandHistory.length;
+                consoleForm.submit();
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (historyIndex > 0) {
+                historyIndex--;
+                commandInput.value = commandHistory[historyIndex];
+            }
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (historyIndex < commandHistory.length - 1) {
+                historyIndex++;
+                commandInput.value = commandHistory[historyIndex];
+            } else {
+                historyIndex = commandHistory.length;
+                commandInput.value = '';
+            }
+        }
+    });
+    
+    // Form submission
+    consoleForm.addEventListener('submit', function(e) {
+        const command = commandInput.value.trim();
+        if (command) {
+            // Log the command execution attempt
+            console.log('Command execution attempt:', {
+                command: command,
+                timestamp: new Date().toISOString(),
+                user: 'admin'
+            });
+            
+            // Add command to console output
+            const commandDiv = document.createElement('div');
+            commandDiv.innerHTML = `<div class="text-cyan">mysql> ${command}</div>`;
+            consoleOutput.appendChild(commandDiv);
+            
+            // Scroll to bottom
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+    });
+    
+    // Add some realistic console logs
+    console.log('Database console loaded');
+    console.log('MySQL server: 172.235.245.60:3306');
+    console.log('Database: admin_panel');
+    console.log('User: admin');
+    
+    // Simulate some background activity
+    setInterval(() => {
+        const now = new Date();
+        if (Math.random() < 0.1) { // 10% chance every second
+            const activityDiv = document.createElement('div');
+            activityDiv.innerHTML = `<div class="text-muted">[${now.toLocaleTimeString()}] Background process completed</div>`;
+            consoleOutput.appendChild(activityDiv);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+    }, 1000);
+</script>
+{% endblock %}

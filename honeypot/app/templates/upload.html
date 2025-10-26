@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}File Upload - Database Admin{% endblock %}
+{% block page_title %}File Upload Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-upload"></i> Upload Files
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Select File</label>
+                        <input type="file" class="form-control" id="file" name="file" required>
+                        <div class="form-text">
+                            Supported formats: TXT, PDF, PNG, JPG, JPEG, GIF, PHP, SH, PY, EXE
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description (Optional)</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="Enter file description..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <select class="form-select" id="category" name="category">
+                            <option value="database">Database Backup</option>
+                            <option value="config">Configuration</option>
+                            <option value="script">Script</option>
+                            <option value="document">Document</option>
+                            <option value="image">Image</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="overwrite" name="overwrite">
+                        <label class="form-check-label" for="overwrite">
+                            Overwrite existing files
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Upload File
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-info-circle"></i> Upload Information
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted">Max File Size</small>
+                    <div class="fw-bold">100 MB</div>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted">Upload Directory</small>
+                    <div class="fw-bold">/app/uploads/</div>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted">Allowed Extensions</small>
+                    <div class="fw-bold">txt, pdf, png, jpg, jpeg, gif, php, sh, py, exe</div>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted">Security</small>
+                    <div class="fw-bold text-success">Virus Scan: Enabled</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card shadow mt-3">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-shield-alt"></i> Security Notice
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <small>
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Warning:</strong> Only upload files from trusted sources. 
+                        All uploaded files are scanned for malware.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Uploaded Files List -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Uploaded Files</h6>
+                <button class="btn btn-sm btn-outline-primary" onclick="refreshFiles()">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="filesTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Filename</th>
+                                <th>Size</th>
+                                <th>Type</th>
+                                <th>Upload Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <i class="fas fa-file-pdf text-danger"></i>
+                                    database_backup_2024.pdf
+                                </td>
+                                <td>2.4 MB</td>
+                                <td>PDF</td>
+                                <td>2024-01-15 14:30:25</td>
+                                <td><span class="badge bg-success">Scanned</span></td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-primary" onclick="downloadFile('database_backup_2024.pdf')">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                        <button class="btn btn-info" onclick="viewFile('database_backup_2024.pdf')">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-danger" onclick="deleteFile('database_backup_2024.pdf')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <i class="fas fa-file-code text-warning"></i>
+                                    config.php
+                                </td>
+                                <td>1.2 KB</td>
+                                <td>PHP</td>
+                                <td>2024-01-15 14:25:12</td>
+                                <td><span class="badge bg-success">Scanned</span></td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-primary" onclick="downloadFile('config.php')">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                        <button class="btn btn-info" onclick="viewFile('config.php')">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-danger" onclick="deleteFile('config.php')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <i class="fas fa-file-image text-info"></i>
+                                    logo.png
+                                </td>
+                                <td>45.6 KB</td>
+                                <td>PNG</td>
+                                <td>2024-01-15 14:20:33</td>
+                                <td><span class="badge bg-warning">Scanning...</span></td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-primary" onclick="downloadFile('logo.png')">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                        <button class="btn btn-info" onclick="viewFile('logo.png')">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-danger" onclick="deleteFile('logo.png')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Upload Progress Modal -->
+<div class="modal fade" id="uploadProgressModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Uploading File...</h5>
+            </div>
+            <div class="modal-body">
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%"></div>
+                </div>
+                <div class="mt-2 text-center">
+                    <span id="uploadStatus">Preparing upload...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // File upload form handling
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const fileInput = document.getElementById('file');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('Please select a file to upload.');
+            return;
+        }
+        
+        // Show progress modal
+        const progressModal = new bootstrap.Modal(document.getElementById('uploadProgressModal'));
+        progressModal.show();
+        
+        // Simulate upload progress
+        simulateUploadProgress();
+        
+        // Log the upload attempt (this will be caught by our logger)
+        console.log('File upload attempt:', {
+            filename: file.name,
+            size: file.size,
+            type: file.type,
+            timestamp: new Date().toISOString()
+        });
+    });
+
+    function simulateUploadProgress() {
+        const progressBar = document.querySelector('.progress-bar');
+        const status = document.getElementById('uploadStatus');
+        let progress = 0;
+        
+        const interval = setInterval(() => {
+            progress += Math.random() * 20;
+            if (progress > 100) progress = 100;
+            
+            progressBar.style.width = progress + '%';
+            
+            if (progress < 30) {
+                status.textContent = 'Uploading file...';
+            } else if (progress < 70) {
+                status.textContent = 'Processing file...';
+            } else if (progress < 100) {
+                status.textContent = 'Scanning for malware...';
+            } else {
+                status.textContent = 'Upload complete!';
+                clearInterval(interval);
+                
+                setTimeout(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('uploadProgressModal')).hide();
+                    alert('File uploaded successfully!');
+                    location.reload();
+                }, 1000);
+            }
+        }, 200);
+    }
+
+    function downloadFile(filename) {
+        alert('Downloading file: ' + filename);
+        console.log('Download file:', filename);
+    }
+
+    function viewFile(filename) {
+        alert('Viewing file: ' + filename + '\n\nThis would open the file in a new tab.');
+        console.log('View file:', filename);
+    }
+
+    function deleteFile(filename) {
+        if (confirm('Are you sure you want to delete file: ' + filename + '?')) {
+            alert('File deleted successfully!');
+            console.log('Delete file:', filename);
+        }
+    }
+
+    function refreshFiles() {
+        location.reload();
+    }
+
+    // Add some realistic console logs
+    console.log('File upload manager loaded');
+    console.log('Upload directory: /app/uploads/');
+    console.log('Max file size: 100MB');
+</script>
+{% endblock %}

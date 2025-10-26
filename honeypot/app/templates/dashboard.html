@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Database Admin{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Statistics Cards -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Total Users
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ databases.users|length }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-users fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Products
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ databases.products|length }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-box fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Orders
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ databases.orders|length }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-shopping-cart fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Database Size
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">2.4 GB</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-database fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Activity -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Recent Database Activity</h6>
+                <div class="dropdown no-arrow">
+                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown">
+                        <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right shadow">
+                        <a class="dropdown-item" href="#">Refresh</a>
+                        <a class="dropdown-item" href="#">Export</a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Table</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>2024-01-15 14:30:25</td>
+                                <td>admin</td>
+                                <td>SELECT</td>
+                                <td>users</td>
+                                <td><span class="badge bg-success">Success</span></td>
+                            </tr>
+                            <tr>
+                                <td>2024-01-15 14:28:12</td>
+                                <td>admin</td>
+                                <td>UPDATE</td>
+                                <td>products</td>
+                                <td><span class="badge bg-success">Success</span></td>
+                            </tr>
+                            <tr>
+                                <td>2024-01-15 14:25:45</td>
+                                <td>john</td>
+                                <td>INSERT</td>
+                                <td>orders</td>
+                                <td><span class="badge bg-success">Success</span></td>
+                            </tr>
+                            <tr>
+                                <td>2024-01-15 14:20:33</td>
+                                <td>sarah</td>
+                                <td>DELETE</td>
+                                <td>users</td>
+                                <td><span class="badge bg-warning">Pending</span></td>
+                            </tr>
+                            <tr>
+                                <td>2024-01-15 14:15:18</td>
+                                <td>admin</td>
+                                <td>CREATE TABLE</td>
+                                <td>logs</td>
+                                <td><span class="badge bg-success">Success</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('view_database', db_name='users') }}" class="btn btn-primary">
+                        <i class="fas fa-users"></i> Manage Users
+                    </a>
+                    <a href="{{ url_for('view_database', db_name='products') }}" class="btn btn-success">
+                        <i class="fas fa-box"></i> Manage Products
+                    </a>
+                    <a href="{{ url_for('upload_file') }}" class="btn btn-info">
+                        <i class="fas fa-upload"></i> Upload Files
+                    </a>
+                    <a href="{{ url_for('console') }}" class="btn btn-warning">
+                        <i class="fas fa-terminal"></i> Database Console
+                    </a>
+                    <a href="{{ url_for('admin_panel') }}" class="btn btn-danger">
+                        <i class="fas fa-cog"></i> Admin Panel
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="card shadow mt-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">System Status</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <small class="text-muted">Database Server</small>
+                    <div class="d-flex justify-content-between">
+                        <span>MySQL 8.0.25</span>
+                        <span class="badge bg-success">Online</span>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">Web Server</small>
+                    <div class="d-flex justify-content-between">
+                        <span>Nginx 1.21.0</span>
+                        <span class="badge bg-success">Online</span>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">PHP</small>
+                    <div class="d-flex justify-content-between">
+                        <span>PHP 8.1.0</span>
+                        <span class="badge bg-success">Online</span>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">SSL Certificate</small>
+                    <div class="d-flex justify-content-between">
+                        <span>Let's Encrypt</span>
+                        <span class="badge bg-success">Valid</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Database Tables Overview -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Database Tables Overview</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for db_name, data in databases.items() %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-left-primary">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="font-weight-bold text-primary">{{ db_name|title }}</h6>
+                                        <p class="text-muted mb-0">{{ data|length }} records</p>
+                                    </div>
+                                    <div>
+                                        <a href="{{ url_for('view_database', db_name=db_name) }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-refresh dashboard every 30 seconds
+    setInterval(function() {
+        location.reload();
+    }, 30000);
+    
+    // Add some realistic console logs
+    console.log('Database Admin Panel loaded');
+    console.log('Connected to MySQL server: 172.235.245.60:3306');
+    console.log('Session ID: ' + Math.random().toString(36).substr(2, 9));
+</script>
+{% endblock %}

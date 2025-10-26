@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - Database Admin{% endblock %}
+{% block page_title %}Admin Panel{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Warning:</strong> This is a restricted admin panel. Only authorized personnel should access this area.
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- System Overview -->
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-server"></i> System Overview
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Database Servers</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td>Primary MySQL</td>
+                                    <td><span class="badge bg-success">Online</span></td>
+                                    <td>172.235.245.60:3306</td>
+                                </tr>
+                                <tr>
+                                    <td>Backup MySQL</td>
+                                    <td><span class="badge bg-success">Online</span></td>
+                                    <td>172.235.245.61:3306</td>
+                                </tr>
+                                <tr>
+                                    <td>Redis Cache</td>
+                                    <td><span class="badge bg-warning">Degraded</span></td>
+                                    <td>172.235.245.62:6379</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Web Servers</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td>Load Balancer</td>
+                                    <td><span class="badge bg-success">Online</span></td>
+                                    <td>172.235.245.60:80/443</td>
+                                </tr>
+                                <tr>
+                                    <td>Web Server 1</td>
+                                    <td><span class="badge bg-success">Online</span></td>
+                                    <td>172.235.245.63:8080</td>
+                                </tr>
+                                <tr>
+                                    <td>Web Server 2</td>
+                                    <td><span class="badge bg-success">Online</span></td>
+                                    <td>172.235.245.64:8080</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="col-lg-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-bolt"></i> Quick Actions
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="backupDatabase()">
+                        <i class="fas fa-download"></i> Backup Database
+                    </button>
+                    <button class="btn btn-success" onclick="restartServices()">
+                        <i class="fas fa-redo"></i> Restart Services
+                    </button>
+                    <button class="btn btn-info" onclick="viewLogs()">
+                        <i class="fas fa-file-alt"></i> View Logs
+                    </button>
+                    <button class="btn btn-warning" onclick="clearCache()">
+                        <i class="fas fa-trash"></i> Clear Cache
+                    </button>
+                    <button class="btn btn-danger" onclick="emergencyShutdown()">
+                        <i class="fas fa-power-off"></i> Emergency Shutdown
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <!-- Security Status -->
+    <div class="col-lg-6">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-shield-alt"></i> Security Status
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Firewall Status</span>
+                        <span class="badge bg-success">Active</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>SSL Certificate</span>
+                        <span class="badge bg-success">Valid</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Intrusion Detection</span>
+                        <span class="badge bg-success">Monitoring</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Failed Login Attempts</span>
+                        <span class="badge bg-warning">3 in last hour</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Blocked IPs</span>
+                        <span class="badge bg-info">12</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- System Resources -->
+    <div class="col-lg-6">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-chart-line"></i> System Resources
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>CPU Usage</span>
+                        <span class="badge bg-success">45%</span>
+                    </div>
+                    <div class="progress mt-1">
+                        <div class="progress-bar bg-success" style="width: 45%"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Memory Usage</span>
+                        <span class="badge bg-warning">78%</span>
+                    </div>
+                    <div class="progress mt-1">
+                        <div class="progress-bar bg-warning" style="width: 78%"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Disk Usage</span>
+                        <span class="badge bg-info">62%</span>
+                    </div>
+                    <div class="progress mt-1">
+                        <div class="progress-bar bg-info" style="width: 62%"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Network I/O</span>
+                        <span class="badge bg-success">Normal</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Database Management -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-database"></i> Database Management
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for db_name, data in databases.items() %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-left-primary">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="font-weight-bold text-primary">{{ db_name|title }}</h6>
+                                        <p class="text-muted mb-0">{{ data|length }} records</p>
+                                        <small class="text-muted">Size: {{ (data|length * 0.5)|round(2) }} MB</small>
+                                    </div>
+                                    <div class="btn-group-vertical btn-group-sm">
+                                        <button class="btn btn-primary" onclick="optimizeTable('{{ db_name }}')">
+                                            <i class="fas fa-tools"></i> Optimize
+                                        </button>
+                                        <button class="btn btn-success" onclick="repairTable('{{ db_name }}')">
+                                            <i class="fas fa-wrench"></i> Repair
+                                        </button>
+                                        <button class="btn btn-info" onclick="analyzeTable('{{ db_name }}')">
+                                            <i class="fas fa-search"></i> Analyze
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-history"></i> Recent Admin Activity
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Target</th>
+                                <th>IP Address</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>2024-01-15 14:30:25</td>
+                                <td>admin</td>
+                                <td>Database Backup</td>
+                                <td>users table</td>
+                                <td>172.235.245.60</td>
+                                <td><span class="badge bg-success">Success</span></td>
+                            </tr>
+                            <tr>
+                                <td>2024-01-15 14:28:12</td>
+                                <td>admin</td>
+                                <td>Service Restart</td>
+                                <td>MySQL</td>
+                                <td>172.235.245.60</td>
+                                <td><span class="badge bg-success">Success</span></td>
+                            </tr>
+                            <tr>
+                                <td>2024-01-15 14:25:45</td>
+                                <td>admin</td>
+                                <td>User Creation</td>
+                                <td>newuser@company.com</td>
+                                <td>172.235.245.60</td>
+                                <td><span class="badge bg-success">Success</span></td>
+                            </tr>
+                            <tr>
+                                <td>2024-01-15 14:20:33</td>
+                                <td>admin</td>
+                                <td>Security Scan</td>
+                                <td>Full System</td>
+                                <td>172.235.245.60</td>
+                                <td><span class="badge bg-warning">In Progress</span></td>
+                            </tr>
+                            <tr>
+                                <td>2024-01-15 14:15:18</td>
+                                <td>admin</td>
+                                <td>Cache Clear</td>
+                                <td>Redis</td>
+                                <td>172.235.245.60</td>
+                                <td><span class="badge bg-success">Success</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Emergency Controls -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h6 class="m-0 font-weight-bold">
+                    <i class="fas fa-exclamation-triangle"></i> Emergency Controls
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-danger">System Controls</h6>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-danger" onclick="emergencyShutdown()">
+                                <i class="fas fa-power-off"></i> Emergency Shutdown
+                            </button>
+                            <button class="btn btn-outline-warning" onclick="disableAllUsers()">
+                                <i class="fas fa-user-slash"></i> Disable All Users
+                            </button>
+                            <button class="btn btn-outline-info" onclick="blockAllIPs()">
+                                <i class="fas fa-ban"></i> Block All IPs
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-danger">Database Controls</h6>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-danger" onclick="dropAllTables()">
+                                <i class="fas fa-trash"></i> Drop All Tables
+                            </button>
+                            <button class="btn btn-outline-warning" onclick="truncateAllData()">
+                                <i class="fas fa-eraser"></i> Truncate All Data
+                            </button>
+                            <button class="btn btn-outline-info" onclick="exportAllData()">
+                                <i class="fas fa-download"></i> Export All Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Admin panel functions
+    function backupDatabase() {
+        if (confirm('Are you sure you want to backup the database? This may take several minutes.')) {
+            alert('Database backup started... This will be completed in the background.');
+            console.log('Database backup initiated');
+        }
+    }
+    
+    function restartServices() {
+        if (confirm('Are you sure you want to restart all services? This will cause temporary downtime.')) {
+            alert('Services restart initiated... Please wait for completion.');
+            console.log('Services restart initiated');
+        }
+    }
+    
+    function viewLogs() {
+        alert('Opening system logs... This would redirect to the logs viewer.');
+        console.log('View logs requested');
+    }
+    
+    function clearCache() {
+        if (confirm('Are you sure you want to clear all caches?')) {
+            alert('Cache cleared successfully!');
+            console.log('Cache cleared');
+        }
+    }
+    
+    function emergencyShutdown() {
+        if (confirm('EMERGENCY SHUTDOWN: This will immediately shut down all services. Are you absolutely sure?')) {
+            alert('EMERGENCY SHUTDOWN INITIATED! All services are being shut down.');
+            console.log('EMERGENCY SHUTDOWN INITIATED');
+        }
+    }
+    
+    function optimizeTable(tableName) {
+        alert('Optimizing table: ' + tableName + '\n\nThis would run OPTIMIZE TABLE command.');
+        console.log('Optimize table:', tableName);
+    }
+    
+    function repairTable(tableName) {
+        alert('Repairing table: ' + tableName + '\n\nThis would run REPAIR TABLE command.');
+        console.log('Repair table:', tableName);
+    }
+    
+    function analyzeTable(tableName) {
+        alert('Analyzing table: ' + tableName + '\n\nThis would run ANALYZE TABLE command.');
+        console.log('Analyze table:', tableName);
+    }
+    
+    function disableAllUsers() {
+        if (confirm('This will disable all user accounts. Are you sure?')) {
+            alert('All users have been disabled!');
+            console.log('All users disabled');
+        }
+    }
+    
+    function blockAllIPs() {
+        if (confirm('This will block all IP addresses except yours. Are you sure?')) {
+            alert('All IPs have been blocked!');
+            console.log('All IPs blocked');
+        }
+    }
+    
+    function dropAllTables() {
+        if (confirm('WARNING: This will permanently delete all database tables. This action cannot be undone!')) {
+            alert('All tables have been dropped!');
+            console.log('All tables dropped');
+        }
+    }
+    
+    function truncateAllData() {
+        if (confirm('WARNING: This will delete all data from all tables. This action cannot be undone!')) {
+            alert('All data has been truncated!');
+            console.log('All data truncated');
+        }
+    }
+    
+    function exportAllData() {
+        alert('Exporting all data... This would create a complete database dump.');
+        console.log('Export all data requested');
+    }
+    
+    // Add some realistic console logs
+    console.log('Admin panel loaded');
+    console.log('System status: All services online');
+    console.log('Security level: High');
+    console.log('Last backup: 2024-01-15 14:30:25');
+    
+    // Simulate real-time updates
+    setInterval(() => {
+        // Update timestamps
+        const now = new Date();
+        console.log('System check:', now.toISOString());
+    }, 30000);
+</script>
+{% endblock %}

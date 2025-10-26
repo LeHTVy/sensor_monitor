@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  capture-server:
+    build: .
+    container_name: capture-server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - TARGET_IP=172.232.246.68
+      - LOG_DIR=/app/logs
+    restart: unless-stopped
+    networks:
+      - capture-network
+    # Required for packet capture
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    # Run in privileged mode for packet capture
+    privileged: true
+    # Allow access to host network for packet capture
+    network_mode: host
+
+networks:
+  capture-network:
+    driver: bridge

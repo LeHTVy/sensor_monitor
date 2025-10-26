@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  honeypot:
+    build: .
+    container_name: honeypot-server
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - FLASK_ENV=production
+      - CAPTURE_SERVER_URL=http://172.232.246.68:8080
+    restart: unless-stopped
+    networks:
+      - honeypot-network
+
+networks:
+  honeypot-network:
+    driver: bridge
