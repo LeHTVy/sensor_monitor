@@ -288,3 +288,4 @@ Nếu gặp vấn đề, vui lòng kiểm tra:
 ## License
 
 Dự án này được tạo ra cho mục đích giáo dục và nghiên cứu bảo mật. Sử dụng có trách nhiệm.
+# sensor_monitor
