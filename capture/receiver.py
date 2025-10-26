@@ -1,269 +1,423 @@
 #!/usr/bin/env python3
 """
-Log Receiver
-Receives logs from honeypot server via HTTP API
+Log Receiver and Web Interface for Capture Server
+Receives logs from honeypot servers and provides web interface
 """
 
-import os
+from flask import Flask, request, jsonify, render_template, send_from_directory
 import json
+import os
+import sqlite3
+from datetime import datetime, timedelta
 import threading
-from datetime import datetime
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+import queue
+import time
+import logging
+from collections import defaultdict, deque
+import hashlib
 
 app = Flask(__name__)
-CORS(app)
 
-class LogReceiver:
-    def __init__(self, log_dir="/app/logs"):
-        self.log_dir = log_dir
-        self.honeypot_log = os.path.join(log_dir, "honeypot", "honeypot_logs.log")
+# Global variables for logging and statistics
+log_queue = queue.Queue()
+stats = {
+    'total_logs_received': 0,
+    'attack_logs': 0,
+    'honeypot_logs': 0,
+    'error_logs': 0,
+    'last_received': None,
+    'start_time': datetime.now().isoformat(),
+    'uptime': 0
+}
+
+# Recent logs storage
+recent_logs = deque(maxlen=1000)
+attack_logs = deque(maxlen=500)
+honeypot_logs = deque(maxlen=500)
+
+# Database setup
+DB_FILE = 'logs/capture.db'
+
+def init_database():
+    """Initialize SQLite database"""
+    os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Create logs table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            log_type TEXT NOT NULL,
+            source_ip TEXT,
+            target_ip TEXT,
+            port INTEGER,
+            protocol TEXT,
+            payload TEXT,
+            raw_data TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create attack patterns table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS attack_patterns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pattern TEXT NOT NULL,
+            count INTEGER DEFAULT 1,
+            first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def log_to_database(log_data):
+    """Log data to SQLite database"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
         
-        # Create directories
-        os.makedirs(os.path.dirname(self.honeypot_log), exist_ok=True)
+        cursor.execute('''
+            INSERT INTO logs (timestamp, log_type, source_ip, target_ip, port, protocol, payload, raw_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            log_data.get('timestamp', ''),
+            log_data.get('type', 'unknown'),
+            log_data.get('src_ip', ''),
+            log_data.get('dst_ip', ''),
+            log_data.get('dst_port', 0),
+            log_data.get('protocol', ''),
+            log_data.get('payload', ''),
+            json.dumps(log_data)
+        ))
         
-        # Statistics
-        self.stats = {
-            'total_logs_received': 0,
-            'honeypot_logs': 0,
-            'attack_logs': 0,
-            'error_logs': 0,
-            'last_received': None,
-            'start_time': datetime.now().isoformat()
-        }
-    
-    def receive_log(self, log_data):
-        """Receive and process log from honeypot"""
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Database error: {e}")
+
+def process_log_queue():
+    """Process logs from queue"""
+    while True:
         try:
-            # Add metadata
-            log_data['received_at'] = datetime.now().isoformat()
-            log_data['receiver_ip'] = request.remote_addr
-            
-            # Determine log type
-            log_type = log_data.get('type', 'unknown')
-            
-            # Update statistics
-            self.stats['total_logs_received'] += 1
-            self.stats['last_received'] = datetime.now().isoformat()
-            
-            if 'honeypot' in log_type or 'attack' in log_type:
-                self.stats['honeypot_logs'] += 1
-                if 'attack' in log_type:
-                    self.stats['attack_logs'] += 1
-            else:
-                self.stats['error_logs'] += 1
-            
-            # Log to file
-            self._write_log(log_data)
-            
-            # Process log for analysis
-            self._process_log(log_data)
-            
-            return True
-            
-        except Exception as e:
-            print(f"Error receiving log: {str(e)}")
-            return False
-    
-    def receive_batch_logs(self, batch_data):
-        """Receive multiple logs in batch"""
-        try:
-            logs = batch_data.get('logs', [])
-            received_count = 0
-            
-            for log_data in logs:
-                if self.receive_log(log_data):
-                    received_count += 1
-            
-            return received_count == len(logs)
-            
-        except Exception as e:
-            print(f"Error receiving batch logs: {str(e)}")
-            return False
-    
-    def _write_log(self, log_data):
-        """Write log to file"""
-        try:
-            with open(self.honeypot_log, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-        except Exception as e:
-            print(f"Error writing log: {str(e)}")
-    
-    def _process_log(self, log_data):
-        """Process log for analysis"""
-        try:
-            # Extract key information
-            log_type = log_data.get('type', 'unknown')
-            src_ip = log_data.get('ip', 'unknown')
-            timestamp = log_data.get('timestamp', datetime.now().isoformat())
-            
-            # Log processing
-            print(f"Processed {log_type} log from {src_ip} at {timestamp}")
-            
-            # Additional processing based on log type
-            if 'sql_injection' in log_type:
-                self._process_sql_injection(log_data)
-            elif 'file_upload' in log_type:
-                self._process_file_upload(log_data)
-            elif 'command_injection' in log_type:
-                self._process_command_injection(log_data)
-            elif 'authentication_attempt' in log_type:
-                self._process_auth_attempt(log_data)
+            log_data = log_queue.get(timeout=1)
+            if log_data:
+                # Update statistics
+                stats['total_logs_received'] += 1
+                stats['last_received'] = datetime.now().isoformat()
                 
+                log_type = log_data.get('type', 'unknown')
+                if log_type == 'attack':
+                    stats['attack_logs'] += 1
+                    attack_logs.append(log_data)
+                elif log_type == 'honeypot':
+                    stats['honeypot_logs'] += 1
+                    honeypot_logs.append(log_data)
+                else:
+                    stats['error_logs'] += 1
+                
+                # Store in recent logs
+                recent_logs.append(log_data)
+                
+                # Log to database
+                log_to_database(log_data)
+                
+                # Update attack patterns
+                update_attack_patterns(log_data)
+                
+                log_queue.task_done()
+        except queue.Empty:
+            continue
         except Exception as e:
-            print(f"Error processing log: {str(e)}")
-    
-    def _process_sql_injection(self, log_data):
-        """Process SQL injection attempt"""
-        query = log_data.get('query', '')
-        username = log_data.get('username', '')
-        
-        print(f"SQL Injection detected: {username} -> {query[:100]}...")
-        
-        # Log to separate SQL injection log
-        sql_log = os.path.join(self.log_dir, "analysis", "sql_injection.log")
-        with open(sql_log, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-    
-    def _process_file_upload(self, log_data):
-        """Process file upload attempt"""
-        filename = log_data.get('filename', '')
-        filepath = log_data.get('filepath', '')
-        
-        print(f"File upload detected: {filename} -> {filepath}")
-        
-        # Log to separate file upload log
-        upload_log = os.path.join(self.log_dir, "analysis", "file_uploads.log")
-        with open(upload_log, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-    
-    def _process_command_injection(self, log_data):
-        """Process command injection attempt"""
-        command = log_data.get('command', '')
-        
-        print(f"Command injection detected: {command}")
-        
-        # Log to separate command injection log
-        cmd_log = os.path.join(self.log_dir, "analysis", "command_injection.log")
-        with open(cmd_log, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-    
-    def _process_auth_attempt(self, log_data):
-        """Process authentication attempt"""
-        username = log_data.get('username', '')
-        success = log_data.get('success', False)
-        
-        print(f"Auth attempt: {username} -> {'Success' if success else 'Failed'}")
-        
-        # Log to separate auth log
-        auth_log = os.path.join(self.log_dir, "analysis", "auth_attempts.log")
-        with open(auth_log, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-    
-    def get_stats(self):
-        """Get receiver statistics"""
-        self.stats['uptime'] = (datetime.now() - datetime.fromisoformat(self.stats['start_time'])).total_seconds()
-        return self.stats
-    
-    def get_recent_logs(self, limit=100):
-        """Get recent logs"""
-        try:
-            logs = []
-            if os.path.exists(self.honeypot_log):
-                with open(self.honeypot_log, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    for line in lines[-limit:]:
-                        try:
-                            logs.append(json.loads(line.strip()))
-                        except json.JSONDecodeError:
-                            continue
-            return logs
-        except Exception as e:
-            print(f"Error reading logs: {str(e)}")
-            return []
+            logging.error(f"Error processing log: {e}")
 
-# Global receiver instance
-receiver = LogReceiver()
+def update_attack_patterns(log_data):
+    """Update attack pattern statistics"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        # Extract attack pattern from payload
+        payload = log_data.get('payload', '')
+        if payload:
+            # Simple pattern extraction (can be enhanced)
+            pattern = payload[:50]  # First 50 characters as pattern
+            
+            cursor.execute('''
+                SELECT id, count FROM attack_patterns WHERE pattern = ?
+            ''', (pattern,))
+            
+            result = cursor.fetchone()
+            if result:
+                # Update existing pattern
+                cursor.execute('''
+                    UPDATE attack_patterns 
+                    SET count = count + 1, last_seen = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (result[0],))
+            else:
+                # Insert new pattern
+                cursor.execute('''
+                    INSERT INTO attack_patterns (pattern, count)
+                    VALUES (?, 1)
+                ''', (pattern,))
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Error updating attack patterns: {e}")
 
-@app.route('/api/health', methods=['GET'])
-def health_check():
+# API Routes
+@app.route('/')
+def index():
+    """Main dashboard page"""
+    return render_template('index.html')
+
+@app.route('/api/health')
+def health():
     """Health check endpoint"""
+    stats['uptime'] = (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
-        'stats': receiver.get_stats()
+        'stats': stats
     })
 
-@app.route('/api/logs', methods=['POST'])
-def receive_log():
-    """Receive single log from honeypot"""
-    try:
-        log_data = request.get_json()
-        
-        if not log_data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        success = receiver.receive_log(log_data)
-        
-        if success:
-            return jsonify({'status': 'success', 'message': 'Log received'})
-        else:
-            return jsonify({'error': 'Failed to process log'}), 500
-            
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/logs/batch', methods=['POST'])
-def receive_batch_logs():
-    """Receive multiple logs from honeypot"""
-    try:
-        batch_data = request.get_json()
-        
-        if not batch_data or 'logs' not in batch_data:
-            return jsonify({'error': 'No batch data provided'}), 400
-        
-        success = receiver.receive_batch_logs(batch_data)
-        
-        if success:
-            return jsonify({'status': 'success', 'message': 'Batch logs received'})
-        else:
-            return jsonify({'error': 'Failed to process batch logs'}), 500
-            
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    """Get receiver statistics"""
-    return jsonify(receiver.get_stats())
-
-@app.route('/api/logs/recent', methods=['GET'])
-def get_recent_logs():
+@app.route('/api/logs')
+def get_logs():
     """Get recent logs"""
     limit = request.args.get('limit', 100, type=int)
-    logs = receiver.get_recent_logs(limit)
-    return jsonify(logs)
+    log_type = request.args.get('type', 'all')
+    
+    logs = []
+    if log_type == 'attack':
+        logs = list(attack_logs)[-limit:]
+    elif log_type == 'honeypot':
+        logs = list(honeypot_logs)[-limit:]
+    else:
+        logs = list(recent_logs)[-limit:]
+    
+    return jsonify({
+        'logs': logs,
+        'total': len(logs),
+        'timestamp': datetime.now().isoformat()
+    })
 
-@app.route('/api/attacks', methods=['GET'])
-def get_attacks():
-    """Get attack logs"""
+@app.route('/api/stats')
+def get_stats():
+    """Get statistics"""
+    stats['uptime'] = (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()
+    return jsonify({
+        'stats': stats,
+        'timestamp': datetime.now().isoformat()
+    })
+
+@app.route('/api/attack-patterns')
+def get_attack_patterns():
+    """Get attack patterns from database"""
     try:
-        attack_log = os.path.join(receiver.log_dir, "analysis", "attack_analysis.log")
-        attacks = []
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
         
-        if os.path.exists(attack_log):
-            with open(attack_log, 'r', encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        attacks.append(json.loads(line.strip()))
-                    except json.JSONDecodeError:
-                        continue
+        cursor.execute('''
+            SELECT pattern, count, first_seen, last_seen
+            FROM attack_patterns
+            ORDER BY count DESC
+            LIMIT 50
+        ''')
         
-        return jsonify(attacks)
+        patterns = []
+        for row in cursor.fetchall():
+            patterns.append({
+                'pattern': row[0],
+                'count': row[1],
+                'first_seen': row[2],
+                'last_seen': row[3]
+            })
         
+        conn.close()
+        return jsonify({
+            'patterns': patterns,
+            'timestamp': datetime.now().isoformat()
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/logs/search')
+def search_logs():
+    """Search logs by criteria"""
+    query = request.args.get('q', '')
+    log_type = request.args.get('type', 'all')
+    limit = request.args.get('limit', 100, type=int)
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        sql = '''
+            SELECT timestamp, log_type, source_ip, target_ip, port, protocol, payload
+            FROM logs
+            WHERE 1=1
+        '''
+        params = []
+        
+        if query:
+            sql += ' AND (payload LIKE ? OR source_ip LIKE ? OR target_ip LIKE ?)'
+            params.extend([f'%{query}%', f'%{query}%', f'%{query}%'])
+        
+        if log_type != 'all':
+            sql += ' AND log_type = ?'
+            params.append(log_type)
+        
+        sql += ' ORDER BY timestamp DESC LIMIT ?'
+        params.append(limit)
+        
+        cursor.execute(sql, params)
+        
+        logs = []
+        for row in cursor.fetchall():
+            logs.append({
+                'timestamp': row[0],
+                'type': row[1],
+                'src_ip': row[2],
+                'dst_ip': row[3],
+                'port': row[4],
+                'protocol': row[5],
+                'payload': row[6]
+            })
+        
+        conn.close()
+        return jsonify({
+            'logs': logs,
+            'total': len(logs),
+            'query': query,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/logs/export')
+def export_logs():
+    """Export logs to JSON"""
+    log_type = request.args.get('type', 'all')
+    limit = request.args.get('limit', 1000, type=int)
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        sql = 'SELECT * FROM logs'
+        params = []
+        
+        if log_type != 'all':
+            sql += ' WHERE log_type = ?'
+            params.append(log_type)
+        
+        sql += ' ORDER BY timestamp DESC LIMIT ?'
+        params.append(limit)
+        
+        cursor.execute(sql, params)
+        
+        logs = []
+        for row in cursor.fetchall():
+            logs.append({
+                'id': row[0],
+                'timestamp': row[1],
+                'log_type': row[2],
+                'source_ip': row[3],
+                'target_ip': row[4],
+                'port': row[5],
+                'protocol': row[6],
+                'payload': row[7],
+                'raw_data': json.loads(row[8]) if row[8] else None,
+                'created_at': row[9]
+            })
+        
+        conn.close()
+        return jsonify({
+            'logs': logs,
+            'total': len(logs),
+            'exported_at': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Log receiving endpoints
+@app.route('/api/logs/receive', methods=['POST'])
+def receive_log():
+    """Receive log from honeypot server"""
+    try:
+        log_data = request.get_json()
+        if not log_data:
+            return jsonify({'error': 'No data received'}), 400
+        
+        # Add timestamp if not present
+        if 'timestamp' not in log_data:
+            log_data['timestamp'] = datetime.now().isoformat()
+        
+        # Add to queue for processing
+        log_queue.put(log_data)
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Log received',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/logs/bulk', methods=['POST'])
+def receive_bulk_logs():
+    """Receive multiple logs from honeypot server"""
+    try:
+        data = request.get_json()
+        logs = data.get('logs', [])
+        
+        if not logs:
+            return jsonify({'error': 'No logs received'}), 400
+        
+        # Process each log
+        for log_data in logs:
+            if 'timestamp' not in log_data:
+                log_data['timestamp'] = datetime.now().isoformat()
+            log_queue.put(log_data)
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'{len(logs)} logs received',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Static files
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    """Serve static files"""
+    return send_from_directory('static', filename)
+
 if __name__ == '__main__':
+    # Initialize database
+    init_database()
+    
+    # Start log processing thread
+    log_thread = threading.Thread(target=process_log_queue)
+    log_thread.daemon = True
+    log_thread.start()
+    
+    # Setup logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('logs/receiver.log'),
+            logging.StreamHandler()
+        ]
+    )
+    
     print("Starting Log Receiver...")
     app.run(host='0.0.0.0', port=8080, debug=True)

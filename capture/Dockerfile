@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     iputils-ping \
     netcat-openbsd \
+    libpcap-dev \
+    python3-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
@@ -18,6 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY capture.py .
 COPY receiver.py .
 COPY analyzer.py .
+
+# Copy templates and static files
+COPY templates/ ./templates/
+COPY static/ ./static/
 
 # Create directories
 RUN mkdir -p /app/logs/packets /app/logs/analysis /app/logs/honeypot /app/logs/reports
