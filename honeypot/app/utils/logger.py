@@ -6,6 +6,7 @@ Logs all requests and attack attempts
 
 import json
 import os
+import requests
 from datetime import datetime
 from flask import request
 
@@ -32,6 +33,9 @@ class HoneypotLogger:
             attack_tool = self._detect_attack_tool(user_agent)
             attack_technique = self._detect_attack_technique(request)
             
+            # Get GeoIP information
+            geoip_info = self._get_geoip_info(real_ip)
+            
             log_entry = {
                 'timestamp': datetime.now().isoformat(),
                 'method': request.method,
@@ -43,6 +47,7 @@ class HoneypotLogger:
                 'user_agent': user_agent,
                 'attack_tool': attack_tool,
                 'attack_technique': attack_technique,
+                'geoip': geoip_info,
                 'referer': request.headers.get('Referer', ''),
                 'content_type': request.headers.get('Content-Type', ''),
                 'content_length': request.headers.get('Content-Length', ''),
@@ -225,3 +230,38 @@ class HoneypotLogger:
         """Determine if request is potentially malicious"""
         techniques = self._detect_attack_technique(request)
         return any(tech != 'normal_browsing' for tech in techniques)
+    
+    def _get_geoip_info(self, ip):
+        """Get GeoIP information for an IP address"""
+        try:
+            # Skip private IPs
+            if ip.startswith('127.') or ip.startswith('192.168.') or ip.startswith('10.') or ip.startswith('172.'):
+                return {
+                    'country': 'Private Network',
+                    'city': 'Local',
+                    'isp': 'Private',
+                    'org': 'Private Network'
+                }
+            
+            # Use ip-api.com (free, no API key required)
+            response = requests.get(f'http://ip-api.com/json/{ip}', timeout=3)
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'country': data.get('country', 'Unknown'),
+                    'city': data.get('city', 'Unknown'),
+                    'isp': data.get('isp', 'Unknown'),
+                    'org': data.get('org', 'Unknown'),
+                    'lat': data.get('lat', 0),
+                    'lon': data.get('lon', 0),
+                    'timezone': data.get('timezone', 'Unknown')
+                }
+        except Exception as e:
+            print(f"Error getting GeoIP for {ip}: {str(e)}")
+        
+        return {
+            'country': 'Unknown',
+            'city': 'Unknown',
+            'isp': 'Unknown',
+            'org': 'Unknown'
+        }

@@ -34,6 +34,8 @@ class LogSender:
                 log_data['attack_tool'] = 'unknown'
             if 'attack_technique' not in log_data:
                 log_data['attack_technique'] = ['unknown']
+            if 'geoip' not in log_data:
+                log_data['geoip'] = {'country': 'Unknown', 'city': 'Unknown'}
             
             # Send with retry logic
             for attempt in range(self.retry_attempts):

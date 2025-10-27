@@ -54,7 +54,24 @@ def allowed_file(filename):
 @app.before_request
 def log_request():
     """Log every request before processing"""
-    logger.log_request(request)
+    try:
+        logger.log_request(request)
+        # Also send to capture server immediately
+        sender.send_log({
+            'type': 'request',
+            'method': request.method,
+            'url': request.url,
+            'path': request.path,
+            'ip': request.headers.get('X-Real-IP', request.remote_addr),
+            'user_agent': request.headers.get('User-Agent', ''),
+            'timestamp': datetime.now().isoformat(),
+            'headers': dict(request.headers),
+            'args': dict(request.args),
+            'form_data': dict(request.form) if request.form else {},
+            'files': list(request.files.keys()) if request.files else []
+        })
+    except Exception as e:
+        print(f"Error logging request: {str(e)}")
 
 @app.route('/')
 def index():
