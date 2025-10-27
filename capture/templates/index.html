@@ -647,7 +647,7 @@
                     <div class="log-entry ${logType}">
                         <div class="log-header">
                             <span class="log-type ${logType}">${logType.toUpperCase()}</span>
-                            <span class="log-timestamp">${formatTimestamp(log.timestamp)}</span>
+                            <span class="log-timestamp">${formatTimestamp(log.timestamp_vn || log.timestamp)}</span>
                         </div>
                         <div class="log-details">
                             <strong>From:</strong> <span class="log-ip">${sourceInfo}</span> 
@@ -761,10 +761,13 @@
             const toolSignatures = {};
             
             logs.forEach(log => {
-                if (log.log_category === 'attack' || log.type === 'suspicious' || log.type === 'attack') {
+                // Check for attack logs from Kafka
+                if (log.log_category === 'attack' || log.type === 'suspicious' || log.type === 'attack' || log.kafka_topic === 'honeypot-attacks') {
                     const tool = log.attack_tool || 'Unknown';
                     const technique = Array.isArray(log.attack_technique) ? log.attack_technique.join(', ') : log.attack_technique || 'Unknown';
-                    const source = log.ip || 'Unknown';
+                    const source = log.ip || log.src_ip || 'Unknown';
+                    const location = log.geoip ? `${log.geoip.country}, ${log.geoip.city}` : 'Unknown Location';
+                    const osInfo = log.os_info ? `${log.os_info.os} ${log.os_info.version}` : 'Unknown OS';
                     
                     // Count attacks per tool
                     toolCounts[tool] = (toolCounts[tool] || 0) + 1;
@@ -792,8 +795,11 @@
                         count: toolCounts[tool],
                         technique: Array.from(toolTechniques[tool]).join(', '),
                         sources: Array.from(toolSources[tool]).slice(0, 5), // Limit to 5 sources
-                        last_seen: new Date().toISOString(),
-                        signature: toolSignatures[tool]
+                        last_seen: log.timestamp_vn || log.timestamp || new Date().toISOString(),
+                        signature: toolSignatures[tool],
+                        location: location,
+                        osInfo: osInfo,
+                        kafka_topic: log.kafka_topic || 'unknown'
                     });
                 }
             });

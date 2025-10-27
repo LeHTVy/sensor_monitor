@@ -75,9 +75,12 @@ class HoneypotLogger:
             
             with open(self.request_log, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            
+            return log_entry
                 
         except Exception as e:
             self.log_error(f"Error logging request: {str(e)}")
+            return {}
     
     def log_attack(self, attack_data):
         """Log attack attempt with detailed information"""

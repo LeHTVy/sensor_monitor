@@ -4,11 +4,11 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
     container_name: zookeeper
-    ports:
-      - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
     networks:
       - kafka-network
 
@@ -19,11 +19,17 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
+      - "9101:9101"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://172.232.246.68:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://172.232.246.68:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
     networks:
       - kafka-network
 
@@ -33,33 +39,10 @@ services:
     depends_on:
       - kafka
     ports:
-      - "8081:8080"  # Different port from capture
-    environment:
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
-    networks:
-      - kafka-network
-
-  capture-server:
-    build: .
-    container_name: capture-server
-    ports:
       - "8080:8080"
-    volumes:
-      - ./logs:/app/logs
-      - ./templates:/app/templates
-      - ./static:/app/static
     environment:
-      - TARGET_IP=172.232.246.68
-      - LOG_DIR=/app/logs
-      - KAFKA_BOOTSTRAP_SERVERS=172.232.246.68:9092
-    restart: unless-stopped
-    # Required for packet capture
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    # Run in privileged mode for packet capture
-    privileged: true
-    # Use bridge network for web interface
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     networks:
       - kafka-network
 

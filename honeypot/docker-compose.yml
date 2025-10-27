@@ -12,6 +12,7 @@ services:
     environment:
       - FLASK_ENV=production
       - CAPTURE_SERVER_URL=http://172.232.246.68:8080
+      - KAFKA_BOOTSTRAP_SERVERS=172.232.246.68:9092
     env_file:
       - .env
     restart: unless-stopped

@@ -14,13 +14,15 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from werkzeug.utils import secure_filename
 from utils.logger import HoneypotLogger
 from utils.sender import LogSender
+from utils.kafka_producer import HoneypotKafkaProducer
 
 app = Flask(__name__)
 app.secret_key = 'honeypot_secret_key_12345'
 
-# Initialize logging and sender
+# Initialize logging, sender and Kafka producer
 logger = HoneypotLogger()
 sender = LogSender()
+kafka_producer = HoneypotKafkaProducer()
 
 # Configuration
 UPLOAD_FOLDER = '/app/uploads'
@@ -55,9 +57,11 @@ def allowed_file(filename):
 def log_request():
     """Log every request before processing"""
     try:
-        logger.log_request(request)
-        # Also send to capture server immediately
-        sender.send_log({
+        # Get detailed log data from logger
+        log_entry = logger.log_request(request)
+        
+        # Prepare log data for Kafka
+        log_data = {
             'type': 'request',
             'method': request.method,
             'url': request.url,
@@ -68,10 +72,37 @@ def log_request():
             'headers': dict(request.headers),
             'args': dict(request.args),
             'form_data': dict(request.form) if request.form else {},
-            'files': list(request.files.keys()) if request.files else []
-        })
+            'files': list(request.files.keys()) if request.files else [],
+            'attack_tool': log_entry.get('attack_tool', 'unknown'),
+            'attack_technique': log_entry.get('attack_technique', []),
+            'geoip': log_entry.get('geoip', {}),
+            'os_info': log_entry.get('os_info', {}),
+            'log_category': log_entry.get('log_category', 'unknown')
+        }
+        
+        # Send to Kafka based on log category
+        if log_entry.get('log_category') == 'attack':
+            kafka_producer.send_attack_log(log_data)
+        elif log_entry.get('log_category') == 'honeypot':
+            kafka_producer.send_browser_log(log_data)
+        else:
+            kafka_producer.send_error_log(log_data)
+        
+        # Also send to capture server for backward compatibility
+        sender.send_log(log_data)
+        
     except Exception as e:
         print(f"Error logging request: {str(e)}")
+        # Send error to Kafka
+        try:
+            kafka_producer.send_error_log({
+                'type': 'error',
+                'error': str(e),
+                'timestamp': datetime.now().isoformat(),
+                'ip': request.headers.get('X-Real-IP', request.remote_addr) if 'request' in locals() else 'unknown'
+            })
+        except:
+            pass
 
 @app.route('/')
 def index():

@@ -15,11 +15,14 @@ import time
 import logging
 from collections import defaultdict, deque
 import hashlib
+from kafka_consumer import CaptureKafkaConsumer
 
 app = Flask(__name__)
 
 # Global variables for logging and statistics
 log_queue = queue.Queue()
+kafka_consumer = CaptureKafkaConsumer()
+
 stats = {
     'total_logs_received': 0,
     'attack_logs': 0,
@@ -189,17 +192,19 @@ def health():
 
 @app.route('/api/logs')
 def get_logs():
-    """Get recent logs"""
+    """Get recent logs from Kafka consumer"""
     limit = request.args.get('limit', 100, type=int)
     log_type = request.args.get('type', 'all')
     
     logs = []
     if log_type == 'attack':
-        logs = list(attack_logs)[-limit:]
+        logs = kafka_consumer.get_attack_logs(limit)
     elif log_type == 'honeypot':
-        logs = list(honeypot_logs)[-limit:]
+        logs = kafka_consumer.get_browser_logs(limit)
+    elif log_type == 'error':
+        logs = kafka_consumer.get_error_logs(limit)
     else:
-        logs = list(recent_logs)[-limit:]
+        logs = kafka_consumer.get_all_logs(limit)
     
     return jsonify({
         'logs': logs,
@@ -420,4 +425,10 @@ if __name__ == '__main__':
     )
     
     print("Starting Log Receiver...")
+    
+    # Start Kafka consumer in background thread
+    kafka_thread = threading.Thread(target=kafka_consumer.start_consuming, daemon=True)
+    kafka_thread.start()
+    print("✅ Kafka consumer started")
+    
     app.run(host='0.0.0.0', port=8080, debug=True)
