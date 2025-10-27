@@ -19,6 +19,10 @@ class HoneypotLogger:
         self.request_log = os.path.join(log_dir, 'requests.log')
         self.attack_log = os.path.join(log_dir, 'attacks.log')
         self.error_log = os.path.join(log_dir, 'errors.log')
+        
+        # Attack rate monitoring
+        self.attack_counts = {}  # IP -> count
+        self.last_reset = datetime.now()
     
     def log_request(self, request):
         """Log detailed request information"""
@@ -36,6 +40,15 @@ class HoneypotLogger:
             # Get GeoIP information
             geoip_info = self._get_geoip_info(real_ip)
             
+            # Detect OS from User-Agent
+            os_info = self._detect_os(user_agent)
+            
+            # Determine log category
+            log_category = self._categorize_log(attack_tool, attack_technique)
+            
+            # Monitor attack rate
+            self._monitor_attack_rate(real_ip, log_category)
+            
             log_entry = {
                 'timestamp': datetime.now().isoformat(),
                 'method': request.method,
@@ -48,6 +61,8 @@ class HoneypotLogger:
                 'attack_tool': attack_tool,
                 'attack_technique': attack_technique,
                 'geoip': geoip_info,
+                'os_info': os_info,
+                'log_category': log_category,
                 'referer': request.headers.get('Referer', ''),
                 'content_type': request.headers.get('Content-Type', ''),
                 'content_length': request.headers.get('Content-Length', ''),
@@ -243,7 +258,29 @@ class HoneypotLogger:
                     'org': 'Private Network'
                 }
             
-            # Use ip-api.com (free, no API key required)
+            # Try premium GeoIP service first (if API key provided)
+            api_key = os.getenv('GEOIP_API_KEY', '')
+            if api_key:
+                try:
+                    # Using ipapi.co (premium service)
+                    response = requests.get(f'https://ipapi.co/{ip}/json/?key={api_key}', timeout=3)
+                    if response.status_code == 200:
+                        data = response.json()
+                        return {
+                            'country': data.get('country_name', 'Unknown'),
+                            'city': data.get('city', 'Unknown'),
+                            'isp': data.get('org', 'Unknown'),
+                            'org': data.get('org', 'Unknown'),
+                            'lat': data.get('latitude', 0),
+                            'lon': data.get('longitude', 0),
+                            'timezone': data.get('timezone', 'Unknown'),
+                            'region': data.get('region', 'Unknown'),
+                            'postal': data.get('postal', 'Unknown')
+                        }
+                except Exception as e:
+                    print(f"Premium GeoIP error for {ip}: {str(e)}")
+            
+            # Fallback to free ip-api.com
             response = requests.get(f'http://ip-api.com/json/{ip}', timeout=3)
             if response.status_code == 200:
                 data = response.json()
@@ -254,7 +291,9 @@ class HoneypotLogger:
                     'org': data.get('org', 'Unknown'),
                     'lat': data.get('lat', 0),
                     'lon': data.get('lon', 0),
-                    'timezone': data.get('timezone', 'Unknown')
+                    'timezone': data.get('timezone', 'Unknown'),
+                    'region': data.get('regionName', 'Unknown'),
+                    'postal': data.get('zip', 'Unknown')
                 }
         except Exception as e:
             print(f"Error getting GeoIP for {ip}: {str(e)}")
@@ -265,3 +304,100 @@ class HoneypotLogger:
             'isp': 'Unknown',
             'org': 'Unknown'
         }
+    
+    def _detect_os(self, user_agent):
+        """Detect operating system from User-Agent"""
+        user_agent_lower = user_agent.lower()
+        
+        # Windows detection
+        if 'windows nt 10.0' in user_agent_lower:
+            return {'os': 'Windows', 'version': '10', 'architecture': 'x64'}
+        elif 'windows nt 6.3' in user_agent_lower:
+            return {'os': 'Windows', 'version': '8.1', 'architecture': 'x64'}
+        elif 'windows nt 6.2' in user_agent_lower:
+            return {'os': 'Windows', 'version': '8', 'architecture': 'x64'}
+        elif 'windows nt 6.1' in user_agent_lower:
+            return {'os': 'Windows', 'version': '7', 'architecture': 'x64'}
+        elif 'windows nt 6.0' in user_agent_lower:
+            return {'os': 'Windows', 'version': 'Vista', 'architecture': 'x64'}
+        elif 'windows nt 5.1' in user_agent_lower:
+            return {'os': 'Windows', 'version': 'XP', 'architecture': 'x86'}
+        elif 'windows' in user_agent_lower:
+            return {'os': 'Windows', 'version': 'Unknown', 'architecture': 'Unknown'}
+        
+        # macOS detection
+        elif 'mac os x' in user_agent_lower:
+            if 'mac os x 10_15' in user_agent_lower:
+                return {'os': 'macOS', 'version': 'Catalina', 'architecture': 'x64'}
+            elif 'mac os x 10_14' in user_agent_lower:
+                return {'os': 'macOS', 'version': 'Mojave', 'architecture': 'x64'}
+            elif 'mac os x 10_13' in user_agent_lower:
+                return {'os': 'macOS', 'version': 'High Sierra', 'architecture': 'x64'}
+            elif 'mac os x 10_12' in user_agent_lower:
+                return {'os': 'macOS', 'version': 'Sierra', 'architecture': 'x64'}
+            else:
+                return {'os': 'macOS', 'version': 'Unknown', 'architecture': 'x64'}
+        
+        # Linux detection
+        elif 'linux' in user_agent_lower:
+            if 'ubuntu' in user_agent_lower:
+                return {'os': 'Linux', 'version': 'Ubuntu', 'architecture': 'x64'}
+            elif 'centos' in user_agent_lower:
+                return {'os': 'Linux', 'version': 'CentOS', 'architecture': 'x64'}
+            elif 'debian' in user_agent_lower:
+                return {'os': 'Linux', 'version': 'Debian', 'architecture': 'x64'}
+            elif 'fedora' in user_agent_lower:
+                return {'os': 'Linux', 'version': 'Fedora', 'architecture': 'x64'}
+            else:
+                return {'os': 'Linux', 'version': 'Unknown', 'architecture': 'x64'}
+        
+        # Android detection
+        elif 'android' in user_agent_lower:
+            return {'os': 'Android', 'version': 'Unknown', 'architecture': 'ARM'}
+        
+        # iOS detection
+        elif 'iphone' in user_agent_lower or 'ipad' in user_agent_lower:
+            return {'os': 'iOS', 'version': 'Unknown', 'architecture': 'ARM'}
+        
+        # Unknown OS
+        else:
+            return {'os': 'Unknown', 'version': 'Unknown', 'architecture': 'Unknown'}
+    
+    def _categorize_log(self, attack_tool, attack_technique):
+        """Categorize log based on tool and technique"""
+        # Honeypot logs: browser traffic
+        if attack_tool == 'browser':
+            return 'honeypot'
+        
+        # Attack logs: security tools
+        attack_tools = ['nmap', 'sqlmap', 'nikto', 'dirb', 'gobuster', 'burp', 'zap', 'w3af', 
+                       'metasploit', 'curl', 'wget', 'python', 'perl', 'ruby', 'php', 'java',
+                       'scanner', 'bot', 'automated', 'telnet', 'netcat', 'malformed', 'suspicious']
+        
+        if attack_tool in attack_tools:
+            return 'attack'
+        
+        # Error logs: system errors, rate limiting
+        if attack_tool == 'unknown' or not attack_tool:
+            return 'error'
+        
+        return 'unknown'
+    
+    def _monitor_attack_rate(self, ip, category):
+        """Monitor attack rate and generate alerts"""
+        current_time = datetime.now()
+        
+        # Reset counters every hour
+        if (current_time - self.last_reset).seconds > 3600:
+            self.attack_counts.clear()
+            self.last_reset = current_time
+        
+        # Count attacks per IP
+        if category == 'attack':
+            self.attack_counts[ip] = self.attack_counts.get(ip, 0) + 1
+            
+            # Generate alert if too many attacks
+            if self.attack_counts[ip] > 50:  # More than 50 attacks per hour
+                self.log_error(f"HIGH ATTACK RATE ALERT: IP {ip} has {self.attack_counts[ip]} attacks in the last hour")
+            elif self.attack_counts[ip] > 20:  # More than 20 attacks per hour
+                self.log_error(f"MODERATE ATTACK RATE: IP {ip} has {self.attack_counts[ip]} attacks in the last hour")
