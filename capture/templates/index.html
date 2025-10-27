@@ -516,6 +516,22 @@
                         statusIndicator.className = 'status-indicator error';
                         statusText.textContent = 'Disconnected';
                     }
+                    
+                    // Update Kafka status
+                    if (data.kafka_stats) {
+                        console.log('📊 Kafka Stats:', data.kafka_stats);
+                        
+                        // Update Kafka status in console
+                        if (data.kafka_stats.consumer_connected && data.kafka_stats.consumer_running) {
+                            console.log('✅ Kafka Consumer: Connected & Running');
+                        } else {
+                            console.log('❌ Kafka Consumer: Disconnected or Not Running');
+                        }
+                        
+                        // Update log counts from Kafka
+                        const totalKafkaLogs = data.kafka_stats.browser_logs + data.kafka_stats.attack_logs + data.kafka_stats.error_logs;
+                        console.log(`📈 Kafka Logs: Browser=${data.kafka_stats.browser_logs}, Attack=${data.kafka_stats.attack_logs}, Error=${data.kafka_stats.error_logs}, Total=${totalKafkaLogs}`);
+                    }
                 })
                 .catch(error => {
                     console.error('Error fetching stats:', error);
@@ -528,14 +544,23 @@
         function loadLogs() {
             const url = currentFilter === 'all' ? '/api/logs' : `/api/logs?type=${currentFilter}`;
             
+            console.log(`🔄 Loading logs from: ${url}`);
+            
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     logs = data.logs || [];
+                    console.log(`📊 Loaded ${logs.length} logs from Kafka`);
+                    
+                    // Debug: Log first few entries
+                    if (logs.length > 0) {
+                        console.log('📝 Sample log:', logs[0]);
+                    }
+                    
                     displayLogs();
                 })
                 .catch(error => {
-                    console.error('Error fetching logs:', error);
+                    console.error('❌ Error fetching logs:', error);
                     document.getElementById('logsContainer').innerHTML = '<div class="no-logs">Error loading logs</div>';
                 });
         }

@@ -196,19 +196,32 @@ def get_logs():
     limit = request.args.get('limit', 100, type=int)
     log_type = request.args.get('type', 'all')
     
+    print(f"🔄 API /api/logs called with type={log_type}, limit={limit}")
+    
     logs = []
     if log_type == 'attack':
         logs = kafka_consumer.get_attack_logs(limit)
+        print(f"⚔️ Retrieved {len(logs)} attack logs from Kafka")
     elif log_type == 'honeypot':
         logs = kafka_consumer.get_browser_logs(limit)
+        print(f"🌐 Retrieved {len(logs)} browser logs from Kafka")
     elif log_type == 'error':
         logs = kafka_consumer.get_error_logs(limit)
+        print(f"❌ Retrieved {len(logs)} error logs from Kafka")
     else:
         logs = kafka_consumer.get_all_logs(limit)
+        print(f"📊 Retrieved {len(logs)} total logs from Kafka")
+    
+    # Debug: Print sample log if available
+    if logs:
+        print(f"📝 Sample log: {logs[0]}")
     
     return jsonify({
         'logs': logs,
         'total': len(logs),
+        'type': log_type,
+        'limit': limit,
+        'kafka_status': 'connected' if kafka_consumer.consumer else 'disconnected',
         'timestamp': datetime.now().isoformat()
     })
 
@@ -216,8 +229,21 @@ def get_logs():
 def get_stats():
     """Get statistics"""
     stats['uptime'] = (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()
+    
+    # Get Kafka consumer stats
+    kafka_stats = {
+        'browser_logs': len(kafka_consumer.browser_logs),
+        'attack_logs': len(kafka_consumer.attack_logs),
+        'error_logs': len(kafka_consumer.error_logs),
+        'consumer_running': kafka_consumer.running,
+        'consumer_connected': kafka_consumer.consumer is not None
+    }
+    
+    print(f"📊 Stats API called - Kafka: {kafka_stats}")
+    
     return jsonify({
         'stats': stats,
+        'kafka_stats': kafka_stats,
         'timestamp': datetime.now().isoformat()
     })
 
