@@ -38,6 +38,13 @@ class HoneypotLogger:
             attack_tool = attack_tool_info['tool'] if isinstance(attack_tool_info, dict) else attack_tool_info
             attack_technique = self._detect_attack_technique(request)
             
+            # Debug logging
+            print(f"🔍 Detection Debug for {real_ip}:")
+            print(f"   User-Agent: {user_agent}")
+            print(f"   Attack Tool Info: {attack_tool_info}")
+            print(f"   Attack Tool: {attack_tool}")
+            print(f"   Attack Technique: {attack_technique}")
+            
             # Get GeoIP information
             geoip_info = self._get_geoip_info(real_ip)
             
@@ -46,6 +53,7 @@ class HoneypotLogger:
             
             # Determine log category
             log_category = self._categorize_log(attack_tool, attack_technique)
+            print(f"   Log Category: {log_category}")
             
             # Monitor attack rate
             self._monitor_attack_rate(real_ip, log_category)
@@ -463,7 +471,8 @@ class HoneypotLogger:
         # Attack logs: security tools
         attack_tools = ['nmap', 'sqlmap', 'nikto', 'dirb', 'gobuster', 'burp', 'zap', 'w3af', 
                        'metasploit', 'curl', 'wget', 'python', 'perl', 'ruby', 'php', 'java',
-                       'scanner', 'bot', 'automated', 'telnet', 'netcat', 'malformed', 'suspicious']
+                       'scanner', 'bot', 'automated', 'telnet', 'netcat', 'malformed', 'suspicious',
+                       'web_scanner', 'minimal_client', 'unusual_method', 'parameter_attack']
         
         if attack_tool in attack_tools:
             return 'attack'

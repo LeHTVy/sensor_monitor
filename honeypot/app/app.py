@@ -80,16 +80,23 @@ def log_request():
             'log_category': log_entry.get('log_category', 'unknown')
         }
         
-        # Send to Kafka based on log category
-        if log_entry.get('log_category') == 'attack':
-            kafka_producer.send_attack_log(log_data)
-        elif log_entry.get('log_category') == 'honeypot':
-            kafka_producer.send_browser_log(log_data)
-        else:
-            kafka_producer.send_error_log(log_data)
+        # Send to Kafka based on log category (with error handling)
+        try:
+            if log_entry.get('log_category') == 'attack':
+                kafka_producer.send_attack_log(log_data)
+                print(f"✅ Sent attack log to Kafka: {log_entry.get('attack_tool', 'unknown')}")
+            elif log_entry.get('log_category') == 'honeypot':
+                kafka_producer.send_browser_log(log_data)
+                print(f"✅ Sent browser log to Kafka: {log_entry.get('attack_tool', 'browser')}")
+            else:
+                kafka_producer.send_error_log(log_data)
+                print(f"✅ Sent error log to Kafka: {log_entry.get('log_category', 'unknown')}")
+        except Exception as kafka_error:
+            print(f"❌ Kafka error: {str(kafka_error)}")
         
-        # Also send to capture server for backward compatibility
+        # Always send to capture server for backward compatibility
         sender.send_log(log_data)
+        print(f"✅ Sent log to capture server: {log_entry.get('log_category', 'unknown')}")
         
     except Exception as e:
         print(f"Error logging request: {str(e)}")
