@@ -60,7 +60,7 @@ services:
     environment:
       - TARGET_IP=172.232.246.68
       - LOG_DIR=/app/logs
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=172.232.246.68:9093
     restart: unless-stopped
     # Required for packet capture
     cap_add:
