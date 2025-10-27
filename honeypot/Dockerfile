@@ -29,6 +29,9 @@ RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 RUN chmod 600 /etc/ssl/private/honeypot.key
 RUN chmod 644 /etc/ssl/certs/honeypot.crt
 
+# Set Python path
+ENV PYTHONPATH=/app/app:$PYTHONPATH
+
 # Create startup script
 RUN echo '#!/bin/bash\n\
 nginx &\n\
