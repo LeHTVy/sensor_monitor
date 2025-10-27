@@ -20,22 +20,37 @@ class HoneypotLogger:
         self.error_log = os.path.join(log_dir, 'errors.log')
     
     def log_request(self, request):
-        """Log basic request information"""
+        """Log detailed request information"""
         try:
+            # Get real IP from nginx headers
+            real_ip = request.headers.get('X-Real-IP', request.remote_addr)
+            forwarded_for = request.headers.get('X-Forwarded-For', '')
+            forwarded_proto = request.headers.get('X-Forwarded-Proto', 'http')
+            
+            # Detect attack tool/technique
+            user_agent = request.headers.get('User-Agent', '')
+            attack_tool = self._detect_attack_tool(user_agent)
+            attack_technique = self._detect_attack_technique(request)
+            
             log_entry = {
                 'timestamp': datetime.now().isoformat(),
                 'method': request.method,
                 'url': request.url,
                 'path': request.path,
-                'ip': request.remote_addr,
-                'user_agent': request.headers.get('User-Agent', ''),
+                'protocol': forwarded_proto,
+                'ip': real_ip,
+                'forwarded_for': forwarded_for,
+                'user_agent': user_agent,
+                'attack_tool': attack_tool,
+                'attack_technique': attack_technique,
                 'referer': request.headers.get('Referer', ''),
                 'content_type': request.headers.get('Content-Type', ''),
                 'content_length': request.headers.get('Content-Length', ''),
                 'headers': dict(request.headers),
                 'args': dict(request.args),
                 'form_data': dict(request.form) if request.form else {},
-                'files': list(request.files.keys()) if request.files else []
+                'files': list(request.files.keys()) if request.files else [],
+                'is_attack': self._is_potential_attack(request)
             }
             
             with open(self.request_log, 'a', encoding='utf-8') as f:
@@ -128,3 +143,85 @@ class HoneypotLogger:
         except Exception as e:
             self.log_error(f"Error getting stats: {str(e)}")
             return {}
+    
+    def _detect_attack_tool(self, user_agent):
+        """Detect attack tool from User-Agent"""
+        user_agent_lower = user_agent.lower()
+        
+        # Common attack tools
+        tools = {
+            'nmap': ['nmap', 'nse'],
+            'sqlmap': ['sqlmap'],
+            'nikto': ['nikto'],
+            'dirb': ['dirb'],
+            'gobuster': ['gobuster'],
+            'burp': ['burp'],
+            'zap': ['zaproxy', 'owasp zap'],
+            'w3af': ['w3af'],
+            'metasploit': ['metasploit', 'msf'],
+            'curl': ['curl'],
+            'wget': ['wget'],
+            'python': ['python-requests', 'python-urllib'],
+            'perl': ['perl'],
+            'ruby': ['ruby'],
+            'php': ['php'],
+            'java': ['java'],
+            'scanner': ['scanner', 'scan'],
+            'bot': ['bot', 'crawler', 'spider'],
+            'automated': ['automated', 'script']
+        }
+        
+        for tool, keywords in tools.items():
+            for keyword in keywords:
+                if keyword in user_agent_lower:
+                    return tool
+        
+        # Check for suspicious patterns
+        if any(pattern in user_agent_lower for pattern in ['sql', 'injection', 'xss', 'csrf']):
+            return 'suspicious'
+        
+        return 'unknown'
+    
+    def _detect_attack_technique(self, request):
+        """Detect attack technique from request"""
+        techniques = []
+        
+        # SQL Injection
+        query_string = str(request.query_string.decode())
+        form_data = str(request.form)
+        if any(pattern in query_string.lower() or pattern in form_data.lower() 
+               for pattern in ['union', 'select', 'insert', 'delete', 'drop', 'or 1=1', 'or 1=1--', 'admin\'--']):
+            techniques.append('sql_injection')
+        
+        # XSS
+        if any(pattern in query_string.lower() or pattern in form_data.lower() 
+               for pattern in ['<script>', 'javascript:', 'onload=', 'onerror=']):
+            techniques.append('xss')
+        
+        # Directory Traversal
+        if any(pattern in request.path for pattern in ['../', '..\\', '/etc/passwd', '/etc/shadow']):
+            techniques.append('directory_traversal')
+        
+        # Command Injection
+        if any(pattern in query_string.lower() or pattern in form_data.lower() 
+               for pattern in [';', '|', '&', '`', '$(', 'exec', 'system', 'shell']):
+            techniques.append('command_injection')
+        
+        # File Upload
+        if request.files:
+            techniques.append('file_upload')
+        
+        # Brute Force (multiple login attempts)
+        if request.path in ['/login', '/auth'] and request.method == 'POST':
+            techniques.append('brute_force')
+        
+        # Reconnaissance
+        if any(pattern in request.path for pattern in ['/admin', '/phpmyadmin', '/wp-admin', '/.env', '/config']):
+            techniques.append('reconnaissance')
+        
+        return techniques if techniques else ['normal_browsing']
+    
+    def _is_potential_attack(self, request):
+        """Determine if request is potentially malicious"""
+        techniques = self._detect_attack_technique(request)
+        return any(tech != 'normal_browsing' for tech in techniques)

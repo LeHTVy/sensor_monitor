@@ -25,6 +25,16 @@ class LogSender:
             log_data['server_ip'] = '172.235.245.60'
             log_data['sent_at'] = datetime.now().isoformat()
             
+            # Ensure all required fields are present
+            if 'ip' not in log_data:
+                log_data['ip'] = 'unknown'
+            if 'timestamp' not in log_data:
+                log_data['timestamp'] = datetime.now().isoformat()
+            if 'attack_tool' not in log_data:
+                log_data['attack_tool'] = 'unknown'
+            if 'attack_technique' not in log_data:
+                log_data['attack_technique'] = ['unknown']
+            
             # Send with retry logic
             for attempt in range(self.retry_attempts):
                 try:
@@ -36,19 +46,20 @@ class LogSender:
                     )
                     
                     if response.status_code == 200:
+                        print(f"✅ Log sent successfully: {log_data.get('type', 'request')} from {log_data.get('ip', 'unknown')}")
                         return True
                     else:
-                        print(f"Failed to send log: HTTP {response.status_code}")
+                        print(f"❌ Failed to send log: HTTP {response.status_code}")
                         
                 except requests.exceptions.RequestException as e:
-                    print(f"Request error (attempt {attempt + 1}): {str(e)}")
+                    print(f"❌ Request error (attempt {attempt + 1}): {str(e)}")
                     if attempt < self.retry_attempts - 1:
                         time.sleep(self.retry_delay * (attempt + 1))
                 
             return False
             
         except Exception as e:
-            print(f"Error sending log: {str(e)}")
+            print(f"❌ Error sending log: {str(e)}")
             return False
     
     def send_batch_logs(self, logs):
