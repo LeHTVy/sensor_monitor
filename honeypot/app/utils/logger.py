@@ -260,12 +260,18 @@ class HoneypotLogger:
             
             # Try premium GeoIP service first (if API key provided)
             api_key = os.getenv('GEOIP_API_KEY', '')
+            print(f"GeoIP API Key loaded: {'Yes' if api_key else 'No'}")
+            
             if api_key:
                 try:
+                    print(f"Trying premium GeoIP for {ip}")
                     # Using ipapi.co (premium service)
                     response = requests.get(f'https://ipapi.co/{ip}/json/?key={api_key}', timeout=3)
+                    print(f"Premium GeoIP response status: {response.status_code}")
+                    
                     if response.status_code == 200:
                         data = response.json()
+                        print(f"Premium GeoIP data: {data}")
                         return {
                             'country': data.get('country_name', 'Unknown'),
                             'city': data.get('city', 'Unknown'),
@@ -277,13 +283,19 @@ class HoneypotLogger:
                             'region': data.get('region', 'Unknown'),
                             'postal': data.get('postal', 'Unknown')
                         }
+                    else:
+                        print(f"Premium GeoIP failed with status {response.status_code}")
                 except Exception as e:
                     print(f"Premium GeoIP error for {ip}: {str(e)}")
             
             # Fallback to free ip-api.com
+            print(f"Trying free GeoIP for {ip}")
             response = requests.get(f'http://ip-api.com/json/{ip}', timeout=3)
+            print(f"Free GeoIP response status: {response.status_code}")
+            
             if response.status_code == 200:
                 data = response.json()
+                print(f"Free GeoIP data: {data}")
                 return {
                     'country': data.get('country', 'Unknown'),
                     'city': data.get('city', 'Unknown'),

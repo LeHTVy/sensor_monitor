@@ -20,6 +20,8 @@ class LogSender:
     def send_log(self, log_data):
         """Send log data to capture server"""
         try:
+            print(f"📤 Sending log to capture server: {log_data.get('type', 'request')} from {log_data.get('ip', 'unknown')}")
+            
             # Add metadata
             log_data['source'] = 'honeypot'
             log_data['server_ip'] = '172.235.245.60'
@@ -41,9 +43,12 @@ class LogSender:
             if 'log_category' not in log_data:
                 log_data['log_category'] = 'unknown'
             
+            print(f"📋 Log data prepared: {log_data}")
+            
             # Send with retry logic
             for attempt in range(self.retry_attempts):
                 try:
+                    print(f"🔄 Attempt {attempt + 1}/{self.retry_attempts} to send log")
                     response = requests.post(
                         self.api_endpoint,
                         json=log_data,
@@ -51,17 +56,20 @@ class LogSender:
                         headers={'Content-Type': 'application/json'}
                     )
                     
+                    print(f"📡 Response status: {response.status_code}")
+                    
                     if response.status_code == 200:
                         print(f"✅ Log sent successfully: {log_data.get('type', 'request')} from {log_data.get('ip', 'unknown')}")
                         return True
                     else:
                         print(f"❌ Failed to send log: HTTP {response.status_code}")
+                        print(f"Response content: {response.text}")
                         
                 except requests.exceptions.RequestException as e:
                     print(f"❌ Request error (attempt {attempt + 1}): {str(e)}")
                     if attempt < self.retry_attempts - 1:
                         time.sleep(self.retry_delay * (attempt + 1))
-                
+            
             return False
             
         except Exception as e:
