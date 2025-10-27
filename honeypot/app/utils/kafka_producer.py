@@ -13,7 +13,7 @@ from kafka.errors import KafkaError
 
 class HoneypotKafkaProducer:
     def __init__(self, bootstrap_servers=None):
-        self.bootstrap_servers = bootstrap_servers or os.getenv('KAFKA_BOOTSTRAP_SERVERS', '172.232.246.68:9092')
+        self.bootstrap_servers = bootstrap_servers or os.getenv('KAFKA_BOOTSTRAP_SERVERS', '172.232.246.68:9093')
         self.producer = None
         self.max_retries = 3
         self.retry_delay = 1

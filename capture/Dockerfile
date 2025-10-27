@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY capture.py .
 COPY receiver.py .
 COPY analyzer.py .
+COPY kafka_consumer.py .
 
 # Copy templates and static files
 COPY templates/ ./templates/

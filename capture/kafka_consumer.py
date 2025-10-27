@@ -15,7 +15,7 @@ from kafka.errors import KafkaError
 
 class CaptureKafkaConsumer:
     def __init__(self, bootstrap_servers=None):
-        self.bootstrap_servers = bootstrap_servers or os.getenv('KAFKA_BOOTSTRAP_SERVERS', '172.232.246.68:9092')
+        self.bootstrap_servers = bootstrap_servers or os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
         self.consumer = None
         self.running = False
         self.vn_timezone = pytz.timezone('Asia/Ho_Chi_Minh')
