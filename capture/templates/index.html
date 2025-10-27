@@ -531,6 +531,11 @@
                         // Update log counts from Kafka
                         const totalKafkaLogs = data.kafka_stats.browser_logs + data.kafka_stats.attack_logs + data.kafka_stats.error_logs;
                         console.log(`📈 Kafka Logs: Browser=${data.kafka_stats.browser_logs}, Attack=${data.kafka_stats.attack_logs}, Error=${data.kafka_stats.error_logs}, Total=${totalKafkaLogs}`);
+                        
+                        // Security Alert: High attack rate
+                        if (data.kafka_stats.attack_logs > 10) {
+                            console.warn(`🚨 SECURITY ALERT: High attack rate detected! Attack logs: ${data.kafka_stats.attack_logs}`);
+                        }
                     }
                 })
                 .catch(error => {
@@ -902,6 +907,9 @@
             updateStats();
             loadLogs();
             loadPatterns();
+            
+            // Log current activity for monitoring
+            console.log(`🔄 Dashboard refreshed at ${new Date().toLocaleString()}`);
         }
         
         // Initialize
