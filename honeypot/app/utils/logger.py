@@ -34,7 +34,8 @@ class HoneypotLogger:
             
             # Detect attack tool/technique
             user_agent = request.headers.get('User-Agent', '')
-            attack_tool = self._detect_attack_tool(user_agent)
+            attack_tool_info = self._detect_attack_tool(request)
+            attack_tool = attack_tool_info['tool'] if isinstance(attack_tool_info, dict) else attack_tool_info
             attack_technique = self._detect_attack_technique(request)
             
             # Get GeoIP information
@@ -59,6 +60,7 @@ class HoneypotLogger:
                 'forwarded_for': forwarded_for,
                 'user_agent': user_agent,
                 'attack_tool': attack_tool,
+                'attack_tool_info': attack_tool_info,  # Include detailed detection info
                 'attack_technique': attack_technique,
                 'geoip': geoip_info,
                 'os_info': os_info,
@@ -167,12 +169,17 @@ class HoneypotLogger:
             self.log_error(f"Error getting stats: {str(e)}")
             return {}
     
-    def _detect_attack_tool(self, user_agent):
-        """Detect attack tool from User-Agent"""
-        user_agent_lower = user_agent.lower()
+    def _detect_attack_tool(self, request):
+        """Enhanced attack tool detection from User-Agent and request patterns"""
+        user_agent = request.headers.get('User-Agent', '').lower()
         
-        # Common attack tools
-        tools = {
+        # Enhanced detection based on network patterns and headers
+        detection_score = 0
+        detected_tool = 'unknown'
+        confidence = 0
+        
+        # 1. User-Agent based detection
+        tools_ua = {
             'nmap': ['nmap', 'nse'],
             'sqlmap': ['sqlmap'],
             'nikto': ['nikto'],
@@ -194,16 +201,83 @@ class HoneypotLogger:
             'automated': ['automated', 'script']
         }
         
-        for tool, keywords in tools.items():
-            for keyword in keywords:
-                if keyword in user_agent_lower:
-                    return tool
+        for tool, patterns in tools_ua.items():
+            for pattern in patterns:
+                if pattern in user_agent:
+                    detected_tool = tool
+                    confidence = 80
+                    break
+            if confidence > 0:
+                break
         
-        # Check for suspicious patterns
-        if any(pattern in user_agent_lower for pattern in ['sql', 'injection', 'xss', 'csrf']):
-            return 'suspicious'
+        # 2. HTTP Header Analysis (Scanner Detection)
+        headers = request.headers
         
-        return 'unknown'
+        # Missing common browser headers = scanner indicator
+        browser_headers = ['accept-language', 'accept-encoding', 'cache-control', 'sec-fetch-site', 'sec-fetch-mode']
+        missing_headers = sum(1 for h in browser_headers if h not in headers)
+        
+        if missing_headers >= 3:
+            detection_score -= 30
+            if detected_tool == 'unknown':
+                detected_tool = 'scanner'
+                confidence = 60
+        
+        # 3. Request Pattern Analysis
+        path = request.path.lower()
+        method = request.method
+        
+        # Common scanner paths
+        scanner_paths = [
+            '/admin', '/wp-admin', '/phpmyadmin', '/.env', '/config',
+            '/backup', '/test', '/api', '/robots.txt', '/sitemap.xml'
+        ]
+        
+        if any(scanner_path in path for scanner_path in scanner_paths):
+            detection_score -= 20
+            if detected_tool == 'unknown':
+                detected_tool = 'web_scanner'
+                confidence = 70
+        
+        # 4. Telnet Detection (if applicable)
+        if 'telnet' in user_agent or 'telnet' in path:
+            detected_tool = 'telnet'
+            confidence = 90
+        
+        # 5. Empty or minimal User-Agent
+        if not user_agent or user_agent in ['', '-', 'none']:
+            detection_score -= 40
+            if detected_tool == 'unknown':
+                detected_tool = 'minimal_client'
+                confidence = 50
+        
+        # 6. Request method analysis
+        if method not in ['GET', 'POST', 'HEAD']:
+            detection_score -= 25
+            if detected_tool == 'unknown':
+                detected_tool = 'unusual_method'
+                confidence = 60
+        
+        # 7. Query parameter analysis
+        if request.args:
+            # Common attack parameters
+            attack_params = ['id', 'cmd', 'exec', 'eval', 'system', 'shell']
+            if any(param in request.args for param in attack_params):
+                detection_score -= 15
+                if detected_tool == 'unknown':
+                    detected_tool = 'parameter_attack'
+                    confidence = 65
+        
+        # Final confidence calculation
+        final_confidence = max(confidence, abs(detection_score))
+        
+        return {
+            'tool': detected_tool,
+            'confidence': min(final_confidence, 100),
+            'score': detection_score,
+            'user_agent': user_agent,
+            'missing_headers': missing_headers
+        }
     
     def _detect_attack_technique(self, request):
         """Detect attack technique from request"""
@@ -267,24 +341,26 @@ class HoneypotLogger:
             
             if api_key:
                 try:
-                    print(f"Trying premium GeoIP for {ip}")
-                    # Using ipapi.co (premium service)
-                    response = requests.get(f'https://ipapi.co/{ip}/json/?key={api_key}', timeout=3)
+                    print(f"Trying MaxMind GeoIP for {ip}")
+                    # Using MaxMind GeoIP2 service
+                    response = requests.get(f'https://geoip.maxmind.com/geoip/v2.1/city/{ip}', 
+                                          headers={'Authorization': f'Bearer {api_key}'}, 
+                                          timeout=3)
                     print(f"Premium GeoIP response status: {response.status_code}")
                     
                     if response.status_code == 200:
                         data = response.json()
                         print(f"Premium GeoIP data: {data}")
                         return {
-                            'country': data.get('country_name', 'Unknown'),
-                            'city': data.get('city', 'Unknown'),
-                            'isp': data.get('org', 'Unknown'),
-                            'org': data.get('org', 'Unknown'),
-                            'lat': data.get('latitude', 0),
-                            'lon': data.get('longitude', 0),
-                            'timezone': data.get('timezone', 'Unknown'),
-                            'region': data.get('region', 'Unknown'),
-                            'postal': data.get('postal', 'Unknown')
+                            'country': data.get('country', {}).get('names', {}).get('en', 'Unknown'),
+                            'city': data.get('city', {}).get('names', {}).get('en', 'Unknown'),
+                            'isp': data.get('traits', {}).get('isp', 'Unknown'),
+                            'org': data.get('traits', {}).get('organization', 'Unknown'),
+                            'lat': data.get('location', {}).get('latitude', 0),
+                            'lon': data.get('location', {}).get('longitude', 0),
+                            'timezone': data.get('location', {}).get('time_zone', 'Unknown'),
+                            'region': data.get('subdivisions', [{}])[0].get('names', {}).get('en', 'Unknown'),
+                            'postal': data.get('postal', {}).get('code', 'Unknown')
                         }
                     else:
                         print(f"Premium GeoIP failed with status {response.status_code}")

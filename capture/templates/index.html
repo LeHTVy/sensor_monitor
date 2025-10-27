@@ -424,10 +424,10 @@
                 <div class="stat-value" id="honeypotLogs">0</div>
                 <div class="stat-label">Honeypot Logs</div>
             </div>
-            <div class="stat-card error">
-                <div class="stat-value" id="errorLogs">0</div>
-                <div class="stat-label">Error Logs</div>
-            </div>
+                <div class="stat-card error">
+                    <div class="stat-value" id="errorLogs">0</div>
+                    <div class="stat-label">Traffic</div>
+                </div>
             <div class="stat-card uptime">
                 <div class="stat-value" id="uptime">0s</div>
                 <div class="stat-label">Uptime</div>
@@ -441,7 +441,7 @@
                     <button class="btn active" onclick="filterLogs('all')">All</button>
                     <button class="btn" onclick="filterLogs('attack')">Attacks</button>
                     <button class="btn" onclick="filterLogs('honeypot')">Honeypot</button>
-                    <button class="btn" onclick="filterLogs('error')">Errors</button>
+                    <button class="btn" onclick="filterLogs('error')">Traffic</button>
                     <input type="text" class="search-box" id="searchBox" placeholder="Search logs..." onkeyup="searchLogs()">
                 </div>
                 <div id="logsContainer">
@@ -752,6 +752,9 @@
                     <div class="pattern-header">
                         <span class="pattern-tool">${pattern.tool}</span>
                         <span class="pattern-count">${pattern.count} attacks</span>
+                        <span class="pattern-confidence" style="color: ${pattern.confidence >= 70 ? '#44ff44' : pattern.confidence >= 40 ? '#ffaa00' : '#ff4444'}">
+                            ${pattern.confidence}% confidence
+                        </span>
                     </div>
                     <div class="pattern-summary">
                         <div class="pattern-row">
@@ -763,12 +766,20 @@
                             <span class="pattern-value">${pattern.sources.join(', ')}</span>
                         </div>
                         <div class="pattern-row">
+                            <span class="pattern-label">🌍 Locations:</span> 
+                            <span class="pattern-value">${pattern.locations.join(', ')}</span>
+                        </div>
+                        <div class="pattern-row">
                             <span class="pattern-label">⏰ Last seen:</span> 
                             <span class="pattern-value">${formatTimestamp(pattern.last_seen)}</span>
                         </div>
                         <div class="pattern-row">
                             <span class="pattern-label">🔍 Signature:</span> 
                             <span class="pattern-value">${pattern.signature}</span>
+                        </div>
+                        <div class="pattern-row">
+                            <span class="pattern-label">📊 Detection Score:</span> 
+                            <span class="pattern-value" style="color: ${pattern.score < 0 ? '#ff4444' : '#44ff44'}">${pattern.score}</span>
                         </div>
                     </div>
                 </div>
@@ -784,6 +795,9 @@
             const toolTechniques = {};
             const toolSources = {};
             const toolSignatures = {};
+            const toolLocations = {};
+            const toolConfidence = {};
+            const toolScores = {};
             
             logs.forEach(log => {
                 // Check for attack logs from Kafka
@@ -792,7 +806,12 @@
                     const technique = Array.isArray(log.attack_technique) ? log.attack_technique.join(', ') : log.attack_technique || 'Unknown';
                     const source = log.ip || log.src_ip || 'Unknown';
                     const location = log.geoip ? `${log.geoip.country}, ${log.geoip.city}` : 'Unknown Location';
+                    const isp = log.geoip ? log.geoip.isp : 'Unknown ISP';
                     const osInfo = log.os_info ? `${log.os_info.os} ${log.os_info.version}` : 'Unknown OS';
+                    
+                    // Get detection confidence and score
+                    const confidence = log.attack_tool_info ? log.attack_tool_info.confidence : 0;
+                    const score = log.attack_tool_info ? log.attack_tool_info.score : 0;
                     
                     // Count attacks per tool
                     toolCounts[tool] = (toolCounts[tool] || 0) + 1;
@@ -805,6 +824,17 @@
                     if (!toolSources[tool]) toolSources[tool] = new Set();
                     toolSources[tool].add(source);
                     
+                    // Track locations
+                    if (!toolLocations[tool]) toolLocations[tool] = new Set();
+                    toolLocations[tool].add(location);
+                    
+                    // Track confidence and scores
+                    if (!toolConfidence[tool]) toolConfidence[tool] = [];
+                    toolConfidence[tool].push(confidence);
+                    
+                    if (!toolScores[tool]) toolScores[tool] = [];
+                    toolScores[tool].push(score);
+                    
                     // Generate signature
                     if (!toolSignatures[tool]) {
                         toolSignatures[tool] = generateSignature(log);
@@ -815,15 +845,19 @@
             // Convert to pattern objects
             Object.keys(toolCounts).forEach(tool => {
                 if (toolCounts[tool] > 0) {
+                    const avgConfidence = toolConfidence[tool].reduce((a, b) => a + b, 0) / toolConfidence[tool].length;
+                    const avgScore = toolScores[tool].reduce((a, b) => a + b, 0) / toolScores[tool].length;
+                    
                     patterns.push({
                         tool: tool,
                         count: toolCounts[tool],
                         technique: Array.from(toolTechniques[tool]).join(', '),
                         sources: Array.from(toolSources[tool]).slice(0, 5), // Limit to 5 sources
+                        locations: Array.from(toolLocations[tool]).slice(0, 3), // Limit to 3 locations
                         last_seen: log.timestamp_vn || log.timestamp || new Date().toISOString(),
                         signature: toolSignatures[tool],
-                        location: location,
-                        osInfo: osInfo,
+                        confidence: Math.round(avgConfidence),
+                        score: Math.round(avgScore),
                         kafka_topic: log.kafka_topic || 'unknown'
                     });
                 }
