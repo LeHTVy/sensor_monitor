@@ -853,17 +853,20 @@
                     const avgConfidence = toolConfidence[tool].reduce((a, b) => a + b, 0) / toolConfidence[tool].length;
                     const avgScore = toolScores[tool].reduce((a, b) => a + b, 0) / toolScores[tool].length;
                     
+                    // Find the most recent log for this tool to get timestamp and kafka_topic
+                    const recentLog = logs.find(log => log.attack_tool === tool) || {};
+                    
                     patterns.push({
                         tool: tool,
                         count: toolCounts[tool],
                         technique: Array.from(toolTechniques[tool]).join(', '),
                         sources: Array.from(toolSources[tool]).slice(0, 5), // Limit to 5 sources
                         locations: Array.from(toolLocations[tool]).slice(0, 3), // Limit to 3 locations
-                        last_seen: log.timestamp_vn || log.timestamp || new Date().toISOString(),
+                        last_seen: recentLog.timestamp_vn || recentLog.timestamp || new Date().toISOString(),
                         signature: toolSignatures[tool],
                         confidence: Math.round(avgConfidence),
                         score: Math.round(avgScore),
-                        kafka_topic: log.kafka_topic || 'unknown'
+                        kafka_topic: recentLog.kafka_topic || 'unknown'
                     });
                 }
             });
