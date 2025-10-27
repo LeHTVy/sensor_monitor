@@ -196,6 +196,100 @@
         .log-details {
             font-size: 0.9em;
             color: #ccc;
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+        
+        .log-summary {
+            font-size: 0.9em;
+            color: #ccc;
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+        
+        .log-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+            gap: 8px;
+        }
+        
+        .log-label {
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+        
+        .log-value {
+            color: #fff;
+            font-weight: normal;
+        }
+        
+        .log-value.attack-tool {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+        
+        .pattern-entry {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .pattern-entry:hover {
+            border-color: #ffd700;
+            box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2);
+        }
+        
+        .pattern-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #444;
+        }
+        
+        .pattern-tool {
+            background: #ff6b6b;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        
+        .pattern-count {
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        
+        .pattern-summary {
+            font-size: 0.9em;
+            color: #ccc;
+            line-height: 1.6;
+        }
+        
+        .pattern-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+            gap: 8px;
+        }
+        
+        .pattern-label {
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+        
+        .pattern-value {
+            color: #fff;
+            font-weight: normal;
         }
         
         .log-ip {
@@ -369,10 +463,20 @@
         let logs = [];
         let patterns = [];
         
-        // Format timestamp
+        // Format timestamp with current timezone
         function formatTimestamp(timestamp) {
             const date = new Date(timestamp);
-            return date.toLocaleString();
+            // Use current timezone and format
+            return date.toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+            });
         }
         
         // Format uptime
@@ -463,17 +567,65 @@
                             <strong>Size:</strong> ${log.size || 'Unknown'} bytes
                         </div>
                     `;
-                } else if (log.source === 'honeypot') {
+                } else if (log.source === 'honeypot' || log.log_category === 'honeypot') {
                     logType = 'honeypot';
                     sourceInfo = log.ip || 'Unknown IP';
                     destinationInfo = 'Honeypot Server';
+                    
+                    // Clean format for honeypot logs
+                    const osInfo = log.os_info ? `${log.os_info.os} ${log.os_info.version}` : 'Unknown OS';
+                    const location = log.geoip ? `${log.geoip.country}, ${log.geoip.city}` : 'Unknown Location';
+                    const isp = log.geoip ? log.geoip.isp : 'Unknown ISP';
+                    
                     additionalInfo = `
-                        <div class="log-details">
-                            <strong>Tool:</strong> ${log.attack_tool || 'Unknown'} | 
-                            <strong>Technique:</strong> ${Array.isArray(log.attack_technique) ? log.attack_technique.join(', ') : log.attack_technique || 'Unknown'} | 
-                            <strong>Method:</strong> ${log.method || 'Unknown'} | 
-                            <strong>Path:</strong> ${log.path || 'Unknown'}
-                            ${log.geoip ? `<br><strong>Location:</strong> ${log.geoip.country || 'Unknown'}, ${log.geoip.city || 'Unknown'} | <strong>ISP:</strong> ${log.geoip.isp || 'Unknown'}` : ''}
+                        <div class="log-summary">
+                            <div class="log-row">
+                                <span class="log-label">🌐 Browser:</span> 
+                                <span class="log-value">${log.attack_tool || 'Browser'}</span>
+                                <span class="log-label">💻 OS:</span> 
+                                <span class="log-value">${osInfo}</span>
+                            </div>
+                            <div class="log-row">
+                                <span class="log-label">📍 Location:</span> 
+                                <span class="log-value">${location}</span>
+                                <span class="log-label">🏢 ISP:</span> 
+                                <span class="log-value">${isp}</span>
+                            </div>
+                            <div class="log-row">
+                                <span class="log-label">🔗 Request:</span> 
+                                <span class="log-value">${log.method || 'GET'} ${log.path || '/'}</span>
+                            </div>
+                        </div>
+                    `;
+                } else if (log.log_category === 'attack') {
+                    logType = 'attack';
+                    sourceInfo = log.ip || 'Unknown IP';
+                    destinationInfo = 'Target Server';
+                    
+                    // Clean format for attack logs
+                    const tool = log.attack_tool || 'Unknown Tool';
+                    const technique = Array.isArray(log.attack_technique) ? log.attack_technique.join(', ') : log.attack_technique || 'Unknown';
+                    const location = log.geoip ? `${log.geoip.country}, ${log.geoip.city}` : 'Unknown Location';
+                    const isp = log.geoip ? log.geoip.isp : 'Unknown ISP';
+                    
+                    additionalInfo = `
+                        <div class="log-summary">
+                            <div class="log-row">
+                                <span class="log-label">⚔️ Attack Tool:</span> 
+                                <span class="log-value attack-tool">${tool}</span>
+                                <span class="log-label">🎯 Technique:</span> 
+                                <span class="log-value">${technique}</span>
+                            </div>
+                            <div class="log-row">
+                                <span class="log-label">📍 Location:</span> 
+                                <span class="log-value">${location}</span>
+                                <span class="log-label">🏢 ISP:</span> 
+                                <span class="log-value">${isp}</span>
+                            </div>
+                            <div class="log-row">
+                                <span class="log-label">🔗 Request:</span> 
+                                <span class="log-value">${log.method || 'Unknown'} ${log.path || '/'}</span>
+                            </div>
                         </div>
                     `;
                 } else if (log.type === 'error') {
@@ -558,30 +710,126 @@
                 });
         }
         
-        // Display attack patterns
+        // Display attack patterns with signature detection
         function displayPatterns() {
             const container = document.getElementById('patternsContainer');
             
-            if (patterns.length === 0) {
-                container.innerHTML = '<div class="no-logs">No attack patterns found</div>';
+            // Analyze logs to detect attack patterns
+            const attackPatterns = analyzeAttackPatterns();
+            
+            if (attackPatterns.length === 0) {
+                container.innerHTML = '<div class="no-logs">No attack patterns detected</div>';
                 return;
             }
             
-            const html = patterns.map(pattern => `
-                <div class="log-entry">
-                    <div class="log-header">
-                        <span class="log-type">PATTERN</span>
-                        <span class="log-timestamp">Count: ${pattern.count}</span>
+            const html = attackPatterns.map(pattern => `
+                <div class="pattern-entry">
+                    <div class="pattern-header">
+                        <span class="pattern-tool">${pattern.tool}</span>
+                        <span class="pattern-count">${pattern.count} attacks</span>
                     </div>
-                    <div class="log-details">
-                        <strong>First seen:</strong> ${formatTimestamp(pattern.first_seen)}
-                        <br><strong>Last seen:</strong> ${formatTimestamp(pattern.last_seen)}
+                    <div class="pattern-summary">
+                        <div class="pattern-row">
+                            <span class="pattern-label">🎯 Technique:</span> 
+                            <span class="pattern-value">${pattern.technique}</span>
+                        </div>
+                        <div class="pattern-row">
+                            <span class="pattern-label">📍 Sources:</span> 
+                            <span class="pattern-value">${pattern.sources.join(', ')}</span>
+                        </div>
+                        <div class="pattern-row">
+                            <span class="pattern-label">⏰ Last seen:</span> 
+                            <span class="pattern-value">${formatTimestamp(pattern.last_seen)}</span>
+                        </div>
+                        <div class="pattern-row">
+                            <span class="pattern-label">🔍 Signature:</span> 
+                            <span class="pattern-value">${pattern.signature}</span>
+                        </div>
                     </div>
-                    <div class="log-payload">${pattern.pattern}</div>
                 </div>
             `).join('');
             
             container.innerHTML = html;
+        }
+        
+        // Analyze logs to detect attack patterns
+        function analyzeAttackPatterns() {
+            const patterns = [];
+            const toolCounts = {};
+            const toolTechniques = {};
+            const toolSources = {};
+            const toolSignatures = {};
+            
+            logs.forEach(log => {
+                if (log.log_category === 'attack' || log.type === 'suspicious' || log.type === 'attack') {
+                    const tool = log.attack_tool || 'Unknown';
+                    const technique = Array.isArray(log.attack_technique) ? log.attack_technique.join(', ') : log.attack_technique || 'Unknown';
+                    const source = log.ip || 'Unknown';
+                    
+                    // Count attacks per tool
+                    toolCounts[tool] = (toolCounts[tool] || 0) + 1;
+                    
+                    // Track techniques
+                    if (!toolTechniques[tool]) toolTechniques[tool] = new Set();
+                    toolTechniques[tool].add(technique);
+                    
+                    // Track sources
+                    if (!toolSources[tool]) toolSources[tool] = new Set();
+                    toolSources[tool].add(source);
+                    
+                    // Generate signature
+                    if (!toolSignatures[tool]) {
+                        toolSignatures[tool] = generateSignature(log);
+                    }
+                }
+            });
+            
+            // Convert to pattern objects
+            Object.keys(toolCounts).forEach(tool => {
+                if (toolCounts[tool] > 0) {
+                    patterns.push({
+                        tool: tool,
+                        count: toolCounts[tool],
+                        technique: Array.from(toolTechniques[tool]).join(', '),
+                        sources: Array.from(toolSources[tool]).slice(0, 5), // Limit to 5 sources
+                        last_seen: new Date().toISOString(),
+                        signature: toolSignatures[tool]
+                    });
+                }
+            });
+            
+            return patterns.sort((a, b) => b.count - a.count);
+        }
+        
+        // Generate attack signature based on log data
+        function generateSignature(log) {
+            const signatures = {
+                'nmap': 'Port scanning with SYN packets, OS detection',
+                'sqlmap': 'SQL injection attempts, database enumeration',
+                'nikto': 'Web vulnerability scanning, directory traversal',
+                'dirb': 'Directory brute force, HTTP status code analysis',
+                'gobuster': 'DNS/HTTP brute force, subdomain enumeration',
+                'burp': 'Web application testing, parameter manipulation',
+                'zap': 'OWASP ZAP automated security testing',
+                'w3af': 'Web application attack framework',
+                'metasploit': 'Exploit framework, payload delivery',
+                'curl': 'HTTP client requests, API testing',
+                'wget': 'File download attempts, recursive crawling',
+                'python': 'Python-based automation, scripted attacks',
+                'perl': 'Perl script execution, text processing',
+                'ruby': 'Ruby-based tools, web scraping',
+                'php': 'PHP-based attacks, web shell uploads',
+                'java': 'Java-based tools, enterprise attacks',
+                'scanner': 'Generic port scanning, service detection',
+                'bot': 'Automated bot traffic, crawler behavior',
+                'automated': 'Automated attack tools, scripted behavior',
+                'telnet': 'Telnet protocol attacks, command injection',
+                'netcat': 'Netcat network tool, reverse shells',
+                'malformed': 'Malformed requests, protocol violations',
+                'suspicious': 'Suspicious behavior patterns, anomaly detection'
+            };
+            
+            return signatures[log.attack_tool] || 'Unknown attack pattern detected';
         }
         
         // Auto-refresh
