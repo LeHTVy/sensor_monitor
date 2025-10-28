@@ -22,6 +22,7 @@ COPY capture.py .
 COPY receiver.py .
 COPY analyzer.py .
 COPY kafka_consumer.py .
+COPY security_middleware.py .
 
 # Copy templates and static files
 COPY templates/ ./templates/
