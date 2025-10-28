@@ -11,7 +11,9 @@
     "vue": "^3.3.4",
     "vuetify": "^3.4.0",
     "axios": "^1.5.0",
-    "@mdi/font": "^7.3.67"
+    "@mdi/font": "^7.3.67",
+    "vue-router": "^4.2.4",
+    "vuex": "^4.1.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.3.4",
