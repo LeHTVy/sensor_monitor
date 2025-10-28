@@ -198,8 +198,10 @@ def login():
     # Simple authentication (in production, use proper user management)
     # NOTE: use fixed API key if provided via env (docker-compose)
     if username == 'admin' and password == 'capture2024':
-        api_key = app.config.get('CAPTURE_API_KEY') or security.app.config['CAPTURE_API_KEY']
+        api_key = os.getenv('CAPTURE_API_KEY', 'capture_secure_key_2024')
         jwt_token = security.generate_jwt_token('admin')
+        
+        print(f"Login successful for {username}, API key: {api_key}")
         
         return jsonify({
             'success': True,

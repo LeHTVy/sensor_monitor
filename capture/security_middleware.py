@@ -29,7 +29,9 @@ class CaptureSecurity:
             app.config['CAPTURE_API_KEY'] = api_key
             print(f"Generated API Key: {api_key}")
         else:
-            app.config['CAPTURE_API_KEY'] = os.getenv('CAPTURE_API_KEY')
+            api_key = os.getenv('CAPTURE_API_KEY')
+            app.config['CAPTURE_API_KEY'] = api_key
+            print(f"Using API Key from environment: {api_key}")
         
         # Generate JWT secret if not exists
         if not os.getenv('JWT_SECRET'):
