@@ -2,9 +2,9 @@ import { createStore } from 'vuex'
 
 export default createStore({
   state: {
-    isAuthenticated: false,
-    apiKey: null,
-    user: null,
+    isAuthenticated: !!localStorage.getItem('capture_api_key'),
+    apiKey: localStorage.getItem('capture_api_key'),
+    user: localStorage.getItem('capture_user') ? JSON.parse(localStorage.getItem('capture_user')) : null,
     logs: [],
     stats: {
       total_logs_received: 0,
@@ -50,8 +50,9 @@ export default createStore({
         })
         
         const data = await response.json()
+        console.log('Login response:', data) // Debug log
         
-        if (data.success) {
+        if (data.success && data.api_key) {
           commit('SET_AUTHENTICATED', {
             isAuthenticated: true,
             apiKey: data.api_key,
@@ -62,8 +63,10 @@ export default createStore({
           localStorage.setItem('capture_api_key', data.api_key)
           localStorage.setItem('capture_user', JSON.stringify({ username, role: 'admin' }))
           
+          console.log('API Key saved:', data.api_key) // Debug log
           return { success: true, apiKey: data.api_key }
         } else {
+          console.error('Login failed:', data.message)
           return { success: false, message: data.message }
         }
       } catch (error) {
