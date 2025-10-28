@@ -168,15 +168,20 @@ export default {
     let refreshInterval
     
     onMounted(() => {
-      // Only load data if authenticated and has API key
-      if (store.state.isAuthenticated && store.state.apiKey) {
-        console.log('Dashboard mounted, loading data with API key:', store.state.apiKey)
-        loadData()
-        // Auto-refresh every 5 seconds
-        refreshInterval = setInterval(loadData, 5000)
-      } else {
-        console.log('Dashboard mounted but not authenticated or no API key')
+      // Wait for authentication state to be stable
+      const checkAuthAndLoad = () => {
+        if (store.state.isAuthenticated && store.state.apiKey) {
+          console.log('Dashboard authenticated, loading data with API key:', store.state.apiKey)
+          loadData()
+          refreshInterval = setInterval(loadData, 5000)
+        } else {
+          console.log('Dashboard mounted but not authenticated yet, retrying in 100ms...')
+          setTimeout(checkAuthAndLoad, 100)
+        }
       }
+      
+      // Start checking after a short delay
+      setTimeout(checkAuthAndLoad, 200)
     })
     
     onUnmounted(() => {
