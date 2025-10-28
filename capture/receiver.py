@@ -496,7 +496,8 @@ def test_endpoint():
         'timestamp': datetime.now().isoformat(),
         'kafka_connected': kafka_consumer is not None
     })
-    
+
+if __name__ == '__main__':
     print("Starting Log Receiver...")
     
     # Start Kafka consumer in background thread
