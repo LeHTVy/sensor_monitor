@@ -83,7 +83,7 @@ export default createStore({
     },
     
     async loadStats({ commit, state }) {
-      if (!state.isAuthenticated) return
+      if (!state.isAuthenticated || !state.apiKey) return
       
       try {
         const response = await fetch('/api/stats', {
@@ -95,6 +95,15 @@ export default createStore({
         if (response.ok) {
           const data = await response.json()
           commit('SET_STATS', data.stats)
+        } else if (response.status === 401) {
+          // API key invalid, logout
+          commit('SET_AUTHENTICATED', {
+            isAuthenticated: false,
+            apiKey: null,
+            user: null
+          })
+          localStorage.removeItem('capture_api_key')
+          localStorage.removeItem('capture_user')
         }
       } catch (error) {
         console.error('Error loading stats:', error)
@@ -102,7 +111,7 @@ export default createStore({
     },
     
     async loadLogs({ commit, state }) {
-      if (!state.isAuthenticated) return
+      if (!state.isAuthenticated || !state.apiKey) return
       
       try {
         const url = state.currentFilter === 'all' 
@@ -118,6 +127,15 @@ export default createStore({
         if (response.ok) {
           const data = await response.json()
           commit('SET_LOGS', data.logs || [])
+        } else if (response.status === 401) {
+          // API key invalid, logout
+          commit('SET_AUTHENTICATED', {
+            isAuthenticated: false,
+            apiKey: null,
+            user: null
+          })
+          localStorage.removeItem('capture_api_key')
+          localStorage.removeItem('capture_user')
         }
       } catch (error) {
         console.error('Error loading logs:', error)
@@ -125,7 +143,7 @@ export default createStore({
     },
     
     async loadPatterns({ commit, state }) {
-      if (!state.isAuthenticated) return
+      if (!state.isAuthenticated || !state.apiKey) return
       
       try {
         const response = await fetch('/api/attack-patterns', {
@@ -137,6 +155,15 @@ export default createStore({
         if (response.ok) {
           const data = await response.json()
           commit('SET_PATTERNS', data.patterns || [])
+        } else if (response.status === 401) {
+          // API key invalid, logout
+          commit('SET_AUTHENTICATED', {
+            isAuthenticated: false,
+            apiKey: null,
+            user: null
+          })
+          localStorage.removeItem('capture_api_key')
+          localStorage.removeItem('capture_user')
         }
       } catch (error) {
         console.error('Error loading patterns:', error)

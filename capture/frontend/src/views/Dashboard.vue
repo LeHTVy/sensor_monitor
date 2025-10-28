@@ -168,9 +168,12 @@ export default {
     let refreshInterval
     
     onMounted(() => {
-      loadData()
-      // Auto-refresh every 5 seconds
-      refreshInterval = setInterval(loadData, 5000)
+      // Only load data if authenticated
+      if (store.state.isAuthenticated) {
+        loadData()
+        // Auto-refresh every 5 seconds
+        refreshInterval = setInterval(loadData, 5000)
+      }
     })
     
     onUnmounted(() => {
