@@ -368,6 +368,60 @@
             padding: 40px;
         }
         
+        /* Login Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: #2d2d2d;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            border: 1px solid #444;
+            min-width: 400px;
+        }
+        
+        .modal-content h2 {
+            color: #ffd700;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #e0e0e0;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            font-size: 16px;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #ffd700;
+        }
+        
         .status-indicator {
             display: inline-block;
             width: 12px;
@@ -462,6 +516,71 @@
         let currentFilter = 'all';
         let logs = [];
         let patterns = [];
+        let apiKey = null;
+        let isAuthenticated = false;
+        
+        // Authentication functions
+        function showLoginModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h2>🔐 Capture Server Login</h2>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username">Username:</label>
+                            <input type="text" id="username" value="admin" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" value="capture2024" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Login</button>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+        }
+        
+        function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    apiKey = data.api_key;
+                    isAuthenticated = true;
+                    localStorage.setItem('capture_api_key', apiKey);
+                    document.querySelector('.modal').remove();
+                    loadDashboard();
+                    setInterval(autoRefresh, 2000); // Start auto-refresh
+                } else {
+                    alert('Login failed: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Login error:', error);
+                alert('Login failed: ' + error.message);
+            });
+        }
+        
+        function getAuthHeaders() {
+            if (!apiKey) return {};
+            return {
+                'X-API-Key': apiKey
+            };
+        }
         
         // Format timestamp with current timezone
         function formatTimestamp(timestamp) {
@@ -496,8 +615,16 @@
         
         // Update statistics
         function updateStats() {
-            fetch('/api/stats')
-                .then(response => response.json())
+            fetch('/api/stats', {
+                headers: getAuthHeaders()
+            })
+                .then(response => {
+                    if (response.status === 401) {
+                        showLoginModal();
+                        return;
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     document.getElementById('totalLogs').textContent = data.stats.total_logs_received;
                     document.getElementById('attackLogs').textContent = data.stats.attack_logs;
@@ -551,8 +678,16 @@
             
             console.log(`🔄 Loading logs from: ${url}`);
             
-            fetch(url)
-                .then(response => response.json())
+            fetch(url, {
+                headers: getAuthHeaders()
+            })
+                .then(response => {
+                    if (response.status === 401) {
+                        showLoginModal();
+                        return;
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     logs = data.logs || [];
                     console.log(`📊 Loaded ${logs.length} logs from Kafka`);
@@ -715,8 +850,16 @@
                 return;
             }
             
-            fetch(`/api/logs/search?q=${encodeURIComponent(query)}&type=${currentFilter}`)
-                .then(response => response.json())
+            fetch(`/api/logs/search?q=${encodeURIComponent(query)}&type=${currentFilter}`, {
+                headers: getAuthHeaders()
+            })
+                .then(response => {
+                    if (response.status === 401) {
+                        showLoginModal();
+                        return;
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     logs = data.logs || [];
                     displayLogs();
@@ -728,8 +871,16 @@
         
         // Load attack patterns
         function loadPatterns() {
-            fetch('/api/attack-patterns')
-                .then(response => response.json())
+            fetch('/api/attack-patterns', {
+                headers: getAuthHeaders()
+            })
+                .then(response => {
+                    if (response.status === 401) {
+                        showLoginModal();
+                        return;
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     patterns = data.patterns || [];
                     displayPatterns();
@@ -905,20 +1056,33 @@
             return signatures[log.attack_tool] || 'Unknown attack pattern detected';
         }
         
-        // Auto-refresh
-        function autoRefresh() {
+        function loadDashboard() {
             updateStats();
             loadLogs();
             loadPatterns();
-            
-            // Log current activity for monitoring
-            console.log(`🔄 Dashboard refreshed at ${new Date().toLocaleString()}`);
+        }
+        
+        // Auto-refresh
+        function autoRefresh() {
+            if (isAuthenticated) {
+                loadDashboard();
+                // Log current activity for monitoring
+                console.log(`🔄 Dashboard refreshed at ${new Date().toLocaleString()}`);
+            }
         }
         
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            autoRefresh();
-            setInterval(autoRefresh, 2000); // Refresh every 2 seconds for real-time updates
+            // Check if already authenticated
+            const savedApiKey = localStorage.getItem('capture_api_key');
+            if (savedApiKey) {
+                apiKey = savedApiKey;
+                isAuthenticated = true;
+                loadDashboard();
+                setInterval(autoRefresh, 2000); // Refresh every 2 seconds for real-time updates
+            } else {
+                showLoginModal();
+            }
         });
     </script>
 </body>

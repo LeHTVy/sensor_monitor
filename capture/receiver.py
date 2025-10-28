@@ -184,6 +184,30 @@ def index():
     """Main dashboard page"""
     return render_template('index.html')
 
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Login endpoint to get API key"""
+    data = request.get_json()
+    username = data.get('username', '')
+    password = data.get('password', '')
+    
+    # Simple authentication (in production, use proper user management)
+    if username == 'admin' and password == 'capture2024':
+        api_key = security.app.config['CAPTURE_API_KEY']
+        jwt_token = security.generate_jwt_token('admin')
+        
+        return jsonify({
+            'success': True,
+            'api_key': api_key,
+            'jwt_token': jwt_token,
+            'message': 'Login successful'
+        })
+    
+    return jsonify({
+        'success': False,
+        'message': 'Invalid credentials'
+    }), 401
+
 @app.route('/api/health')
 def health():
     """Health check endpoint"""
