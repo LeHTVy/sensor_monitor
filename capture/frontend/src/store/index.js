@@ -62,7 +62,7 @@ export default createStore({
           localStorage.setItem('capture_api_key', data.api_key)
           localStorage.setItem('capture_user', JSON.stringify({ username, role: 'admin' }))
           
-          return { success: true }
+          return { success: true, apiKey: data.api_key }
         } else {
           return { success: false, message: data.message }
         }

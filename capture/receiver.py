@@ -181,8 +181,12 @@ def update_attack_patterns(log_data):
 # API Routes
 @app.route('/')
 def index():
-    """Main dashboard page"""
-    return render_template('index.html')
+    """Health landing - API only server"""
+    return jsonify({
+        'service': 'capture-server',
+        'message': 'API service. Use frontend at port 3000.',
+        'docs': '/api/health'
+    })
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
@@ -192,8 +196,9 @@ def login():
     password = data.get('password', '')
     
     # Simple authentication (in production, use proper user management)
+    # NOTE: use fixed API key if provided via env (docker-compose)
     if username == 'admin' and password == 'capture2024':
-        api_key = security.app.config['CAPTURE_API_KEY']
+        api_key = app.config.get('CAPTURE_API_KEY') or security.app.config['CAPTURE_API_KEY']
         jwt_token = security.generate_jwt_token('admin')
         
         return jsonify({

@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useStore } from 'vuex'
 import Login from '../views/Login.vue'
 import Dashboard from '../views/Dashboard.vue'
 
@@ -23,15 +22,16 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  const store = useStore()
-  
-  if (to.meta.requiresAuth && !store.state.isAuthenticated) {
-    next('/login')
-  } else if (to.name === 'Login' && store.state.isAuthenticated) {
-    next('/')
-  } else {
-    next()
+  const apiKey = localStorage.getItem('capture_api_key')
+  const isAuthenticated = !!apiKey
+
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    return next('/login')
   }
+  if (to.name === 'Login' && isAuthenticated) {
+    return next('/')
+  }
+  return next()
 })
 
 export default router
