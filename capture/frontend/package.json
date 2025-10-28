@@ -1,0 +1,21 @@
+{
+  "name": "capture-frontend",
+  "version": "1.0.0",
+  "description": "Capture Server Frontend with Vue.js and Vuetify",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.3.4",
+    "vuetify": "^3.4.0",
+    "axios": "^1.5.0",
+    "@mdi/font": "^7.3.67"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.3.4",
+    "vite": "^4.4.9",
+    "vite-plugin-vuetify": "^1.0.2"
+  }
+}

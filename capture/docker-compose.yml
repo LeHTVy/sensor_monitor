@@ -61,6 +61,8 @@ services:
       - TARGET_IP=172.232.246.68
       - LOG_DIR=/app/logs
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - CAPTURE_API_KEY=capture_secure_key_2024
+      - ADMIN_NETWORKS=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,127.0.0.1/32
     restart: unless-stopped
     # Required for packet capture
     cap_add:
@@ -69,6 +71,16 @@ services:
     # Run in privileged mode for packet capture
     privileged: true
     # Use bridge network for web interface
+    networks:
+      - kafka-network
+
+  capture-frontend:
+    build: ./frontend
+    container_name: capture-frontend
+    depends_on:
+      - capture-server
+    ports:
+      - "3000:80"
     networks:
       - kafka-network
 
