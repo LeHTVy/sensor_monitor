@@ -10,7 +10,6 @@ honeypot/docker-compose-secure*.yml
 # Security configs
 capture/security.conf
 honeypot/security.conf
-capture/security_middleware.py
 
 # Logs và data
 logs/
