@@ -488,6 +488,15 @@ if __name__ == '__main__':
         ]
     )
     
+@app.route('/api/test', methods=['GET'])
+def test_endpoint():
+    """Test endpoint without authentication"""
+    return jsonify({
+        'message': 'Test endpoint working',
+        'timestamp': datetime.now().isoformat(),
+        'kafka_connected': kafka_consumer is not None
+    })
+    
     print("Starting Log Receiver...")
     
     # Start Kafka consumer in background thread
