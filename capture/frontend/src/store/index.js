@@ -86,7 +86,12 @@ export default createStore({
     },
     
     async loadStats({ commit, state }) {
-      if (!state.isAuthenticated || !state.apiKey) return
+      if (!state.isAuthenticated || !state.apiKey) {
+        console.log('loadStats: Not authenticated or no API key', { isAuthenticated: state.isAuthenticated, apiKey: state.apiKey })
+        return
+      }
+      
+      console.log('loadStats: Making request with API key:', state.apiKey)
       
       try {
         const response = await fetch('/api/stats', {

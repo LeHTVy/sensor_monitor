@@ -82,6 +82,8 @@ export default {
       })
       
       if (result.success) {
+        // Wait a bit for state to update before redirecting
+        await new Promise(resolve => setTimeout(resolve, 200));
         router.push('/')
       } else {
         error.value = result.message || 'Login failed'
