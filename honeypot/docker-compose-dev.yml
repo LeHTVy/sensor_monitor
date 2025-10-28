@@ -1,0 +1,22 @@
+version: '3.8'
+
+# Development Docker Compose for Honeypot
+# Sử dụng cho development và testing local
+
+services:
+  honeypot:
+    build: .
+    container_name: honeypot
+    restart: unless-stopped
+    ports:
+      - "80:80"    # HTTP
+      - "443:443"  # HTTPS
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "localhost:9093"  # Point to local Kafka
+      CAPTURE_SERVER_URL: "http://localhost:8080"  # Point to local Capture Server
+    networks:
+      - honeypot-network
+
+networks:
+  honeypot-network:
+    driver: bridge

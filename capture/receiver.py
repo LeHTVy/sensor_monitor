@@ -16,8 +16,12 @@ import logging
 from collections import defaultdict, deque
 import hashlib
 from kafka_consumer import CaptureKafkaConsumer
+from security_middleware import CaptureSecurity, admin_required, api_key_required, ip_whitelist_required
 
 app = Flask(__name__)
+
+# Initialize security middleware
+security = CaptureSecurity(app)
 
 # Global variables for logging and statistics
 log_queue = queue.Queue()
@@ -191,6 +195,7 @@ def health():
     })
 
 @app.route('/api/logs')
+@api_key_required
 def get_logs():
     """Get recent logs from Kafka consumer"""
     limit = request.args.get('limit', 100, type=int)
@@ -226,6 +231,7 @@ def get_logs():
     })
 
 @app.route('/api/stats')
+@api_key_required
 def get_stats():
     """Get statistics"""
     stats['uptime'] = (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()
@@ -248,6 +254,7 @@ def get_stats():
     })
 
 @app.route('/api/attack-patterns')
+@api_key_required
 def get_attack_patterns():
     """Get attack patterns from database"""
     try:

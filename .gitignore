@@ -1,52 +1,41 @@
-# Logs
-*.log
+# Security Scripts (chứa thông tin nhạy cảm)
+scripts/
+capture/scripts/
+honeypot/scripts/
+
+# Docker Compose với configs nhạy cảm
+capture/docker-compose-secure*.yml
+honeypot/docker-compose-secure*.yml
+
+# Security configs
+capture/security.conf
+honeypot/security.conf
+capture/security_middleware.py
+
+# Logs và data
 logs/
-honeypot/logs/
 capture/logs/
+honeypot/logs/
+*.log
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# Database files
+*.db
+*.sqlite
+*.sqlite3
 
-# Docker
-.dockerignore
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Temporary files
-*.tmp
-*.temp
-
-# Uploads
-honeypot/uploads/
-capture/uploads/
-
-# SSL certificates (if generated)
-*.crt
-*.key
-*.pem
-
-# Environment files
+# Environment files với secrets
 .env
 .env.local
 .env.production
 
 # Backup files
-*.bak
+backups/
 *.backup
+
+# Systemd services
+capture/systemd/
+honeypot/systemd/
+
+# Temporary files
+tmp/
+temp/
