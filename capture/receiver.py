@@ -17,6 +17,7 @@ from collections import defaultdict, deque
 import hashlib
 from kafka_consumer import CaptureKafkaConsumer
 from security_middleware import CaptureSecurity, admin_required, api_key_required, ip_whitelist_required
+from elasticsearch import Elasticsearch
 
 app = Flask(__name__)
 
@@ -28,6 +29,12 @@ app.security = security
 # Global variables for logging and statistics
 log_queue = queue.Queue()
 kafka_consumer = CaptureKafkaConsumer()
+
+# Elasticsearch configuration
+USE_ELASTICSEARCH = os.getenv('USE_ELASTICSEARCH', 'false').lower() == 'true'
+ES_URL = os.getenv('ELASTICSEARCH_URL', 'http://elasticsearch:9200')
+ES_PREFIX = os.getenv('ES_INDEX_PREFIX', 'sensor-logs')
+es_client = Elasticsearch(ES_URL) if USE_ELASTICSEARCH else None
 
 stats = {
     'total_logs_received': 0,
@@ -144,6 +151,50 @@ def process_log_queue():
         except Exception as e:
             logging.error(f"Error processing log: {e}")
 
+def es_search_logs(log_type: str, limit: int):
+    """Search logs from Elasticsearch"""
+    if not es_client:
+        return []
+    
+    try:
+        # Search in today's and yesterday's indices
+        today = datetime.utcnow().strftime('%Y.%m.%d')
+        yesterday = (datetime.utcnow() - timedelta(days=1)).strftime('%Y.%m.%d')
+        query_index = f"{ES_PREFIX}-*"
+        
+        must = []
+        if log_type != "all":
+            must.append({"term": {"log_category": log_type}})
+        
+        body = {
+            "size": limit,
+            "sort": [{"timestamp": {"order": "desc"}}],
+            "query": {"bool": {"must": must}},
+        }
+        
+        res = es_client.search(index=query_index, body=body)
+        logs = []
+        for hit in res["hits"]["hits"]:
+            source = hit["_source"]
+            # Normalize log format for frontend
+            log = {
+                "timestamp": source.get("timestamp", ""),
+                "type": source.get("log_category", "unknown"),
+                "src_ip": source.get("src_ip", source.get("ip", "")),
+                "dst_ip": source.get("dst_ip", ""),
+                "attack_tool": source.get("attack_tool", ""),
+                "geoip": source.get("geoip", {}),
+                "message": source.get("payload", source.get("method", "") + " " + source.get("path", "")),
+                "protocol": source.get("protocol", ""),
+                "port": source.get("dst_port", source.get("port", 0))
+            }
+            logs.append(log)
+        
+        return logs
+    except Exception as e:
+        logging.error(f"Elasticsearch search error: {e}")
+        return []
+
 def update_attack_patterns(log_data):
     """Update attack pattern statistics"""
     try:
@@ -230,25 +281,30 @@ def health():
 @app.route('/api/logs')
 @api_key_required
 def get_logs():
-    """Get recent logs from Kafka consumer"""
+    """Get recent logs from Elasticsearch or Kafka"""
     limit = request.args.get('limit', 100, type=int)
     log_type = request.args.get('type', 'all')
     
     print(f"🔄 API /api/logs called with type={log_type}, limit={limit}")
     
     logs = []
-    if log_type == 'attack':
-        logs = kafka_consumer.get_attack_logs(limit)
-        print(f"⚔️ Retrieved {len(logs)} attack logs from Kafka")
-    elif log_type == 'honeypot':
-        logs = kafka_consumer.get_browser_logs(limit)
-        print(f"🌐 Retrieved {len(logs)} browser logs from Kafka")
-    elif log_type == 'error':
-        logs = kafka_consumer.get_error_logs(limit)
-        print(f"❌ Retrieved {len(logs)} error logs from Kafka")
+    if USE_ELASTICSEARCH:
+        logs = es_search_logs(log_type, limit)
+        print(f"🔍 Retrieved {len(logs)} logs from Elasticsearch")
     else:
-        logs = kafka_consumer.get_all_logs(limit)
-        print(f"📊 Retrieved {len(logs)} total logs from Kafka")
+        # Fallback to Kafka consumer
+        if log_type == 'attack':
+            logs = kafka_consumer.get_attack_logs(limit)
+            print(f"⚔️ Retrieved {len(logs)} attack logs from Kafka")
+        elif log_type == 'honeypot':
+            logs = kafka_consumer.get_browser_logs(limit)
+            print(f"🌐 Retrieved {len(logs)} browser logs from Kafka")
+        elif log_type == 'error':
+            logs = kafka_consumer.get_error_logs(limit)
+            print(f"❌ Retrieved {len(logs)} error logs from Kafka")
+        else:
+            logs = kafka_consumer.get_all_logs(limit)
+            print(f"📊 Retrieved {len(logs)} total logs from Kafka")
     
     # Debug: Print sample log if available
     if logs:
@@ -259,7 +315,7 @@ def get_logs():
         'total': len(logs),
         'type': log_type,
         'limit': limit,
-        'kafka_status': 'connected' if kafka_consumer.consumer else 'disconnected',
+        'kafka_status': 'via_elasticsearch' if USE_ELASTICSEARCH else ('connected' if kafka_consumer.consumer else 'disconnected'),
         'timestamp': datetime.now().isoformat()
     })
 

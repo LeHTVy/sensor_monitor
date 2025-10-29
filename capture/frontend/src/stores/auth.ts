@@ -41,8 +41,9 @@ export const useAuthStore = defineStore('auth', () => {
       } else {
         return { success: false, message: data.message }
       }
-    } catch (error: any) {
-      return { success: false, message: error.message }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred'
+      return { success: false, message: errorMessage }
     }
   }
 

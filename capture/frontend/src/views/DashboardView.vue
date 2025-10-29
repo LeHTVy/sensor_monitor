@@ -8,6 +8,11 @@
 
       <v-spacer />
 
+      <v-btn @click="toggleTheme" color="secondary" class="mr-2">
+        <v-icon left>{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+        {{ isDark ? 'Light' : 'Dark' }}
+      </v-btn>
+
       <v-btn @click="authStore.logout" color="error">
         <v-icon left>mdi-logout</v-icon>
         Logout
@@ -17,22 +22,7 @@
     <v-main>
       <v-container fluid>
         <!-- Stats Cards -->
-        <v-row class="mb-6">
-          <v-col
-            v-for="card in dashboardStore.statCards"
-            :key="card.title"
-            cols="12"
-            sm="6"
-            md="3"
-          >
-            <v-card class="pa-4" color="primary" variant="tonal">
-              <v-card-text class="text-center">
-                <div class="text-h3 font-weight-bold">{{ card.value }}</div>
-                <div class="text-h6">{{ card.title }}</div>
-              </v-card-text>
-            </v-card>
-          </v-col>
-        </v-row>
+        <StatsCards />
 
         <!-- Filter Tabs -->
         <v-card class="mb-6">
@@ -50,119 +40,36 @@
         </v-card>
 
         <!-- Logs Table -->
-        <v-card>
-          <v-card-title>
-            <v-icon icon="mdi-file-document-multiple" class="mr-2" />
-            Logs
-            <v-spacer />
-            <v-btn
-              @click="refreshData"
-              :loading="dashboardStore.loading"
-              color="primary"
-              variant="outlined"
-            >
-              <v-icon left>mdi-refresh</v-icon>
-              Refresh
-            </v-btn>
-          </v-card-title>
-
-          <v-data-table
-            :headers="headers"
-            :items="dashboardStore.logs"
-            :loading="dashboardStore.loading"
-            class="elevation-1"
-            items-per-page="25"
-          >
-            <template #item.timestamp="{ item }">
-              {{ formatDate(item.timestamp) }}
-            </template>
-
-            <template #item.type="{ item }">
-              <v-chip
-                :color="getTypeColor(item.type)"
-                size="small"
-              >
-                {{ item.type }}
-              </v-chip>
-            </template>
-
-            <template #item.attack_tool="{ item }">
-              <span v-if="item.attack_tool" class="font-weight-bold">
-                {{ item.attack_tool }}
-              </span>
-              <span v-else class="text-grey">-</span>
-            </template>
-
-            <template #item.geoip="{ item }">
-              <span v-if="item.geoip">
-                {{ item.geoip.country }}, {{ item.geoip.city }}
-              </span>
-              <span v-else class="text-grey">-</span>
-            </template>
-          </v-data-table>
-        </v-card>
+        <LogsTable
+          :logs="dashboardStore.logs"
+          :loading="dashboardStore.loading"
+          @refresh="refreshData"
+        />
 
         <!-- Attack Patterns -->
-        <v-card class="mt-6" v-if="dashboardStore.patterns.length > 0">
-          <v-card-title>
-            <v-icon icon="mdi-chart-line" class="mr-2" />
-            Attack Patterns
-          </v-card-title>
-
-          <v-data-table
-            :headers="patternHeaders"
-            :items="dashboardStore.patterns"
-            class="elevation-1"
-          >
-            <template #item.first_seen="{ item }">
-              {{ formatDate(item.first_seen) }}
-            </template>
-
-            <template #item.last_seen="{ item }">
-              {{ formatDate(item.last_seen) }}
-            </template>
-          </v-data-table>
-        </v-card>
+        <PatternsTable :patterns="dashboardStore.patterns" />
       </v-container>
     </v-main>
   </v-app>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
+import { useTheme } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useDashboardStore } from '@/stores/dashboard'
+import StatsCards from '@/components/StatsCards.vue'
+import LogsTable from '@/components/LogsTable.vue'
+import PatternsTable from '@/components/PatternsTable.vue'
 
 const authStore = useAuthStore()
 const dashboardStore = useDashboardStore()
+const theme = useTheme()
 
-const headers = [
-  { title: 'Timestamp', key: 'timestamp', sortable: true },
-  { title: 'Type', key: 'type', sortable: true },
-  { title: 'Source IP', key: 'src_ip', sortable: true },
-  { title: 'Attack Tool', key: 'attack_tool', sortable: false },
-  { title: 'Location', key: 'geoip', sortable: false },
-  { title: 'Message', key: 'message', sortable: false }
-]
+const isDark = computed(() => theme.global.current.value.dark)
 
-const patternHeaders = [
-  { title: 'Tool', key: 'tool', sortable: true },
-  { title: 'Count', key: 'count', sortable: true },
-  { title: 'First Seen', key: 'first_seen', sortable: true },
-  { title: 'Last Seen', key: 'last_seen', sortable: true }
-]
-
-function formatDate(timestamp: string) {
-  return new Date(timestamp).toLocaleString()
-}
-
-function getTypeColor(type: string) {
-  switch (type) {
-    case 'attack': return 'error'
-    case 'honeypot': return 'warning'
-    case 'error': return 'info'
-    default: return 'grey'
-  }
+function toggleTheme() {
+  theme.global.name.value = isDark.value ? 'light' : 'dark'
 }
 
 function refreshData() {
