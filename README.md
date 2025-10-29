@@ -10,7 +10,7 @@ Hệ thống honeypot hoàn chỉnh với 2 server: honeypot server giả mạo 
 - **Tính năng**: SQL injection, file upload, command injection vulnerabilities
 - **Logging**: Ghi log tất cả requests và gửi về capture server
 
-### Server 2: Capture (172.232.246.68)
+### Server 2: Capture (172.232.224.160)
 - **Chức năng**: Bắt và phân tích các gói tin tấn công
 - **Ports**: 8080 (API)
 - **Tính năng**: Packet capture, attack detection, log analysis
@@ -83,15 +83,15 @@ chmod +x deploy-honeypot.sh
 ./deploy-honeypot.sh
 ```
 
-### 2. Deploy Capture Server (172.232.246.68)
+### 2. Deploy Capture Server (172.232.224.160)
 
 ```bash
 # Copy files lên server
-scp -r capture/ root@172.232.246.68:/tmp/
-scp deploy-capture.sh root@172.232.246.68:/tmp/
+scp -r capture/ root@172.232.224.160:/tmp/
+scp deploy-capture.sh root@172.232.224.160:/tmp/
 
 # SSH vào server và chạy deployment
-ssh root@172.232.246.68
+ssh root@172.232.224.160
 cd /tmp
 chmod +x deploy-capture.sh
 ./deploy-capture.sh
@@ -105,7 +105,7 @@ curl http://172.235.245.60
 curl https://172.235.245.60
 
 # Kiểm tra capture server
-curl http://172.232.246.68:8080/api/health
+curl http://172.232.224.160:8080/api/health
 ```
 
 ## Sử dụng
@@ -160,14 +160,14 @@ systemctl restart capture
 #### Honeypot Server
 ```bash
 FLASK_ENV=production
-CAPTURE_SERVER_URL=http://172.232.246.68:8080
+CAPTURE_SERVER_URL=http://172.232.224.160:8080
 HONEYPOT_IP=172.235.245.60
 LOG_LEVEL=INFO
 ```
 
 #### Capture Server
 ```bash
-TARGET_IP=172.232.246.68
+TARGET_IP=172.232.224.160
 HONEYPOT_IP=172.235.245.60
 LOG_DIR=/app/logs
 LOG_LEVEL=INFO
@@ -180,8 +180,8 @@ LOG_LEVEL=INFO
 ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
-ufw allow from 172.232.246.68 to any port 80
-ufw allow from 172.232.246.68 to any port 443
+ufw allow from 172.232.224.160 to any port 80
+ufw allow from 172.232.224.160 to any port 443
 ```
 
 #### Capture Server
@@ -245,7 +245,7 @@ tcpdump -i any -c 5
 ping 172.235.245.60
 
 # Test API
-curl http://172.232.246.68:8080/api/health
+curl http://172.232.224.160:8080/api/health
 
 # Xem logs
 tail -f /var/log/capture/honeypot/honeypot_logs.log

@@ -106,7 +106,7 @@ class PacketCapture:
                     packet_info = {
                         'timestamp': datetime.now().isoformat(),
                         'src_ip': f'192.168.1.{100 + (packet_count % 50)}',
-                        'dst_ip': '172.232.246.68',
+                        'dst_ip': '172.232.224.160',
                         'protocol': 'TCP' if packet_count % 3 == 0 else 'UDP',
                         'src_port': 10000 + (packet_count % 1000),
                         'dst_port': 22 if packet_count % 5 == 0 else 80,

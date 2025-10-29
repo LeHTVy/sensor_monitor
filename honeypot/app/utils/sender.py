@@ -12,7 +12,7 @@ from datetime import datetime
 
 class LogSender:
     def __init__(self, capture_server_url=None):
-        self.capture_server_url = capture_server_url or os.getenv('CAPTURE_SERVER_URL', 'http://172.232.246.68:8080')
+        self.capture_server_url = capture_server_url or os.getenv('CAPTURE_SERVER_URL', 'http://172.232.224.160:8080')
         self.api_endpoint = f"{self.capture_server_url}/api/logs/receive"  # ✅ Sửa đây
         self.retry_attempts = 3
         self.retry_delay = 1
