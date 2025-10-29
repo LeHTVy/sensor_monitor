@@ -22,6 +22,8 @@ app = Flask(__name__)
 
 # Initialize security middleware
 security = CaptureSecurity(app)
+# Ensure middleware instance is attached to the app for decorators to access
+app.security = security
 
 # Global variables for logging and statistics
 log_queue = queue.Queue()

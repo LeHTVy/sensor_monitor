@@ -95,8 +95,10 @@ export default createStore({
       
       try {
         const response = await fetch('/api/stats', {
+          method: 'GET',
           headers: {
-            'X-API-Key': state.apiKey
+            'X-API-Key': state.apiKey,
+            'Content-Type': 'application/json'
           }
         })
         
@@ -127,8 +129,10 @@ export default createStore({
           : `/api/logs?type=${state.currentFilter}`
           
         const response = await fetch(url, {
+          method: 'GET',
           headers: {
-            'X-API-Key': state.apiKey
+            'X-API-Key': state.apiKey,
+            'Content-Type': 'application/json'
           }
         })
         
@@ -155,8 +159,10 @@ export default createStore({
       
       try {
         const response = await fetch('/api/attack-patterns', {
+          method: 'GET',
           headers: {
-            'X-API-Key': state.apiKey
+            'X-API-Key': state.apiKey,
+            'Content-Type': 'application/json'
           }
         })
         
