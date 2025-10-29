@@ -64,7 +64,7 @@ interface Log {
     country: string
     city: string
   }
-  message: string
+  message?: string
 }
 
 interface Props {
