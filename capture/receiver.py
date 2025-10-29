@@ -357,7 +357,7 @@ def es_get_stats():
         # Parse aggregations
         attack_logs = 0
         honeypot_logs = 0
-        error_logs = 0
+        traffic_logs = 0
         
         for bucket in res['aggregations']['by_category']['buckets']:
             category = bucket['key']
@@ -367,8 +367,8 @@ def es_get_stats():
                 attack_logs = count
             elif category == 'honeypot':
                 honeypot_logs = count
-            elif category == 'error':
-                error_logs = count
+            elif category == 'traffic':
+                traffic_logs = count
         
         # Get latest timestamp
         latest_res = es_client.search(
@@ -387,7 +387,7 @@ def es_get_stats():
             'total_logs_received': total_logs,
             'attack_logs': attack_logs,
             'honeypot_logs': honeypot_logs,
-            'error_logs': error_logs,
+            'traffic_logs': traffic_logs,
             'last_received': last_received,
             'start_time': stats['start_time'],
             'uptime': (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()

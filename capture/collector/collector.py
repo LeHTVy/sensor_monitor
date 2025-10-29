@@ -37,8 +37,14 @@ consumer = KafkaConsumer(
 )
 
 def index_name_for_topic(topic: str) -> str:
-    """Generate index name with date suffix"""
-    return f"{index_prefix}-{topic}-{datetime.utcnow().strftime('%Y.%m.%d')}"
+    """Generate clean index name without date suffix"""
+    # Map topics to clean index names
+    topic_mapping = {
+        'honeypot-attacks': f"{index_prefix}-attacks",
+        'honeypot-browser': f"{index_prefix}-honeypot", 
+        'honeypot-errors': f"{index_prefix}-traffic"
+    }
+    return topic_mapping.get(topic, f"{index_prefix}-{topic}")
 
 def ensure_template():
     """Create Elasticsearch index template"""

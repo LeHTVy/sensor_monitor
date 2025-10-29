@@ -21,7 +21,7 @@ export interface Stats {
   total_logs_received: number
   attack_logs: number
   honeypot_logs: number
-  error_logs: number
+  traffic_logs: number
 }
 
 export interface Pattern {
@@ -39,17 +39,17 @@ export const useDashboardStore = defineStore('dashboard', () => {
     total_logs_received: 0,
     attack_logs: 0,
     honeypot_logs: 0,
-    error_logs: 0
+    traffic_logs: 0
   })
   const patterns = ref<Pattern[]>([])
-  const currentFilter = ref<'all' | 'attack' | 'honeypot' | 'error'>('all')
+  const currentFilter = ref<'all' | 'attack' | 'honeypot' | 'traffic'>('all')
   const loading = ref(false)
 
   const statCards = computed(() => [
     { title: 'Total Logs', value: stats.value.total_logs_received },
     { title: 'Attacks', value: stats.value.attack_logs },
     { title: 'Honeypot', value: stats.value.honeypot_logs },
-    { title: 'Errors', value: stats.value.error_logs }
+    { title: 'Traffic', value: stats.value.traffic_logs }
   ])
 
   async function loadStats() {
@@ -125,7 +125,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
-  function setFilter(filter: 'all' | 'attack' | 'honeypot' | 'error') {
+  function setFilter(filter: 'all' | 'attack' | 'honeypot' | 'traffic') {
     currentFilter.value = filter
     loadLogs()
   }

@@ -28,22 +28,22 @@
         <v-card class="mb-6">
           <v-tabs
             v-model="dashboardStore.currentFilter"
-            @update:model-value="(value: 'all' | 'attack' | 'honeypot' | 'error') => dashboardStore.setFilter(value)"
+                     @update:model-value="(value: 'all' | 'attack' | 'honeypot' | 'traffic') => dashboardStore.setFilter(value)"
             color="primary"
             align-tabs="center"
           >
             <v-tab value="all">All Logs</v-tab>
             <v-tab value="attack">Attacks</v-tab>
             <v-tab value="honeypot">Honeypot</v-tab>
-            <v-tab value="error">Errors</v-tab>
+            <v-tab value="traffic">Traffic</v-tab>
           </v-tabs>
         </v-card>
 
         <!-- Logs Table -->
         <LogsTable
           :logs="dashboardStore.logs"
-          :loading="dashboardStore.loading"
-          @refresh="refreshData"
+          :loading="dashboardStore.loading || refreshStore.isRefreshing"
+          @refresh="refreshStore.refreshData"
         />
 
         <!-- Attack Patterns -->
@@ -54,16 +54,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, onUnmounted, computed } from 'vue'
 import { useTheme } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useDashboardStore } from '@/stores/dashboard'
+import { useRefreshStore } from '@/stores/refreshData'
 import StatsCards from '@/components/StatsCards.vue'
 import LogsTable from '@/components/LogsTable.vue'
 import PatternsTable from '@/components/PatternsTable.vue'
 
 const authStore = useAuthStore()
 const dashboardStore = useDashboardStore()
+const refreshStore = useRefreshStore()
 const theme = useTheme()
 
 const isDark = computed(() => theme.global.current.value.dark)
@@ -72,13 +74,14 @@ function toggleTheme() {
   theme.global.name.value = isDark.value ? 'light' : 'dark'
 }
 
-function refreshData() {
-  dashboardStore.loadAllData()
-}
-
 onMounted(() => {
   if (authStore.isLoggedIn) {
-    refreshData()
+    refreshStore.refreshData()
+    refreshStore.startAutoRefresh(1000)
   }
+})
+
+onUnmounted(() => {
+  refreshStore.stopAutoRefresh()
 })
 </script>
