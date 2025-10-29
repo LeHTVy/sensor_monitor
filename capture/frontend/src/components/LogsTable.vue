@@ -22,11 +22,11 @@
       class="elevation-1"
       items-per-page="25"
     >
-      <template #item.timestamp="{ item }">
+      <template v-slot:item.timestamp="{ item }">
         {{ formatDate(item.timestamp) }}
       </template>
 
-      <template #item.type="{ item }">
+      <template v-slot:item.type="{ item }">
         <v-chip
           :color="getTypeColor(item.type)"
           size="small"
@@ -35,14 +35,14 @@
         </v-chip>
       </template>
 
-      <template #item.attack_tool="{ item }">
+      <template v-slot:item.attack_tool="{ item }">
         <span v-if="item.attack_tool" class="font-weight-bold">
           {{ item.attack_tool }}
         </span>
         <span v-else class="text-grey">-</span>
       </template>
 
-      <template #item.geoip="{ item }">
+      <template v-slot:item.geoip="{ item }">
         <div v-if="item.geoip" class="d-flex flex-column">
           <span class="font-weight-bold">{{ item.geoip.country }}</span>
           <span class="text-caption">{{ item.geoip.city }}</span>
@@ -51,7 +51,7 @@
         <span v-else class="text-grey">-</span>
       </template>
 
-      <template #item.method="{ item }">
+      <template v-slot:item.method="{ item }">
         <v-chip
           :color="getMethodColor(item.method)"
           size="small"
@@ -61,11 +61,11 @@
         </v-chip>
       </template>
 
-      <template #item.path="{ item }">
+      <template v-slot:item.path="{ item }">
         <code class="text-caption">{{ item.path || item.message || '-' }}</code>
       </template>
 
-      <template #item.user_agent="{ item }">
+      <template v-slot:item.user_agent="{ item }">
         <span class="text-caption" :title="item.user_agent">
           {{ truncateText(item.user_agent, 30) }}
         </span>
@@ -75,7 +75,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 
 interface Log {
   timestamp: string
@@ -98,7 +97,7 @@ interface Props {
   loading: boolean
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
 defineEmits<{
   refresh: []

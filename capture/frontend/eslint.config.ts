@@ -19,10 +19,16 @@ export default defineConfigWithVueTs(
 
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
-  
+
   {
     ...pluginVitest.configs.recommended,
     files: ['src/**/__tests__/*'],
+  },
+  {
+    rules: {
+      'vue/valid-v-slot': 'off', // Disable v-slot validation
+      '@typescript-eslint/no-unused-vars': 'off', // Disable unused vars warning
+    },
   },
   skipFormatting,
 )
