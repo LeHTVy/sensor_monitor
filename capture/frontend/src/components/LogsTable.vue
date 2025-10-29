@@ -43,10 +43,32 @@
       </template>
 
       <template #item.geoip="{ item }">
-        <span v-if="item.geoip">
-          {{ item.geoip.country }}, {{ item.geoip.city }}
-        </span>
+        <div v-if="item.geoip" class="d-flex flex-column">
+          <span class="font-weight-bold">{{ item.geoip.country }}</span>
+          <span class="text-caption">{{ item.geoip.city }}</span>
+          <span class="text-caption text-grey">{{ item.geoip.isp }}</span>
+        </div>
         <span v-else class="text-grey">-</span>
+      </template>
+
+      <template #item.method="{ item }">
+        <v-chip
+          :color="getMethodColor(item.method)"
+          size="small"
+          variant="outlined"
+        >
+          {{ item.method || 'N/A' }}
+        </v-chip>
+      </template>
+
+      <template #item.path="{ item }">
+        <code class="text-caption">{{ item.path || item.message || '-' }}</code>
+      </template>
+
+      <template #item.user_agent="{ item }">
+        <span class="text-caption" :title="item.user_agent">
+          {{ truncateText(item.user_agent, 30) }}
+        </span>
       </template>
     </v-data-table>
   </v-card>
@@ -63,8 +85,12 @@ interface Log {
   geoip?: {
     country: string
     city: string
+    isp?: string
   }
   message?: string
+  method?: string
+  path?: string
+  user_agent?: string
 }
 
 interface Props {
@@ -79,12 +105,14 @@ defineEmits<{
 }>()
 
 const headers = [
-  { title: 'Timestamp', key: 'timestamp', sortable: true },
-  { title: 'Type', key: 'type', sortable: true },
-  { title: 'Source IP', key: 'src_ip', sortable: true },
-  { title: 'Attack Tool', key: 'attack_tool', sortable: false },
-  { title: 'Location', key: 'geoip', sortable: false },
-  { title: 'Message', key: 'message', sortable: false }
+  { title: 'Timestamp', key: 'timestamp', sortable: true, width: '180px' },
+  { title: 'Type', key: 'type', sortable: true, width: '100px' },
+  { title: 'Source IP', key: 'src_ip', sortable: true, width: '120px' },
+  { title: 'Attack Tool', key: 'attack_tool', sortable: false, width: '120px' },
+  { title: 'Location', key: 'geoip', sortable: false, width: '150px' },
+  { title: 'Method', key: 'method', sortable: false, width: '80px' },
+  { title: 'Path', key: 'path', sortable: false, width: '200px' },
+  { title: 'User Agent', key: 'user_agent', sortable: false, width: '250px' }
 ]
 
 function formatDate(timestamp: string) {
@@ -98,5 +126,21 @@ function getTypeColor(type: string) {
     case 'error': return 'info'
     default: return 'grey'
   }
+}
+
+function getMethodColor(method: string) {
+  switch (method?.toUpperCase()) {
+    case 'GET': return 'success'
+    case 'POST': return 'primary'
+    case 'PUT': return 'warning'
+    case 'DELETE': return 'error'
+    case 'PATCH': return 'info'
+    default: return 'grey'
+  }
+}
+
+function truncateText(text: string, maxLength: number) {
+  if (!text) return '-'
+  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
 }
 </script>

@@ -183,8 +183,15 @@ def es_search_logs(log_type: str, limit: int):
                 "src_ip": source.get("src_ip", source.get("ip", "")),
                 "dst_ip": source.get("dst_ip", ""),
                 "attack_tool": source.get("attack_tool", ""),
-                "geoip": source.get("geoip", {}),
-                "message": source.get("payload", source.get("method", "") + " " + source.get("path", "")),
+                "geoip": {
+                    "country": source.get("geoip", {}).get("country", ""),
+                    "city": source.get("geoip", {}).get("city", ""),
+                    "isp": source.get("geoip", {}).get("isp", "")
+                },
+                "message": source.get("payload", ""),
+                "method": source.get("method", ""),
+                "path": source.get("path", ""),
+                "user_agent": source.get("user_agent", ""),
                 "protocol": source.get("protocol", ""),
                 "port": source.get("dst_port", source.get("port", 0))
             }
@@ -319,28 +326,107 @@ def get_logs():
         'timestamp': datetime.now().isoformat()
     })
 
+def es_get_stats():
+    """Get statistics from Elasticsearch"""
+    if not es_client:
+        return stats
+    
+    try:
+        # Search in all indices
+        query_index = f"{ES_PREFIX}-*"
+        
+        # Get total count
+        total_res = es_client.count(index=query_index)
+        total_logs = total_res['count']
+        
+        # Get counts by log_category
+        body = {
+            "size": 0,
+            "aggs": {
+                "by_category": {
+                    "terms": {
+                        "field": "log_category.keyword",
+                        "size": 10
+                    }
+                }
+            }
+        }
+        
+        res = es_client.search(index=query_index, body=body)
+        
+        # Parse aggregations
+        attack_logs = 0
+        honeypot_logs = 0
+        error_logs = 0
+        
+        for bucket in res['aggregations']['by_category']['buckets']:
+            category = bucket['key']
+            count = bucket['doc_count']
+            
+            if category == 'attack':
+                attack_logs = count
+            elif category == 'honeypot':
+                honeypot_logs = count
+            elif category == 'error':
+                error_logs = count
+        
+        # Get latest timestamp
+        latest_res = es_client.search(
+            index=query_index,
+            body={
+                "size": 1,
+                "sort": [{"timestamp": {"order": "desc"}}]
+            }
+        )
+        
+        last_received = None
+        if latest_res['hits']['hits']:
+            last_received = latest_res['hits']['hits'][0]['_source']['timestamp']
+        
+        return {
+            'total_logs_received': total_logs,
+            'attack_logs': attack_logs,
+            'honeypot_logs': honeypot_logs,
+            'error_logs': error_logs,
+            'last_received': last_received,
+            'start_time': stats['start_time'],
+            'uptime': (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()
+        }
+    except Exception as e:
+        logging.error(f"Elasticsearch stats error: {e}")
+        return stats
+
 @app.route('/api/stats')
 @api_key_required
 def get_stats():
     """Get statistics"""
-    stats['uptime'] = (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()
-    
-    # Get Kafka consumer stats
-    kafka_stats = {
-        'browser_logs': len(kafka_consumer.browser_logs),
-        'attack_logs': len(kafka_consumer.attack_logs),
-        'error_logs': len(kafka_consumer.error_logs),
-        'consumer_running': kafka_consumer.running,
-        'consumer_connected': kafka_consumer.consumer is not None
-    }
-    
-    print(f"📊 Stats API called - Kafka: {kafka_stats}")
-    
-    return jsonify({
-        'stats': stats,
-        'kafka_stats': kafka_stats,
-        'timestamp': datetime.now().isoformat()
-    })
+    if USE_ELASTICSEARCH:
+        es_stats = es_get_stats()
+        print(f"📊 Stats API called - ES: {es_stats}")
+        return jsonify({
+            'stats': es_stats,
+            'kafka_stats': {'source': 'elasticsearch'},
+            'timestamp': datetime.now().isoformat()
+        })
+    else:
+        # Fallback to original Kafka stats
+        stats['uptime'] = (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()
+        
+        kafka_stats = {
+            'browser_logs': len(kafka_consumer.browser_logs),
+            'attack_logs': len(kafka_consumer.attack_logs),
+            'error_logs': len(kafka_consumer.error_logs),
+            'consumer_running': kafka_consumer.running,
+            'consumer_connected': kafka_consumer.consumer is not None
+        }
+        
+        print(f"📊 Stats API called - Kafka: {kafka_stats}")
+        
+        return jsonify({
+            'stats': stats,
+            'kafka_stats': kafka_stats,
+            'timestamp': datetime.now().isoformat()
+        })
 
 @app.route('/api/attack-patterns')
 @api_key_required
