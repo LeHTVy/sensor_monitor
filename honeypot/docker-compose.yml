@@ -11,12 +11,29 @@ services:
       - FLASK_ENV=production
       - CAPTURE_SERVER_URL=http://172.232.224.160:8080
       - KAFKA_BOOTSTRAP_SERVERS=172.232.224.160:9093
+      - USE_OLLAMA=true
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5:7b
     env_file:
       - .env
     restart: unless-stopped
     networks:
       - honeypot-network
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"   # nếu chỉ dùng nội bộ có thể chuyển thành 127.0.0.1:11434:11434
+    volumes:
+      - ollama:/root/.ollama
+    networks:
+      - honeypot-network
+
 networks:
   honeypot-network:
     driver: bridge
+
+volumes:
+  ollama:
