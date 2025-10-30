@@ -473,6 +473,16 @@ class HoneypotLogger:
     
     def _categorize_log(self, attack_tool, attack_technique):
         """Categorize log based on tool and technique"""
+        # High-risk techniques → attack even if tool unknown
+        technique_list = [t.lower() for t in (attack_technique or [])]
+        high_risk = {
+            'sql_injection', 'sqli', 'command_injection', 'rce', 'remote_code_execution',
+            'brute_force', 'credential_stuffing', 'xss', 'path_traversal', 'directory_traversal',
+            'lfi', 'rfi', 'ssrf', 'csrf', 'deserialization', 'insecure_direct_object_reference'
+        }
+        if any(t in high_risk for t in technique_list):
+            return 'attack'
+
         # Normal browsing → traffic
         if attack_tool == 'browser':
             return 'traffic'
@@ -505,7 +515,7 @@ class HoneypotLogger:
         if attack_tool in attack_tools:
             return 'attack'
         
-        # Unknown tool → treat as traffic (not error)
+        # Unknown tool → default to traffic
         if attack_tool == 'unknown' or not attack_tool:
             return 'traffic'
         
