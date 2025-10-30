@@ -9,7 +9,6 @@ import os
 import time
 from datetime import datetime
 from kafka import KafkaProducer
-from kafka.errors import KafkaError
 
 class HoneypotKafkaProducer:
     def __init__(self, bootstrap_servers=None):
@@ -64,12 +63,11 @@ class HoneypotKafkaProducer:
             print(f"✅ Log sent to topic {topic}, partition {record_metadata.partition}, offset {record_metadata.offset}")
             return True
             
-        except KafkaError as e:
+        except Exception as e:
+            # Handle kafka-python specific errors without importing typing stubs
             print(f"❌ Kafka error sending to topic {topic}: {str(e)}")
             return False
-        except Exception as e:
-            print(f"❌ Error sending to topic {topic}: {str(e)}")
-            return False
+        
     
     def send_browser_log(self, log_data):
         """Send browser logs to honeypot-browser topic"""
@@ -85,6 +83,11 @@ class HoneypotKafkaProducer:
         """Send error logs to honeypot-errors topic"""
         print(f"❌ Sending error log: {log_data.get('error', 'unknown error')}")
         return self._send_to_topic('honeypot-errors', log_data, key=log_data.get('ip'))
+
+    def send_traffic_log(self, log_data):
+        """Send normal traffic logs to honeypot-traffic topic"""
+        print(f"🚦 Sending traffic log: {log_data.get('method', 'GET')} {log_data.get('path', '/')} from {log_data.get('ip', 'unknown')}")
+        return self._send_to_topic('honeypot-traffic', log_data, key=log_data.get('ip'))
     
     def close(self):
         """Close Kafka producer"""

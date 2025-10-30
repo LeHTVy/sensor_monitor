@@ -32,6 +32,15 @@ class HoneypotLogger:
             forwarded_for = request.headers.get('X-Forwarded-For', '')
             forwarded_proto = request.headers.get('X-Forwarded-Proto', 'http')
             
+            # Debug IP information
+            print(f"🌐 IP Debug for request:")
+            print(f"   Remote Addr: {request.remote_addr}")
+            print(f"   X-Real-IP: {request.headers.get('X-Real-IP', 'None')}")
+            print(f"   X-Forwarded-For: {forwarded_for}")
+            print(f"   X-Forwarded-Proto: {forwarded_proto}")
+            print(f"   Final IP: {real_ip}")
+            print(f"   All Headers: {dict(request.headers)}")
+            
             # Detect attack tool/technique
             user_agent = request.headers.get('User-Agent', '')
             attack_tool_info = self._detect_attack_tool(request)
@@ -464,22 +473,41 @@ class HoneypotLogger:
     
     def _categorize_log(self, attack_tool, attack_technique):
         """Categorize log based on tool and technique"""
-        # Honeypot logs: browser traffic
+        # Normal browsing → traffic
         if attack_tool == 'browser':
-            return 'honeypot'
+            return 'traffic'
         
         # Attack logs: security tools
-        attack_tools = ['nmap', 'sqlmap', 'nikto', 'dirb', 'gobuster', 'burp', 'zap', 'w3af', 
-                       'metasploit', 'curl', 'wget', 'python', 'perl', 'ruby', 'php', 'java',
-                       'scanner', 'bot', 'automated', 'telnet', 'netcat', 'malformed', 'suspicious',
-                       'web_scanner', 'minimal_client', 'unusual_method', 'parameter_attack']
+        attack_tools = [
+            # Scanners / Recon
+            'nmap', 'masscan', 'amass', 'subfinder', 'theharvester',
+            # Web vul scanners / dir bruteforce
+            'nikto', 'wapiti', 'w3af', 'gobuster', 'dirb',
+            # Proxies / fuzzers
+            'burp', 'zap',
+            # Exploit frameworks / C2
+            'metasploit', 'cobalt strike', 'empire',
+            # Auth bruteforce
+            'hydra', 'medusa', 'crowbar',
+            # CLI / network tools often seen in probing
+            'curl', 'httpie', 'wget', 'netcat', 'nc', 'socat', 'telnet',
+            # Packet capture / analysis
+            'wireshark', 'tshark', 'tcpdump', 'ngrep',
+            # SMB/AD enum
+            'smbclient', 'enum4linux', 'rpcclient', 'bloodhound',
+            # Scripting runtimes often used for tooling
+            'python', 'perl', 'ruby', 'php', 'java', 'openssl',
+            # Heuristics
+            'scanner', 'bot', 'automated', 'malformed', 'suspicious',
+            'web_scanner', 'minimal_client', 'unusual_method', 'parameter_attack'
+        ]
         
         if attack_tool in attack_tools:
             return 'attack'
         
-        # Error logs: system errors, rate limiting
+        # Unknown tool → treat as traffic (not error)
         if attack_tool == 'unknown' or not attack_tool:
-            return 'error'
+            return 'traffic'
         
         return 'unknown'
     

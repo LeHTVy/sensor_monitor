@@ -82,15 +82,19 @@ def log_request():
         
         # Send to Kafka based on log category (with error handling)
         try:
-            if log_entry.get('log_category') == 'attack':
+            category = log_entry.get('log_category')
+            if category == 'attack':
                 kafka_producer.send_attack_log(log_data)
                 print(f"✅ Sent attack log to Kafka: {log_entry.get('attack_tool', 'unknown')}")
-            elif log_entry.get('log_category') == 'honeypot':
+            elif category == 'traffic':
+                kafka_producer.send_traffic_log(log_data)
+                print(f"✅ Sent traffic log to Kafka: {request.method} {request.path}")
+            elif category == 'honeypot':
                 kafka_producer.send_browser_log(log_data)
                 print(f"✅ Sent browser log to Kafka: {log_entry.get('attack_tool', 'browser')}")
             else:
                 kafka_producer.send_error_log(log_data)
-                print(f"✅ Sent error log to Kafka: {log_entry.get('log_category', 'unknown')}")
+                print(f"✅ Sent error log to Kafka: {category}")
         except Exception as kafka_error:
             print(f"❌ Kafka error: {str(kafka_error)}")
         

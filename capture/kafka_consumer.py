@@ -35,6 +35,7 @@ class CaptureKafkaConsumer:
             self.consumer = KafkaConsumer(
                 'honeypot-browser',
                 'honeypot-attacks', 
+                'honeypot-traffic',
                 'honeypot-errors',
                 bootstrap_servers=[self.bootstrap_servers],
                 value_deserializer=lambda m: json.loads(m.decode('utf-8')),
@@ -98,9 +99,9 @@ class CaptureKafkaConsumer:
                 self.attack_logs.append(log_data)
                 print(f"⚔️ Processed attack log: {log_data.get('attack_tool', 'unknown')} from {log_data.get('ip', 'unknown')}")
                 
-            elif topic == 'honeypot-errors':
+            elif topic in ('honeypot-traffic', 'honeypot-errors'):
                 self.error_logs.append(log_data)
-                print(f"❌ Processed error log: {log_data.get('error', 'unknown error')}")
+                print(f"🚦 Processed traffic log: {log_data.get('method', 'GET')} {log_data.get('path', '/')}")
             
             # Keep only last 1000 logs to prevent memory issues
             if len(self.browser_logs) > 1000:

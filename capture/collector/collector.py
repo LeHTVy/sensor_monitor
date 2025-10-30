@@ -13,7 +13,7 @@ from elasticsearch import Elasticsearch, helpers
 
 # Configuration from environment
 bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-topics = [t.strip() for t in os.getenv("KAFKA_TOPICS", "honeypot-attacks,honeypot-browser,honeypot-errors").split(",")]
+topics = [t.strip() for t in os.getenv("KAFKA_TOPICS", "honeypot-attacks,honeypot-browser,honeypot-traffic").split(",")]
 group_id = os.getenv("KAFKA_GROUP", "capture-es-collector")
 es_host = os.getenv("ES_HOST", "http://elasticsearch:9200")
 index_prefix = os.getenv("ES_INDEX_PREFIX", "sensor-logs")
@@ -42,6 +42,8 @@ def index_name_for_topic(topic: str) -> str:
     topic_mapping = {
         'honeypot-attacks': f"{index_prefix}-attacks",
         'honeypot-browser': f"{index_prefix}-honeypot", 
+        'honeypot-traffic': f"{index_prefix}-traffic",
+        # Backward compat if còn log cũ
         'honeypot-errors': f"{index_prefix}-traffic"
     }
     return topic_mapping.get(topic, f"{index_prefix}-{topic}")
