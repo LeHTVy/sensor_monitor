@@ -21,6 +21,7 @@
       :loading="loading"
       class="elevation-1"
       items-per-page="25"
+      @click:row="onRowClick"
     >
       <template v-slot:item.timestamp="{ item }">
         {{ formatDate(item.timestamp) }}
@@ -71,6 +72,57 @@
         </span>
       </template>
     </v-data-table>
+    <!-- Details Dialog -->
+    <v-dialog v-model="detailsOpen" max-width="900">
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          <v-icon icon="mdi-information-outline" class="mr-2" />
+          Log Details
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" @click="detailsOpen = false" />
+        </v-card-title>
+        <v-card-text>
+          <v-row>
+            <v-col cols="12" md="6">
+              <v-list density="compact">
+                <v-list-item title="Timestamp" :subtitle="formatDate(selectedLog?.timestamp || '')" />
+                <v-list-item title="Type" :subtitle="selectedLog?.type || '-'" />
+                <v-list-item title="Source IP" :subtitle="selectedLog?.src_ip || '-'" />
+                <v-list-item title="Method" :subtitle="selectedLog?.method || '-'" />
+                <v-list-item title="Path" :subtitle="selectedLog?.path || '-'" />
+                <v-list-item title="User Agent" :subtitle="selectedLog?.user_agent || '-'" />
+                <v-list-item title="Attack Tool" :subtitle="selectedLog?.attack_tool || '-'" />
+              </v-list>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-card variant="outlined">
+                <v-card-title class="text-subtitle-2">GeoIP</v-card-title>
+                <v-card-text>
+                  <div v-if="selectedLog?.geoip">
+                    <div><strong>Country:</strong> {{ selectedLog?.geoip?.country }}</div>
+                    <div><strong>City:</strong> {{ selectedLog?.geoip?.city }}</div>
+                    <div><strong>ISP:</strong> {{ selectedLog?.geoip?.isp || '-' }}</div>
+                  </div>
+                  <div v-else>-</div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+            <v-col cols="12">
+              <v-card variant="outlined">
+                <v-card-title class="text-subtitle-2">Raw JSON</v-card-title>
+                <v-card-text>
+                  <pre class="code-block">{{ prettyJson(selectedLog) }}</pre>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn color="primary" @click="detailsOpen = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-card>
 </template>
 
@@ -97,7 +149,7 @@ interface Props {
   loading: boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 defineEmits<{
   refresh: []
@@ -150,4 +202,27 @@ function truncateText(text: string, maxLength: number) {
   if (!text) return '-'
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
 }
+
+// Details modal state
+import { ref } from 'vue'
+const detailsOpen = ref(false)
+const selectedLog = ref<Log | null>(null)
+
+function onRowClick(event: MouseEvent, { item }: any) {
+  // Vuetify passes { item } containing the raw object
+  selectedLog.value = item as Log
+  detailsOpen.value = true
+}
+
+function prettyJson(obj: unknown) {
+  try { return JSON.stringify(obj, null, 2) } catch { return '-' }
+}
 </script>
+
+<style scoped>
+.code-block {
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+}
+</style>

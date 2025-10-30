@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar color="primary" dark>
+    <v-app-bar color="primary" dark class="floating-app-bar" :elevation="8">
       <v-app-bar-title>
         <v-icon icon="mdi-shield-account" class="mr-2" />
         Capture Server Dashboard
@@ -20,7 +20,7 @@
     </v-app-bar>
 
     <v-main>
-      <v-container fluid>
+      <v-container fluid class="pt-12">
         <!-- Stats Cards -->
         <StatsCards />
 
@@ -85,3 +85,13 @@ onUnmounted(() => {
   refreshStore.stopAutoRefresh()
 })
 </script>
+
+<style scoped>
+.floating-app-bar {
+  position: sticky;
+  top: 12px;
+  margin: 12px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+}
+</style>
