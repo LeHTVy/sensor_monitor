@@ -15,6 +15,7 @@ from werkzeug.utils import secure_filename
 from utils.logger import HoneypotLogger
 from utils.sender import LogSender
 from utils.kafka_producer import HoneypotKafkaProducer
+from utils.mysql_ai_console import MySQLAIConsole
 
 app = Flask(__name__)
 app.secret_key = 'honeypot_secret_key_12345'
@@ -215,35 +216,44 @@ def upload_file():
 
 @app.route('/console', methods=['GET', 'POST'])
 def console():
-    """Vulnerable command execution console"""
+    """AI-driven MySQL-like console (no real command execution)"""
     if not session.get('logged_in'):
         return redirect(url_for('login'))
-    
+
+    # Initialize console per session
+    if 'mysql_console' not in session:
+        session['mysql_console'] = True
+    console_engine = app.config.setdefault('mysql_console_engine', MySQLAIConsole())
+
     output = ""
     if request.method == 'POST':
         command = request.form.get('command', '')
-        
-        # Log command execution attempt
+
+        # Log interaction as activity (not actual command execution)
         attack_data = {
-            'type': 'command_injection',
+            'type': 'console_interaction',
             'command': command,
             'ip': request.remote_addr,
             'user_agent': request.headers.get('User-Agent', ''),
             'timestamp': datetime.now().isoformat()
         }
-        
         logger.log_attack(attack_data)
         sender.send_log(attack_data)
-        
-        try:
-            # Intentionally vulnerable command execution
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=5)
-            output = f"$ {command}\n{result.stdout}\n{result.stderr}"
-        except subprocess.TimeoutExpired:
-            output = f"$ {command}\nCommand timed out"
-        except Exception as e:
-            output = f"$ {command}\nError: {str(e)}"
-    
+
+        # Use stateful simulator
+        session_id = session.get('username', request.remote_addr or 'anon')
+        output = console_engine.handle_command(command, session_id)
+
+    # Initial banner like MySQL client
+    if not output:
+        output = (
+            "Welcome to the MySQL monitor.  Commands end with ; or \n.\n"
+            f"Your MySQL connection id is {abs(hash(session.get('username', 'guest'))) % 10000}\n"
+            "Server version: 8.0.25 MySQL Community Server - GPL\n\n"
+            "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n"
+            "mysql> "
+        )
+
     return render_template('console.html', output=output)
 
 @app.route('/api/users')
