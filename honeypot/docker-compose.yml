@@ -9,8 +9,8 @@ services:
       - ./logs:/app/logs
     environment:
       - FLASK_ENV=production
-      - CAPTURE_SERVER_URL=http://172.232.224.160:8082
-      - KAFKA_BOOTSTRAP_SERVERS=172.232.224.160:9093
+      - CAPTURE_SERVER_URL=http://10.8.0.1:8082  # Gửi log qua VPN
+      - KAFKA_BOOTSTRAP_SERVERS=10.8.0.1:9093   # Kafka qua VPN
       - USE_OLLAMA=true
       - OLLAMA_URL=http://ollama:11434
       - OLLAMA_MODEL=qwen2.5:7b
@@ -27,7 +27,7 @@ services:
     container_name: ollama
     restart: unless-stopped
     ports:
-      - "11434:11434"   # nếu chỉ dùng nội bộ có thể chuyển thành 127.0.0.1:11434:11434
+      - "11434:11434"  
     volumes:
       - ollama:/root/.ollama
     networks:
