@@ -14,20 +14,23 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY app/ ./app/
-COPY nginx/ /etc/nginx/
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
 
 # Create directories
-RUN mkdir -p /app/logs /etc/ssl/certs /etc/ssl/private
+RUN mkdir -p /app/logs /etc/nginx/certs /etc/ssl/certs /etc/ssl/private
 
 # Generate self-signed SSL certificate
 RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/ssl/private/honeypot.key \
-    -out /etc/ssl/certs/honeypot.crt \
+    -keyout /etc/nginx/certs/nginx.key \
+    -out /etc/nginx/certs/nginx.crt \
     -subj "/C=VN/ST=HCM/L=HCM/O=Honeypot/OU=IT/CN=honeypot.local"
 
 # Set permissions
-RUN chmod 600 /etc/ssl/private/honeypot.key
-RUN chmod 644 /etc/ssl/certs/honeypot.crt
+RUN chmod 600 /etc/nginx/certs/nginx.key
+RUN chmod 644 /etc/nginx/certs/nginx.crt
+
+# Remove default nginx site that conflicts with our config
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
 
 # Set Python path
 ENV PYTHONPATH=/app/app:$PYTHONPATH
