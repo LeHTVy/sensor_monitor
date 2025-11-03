@@ -14,17 +14,19 @@ class HoneypotKafkaProducer:
     def __init__(self, bootstrap_servers=None):
         self.bootstrap_servers = bootstrap_servers or os.getenv('KAFKA_BOOTSTRAP_SERVERS', '172.232.224.160:9093')
         self.producer = None
-        self.max_retries = 3
-        self.retry_delay = 1
+        self.max_retries = 5  # Tăng số lần retry
+        self.retry_delay = 2  # Tăng delay giữa các lần retry
         
-        # Initialize producer
+        # Initialize producer - MANDATORY: must succeed
         self._init_producer()
     
     def _init_producer(self):
-        """Initialize Kafka producer with retry logic"""
+        """Initialize Kafka producer with retry logic - MANDATORY, will raise exception if fails"""
+        last_error = None
+        
         for attempt in range(self.max_retries):
             try:
-                print(f"🔄 Initializing Kafka producer (attempt {attempt + 1}/{self.max_retries})")
+                print(f"🔄 Initializing Kafka producer (attempt {attempt + 1}/{self.max_retries}) to {self.bootstrap_servers}")
                 self.producer = KafkaProducer(
                     bootstrap_servers=[self.bootstrap_servers],
                     value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode('utf-8'),
@@ -32,41 +34,71 @@ class HoneypotKafkaProducer:
                     retries=3,
                     retry_backoff_ms=1000,
                     request_timeout_ms=30000,
-                    api_version=(2, 5, 0)
+                    connections_max_idle_ms=540000,
+                    api_version=(2, 5, 0),
+                    metadata_max_age_ms=300000
                 )
-                print(f"✅ Kafka producer initialized successfully")
+                
+                # Test connection by getting metadata
+                self.producer.bootstrap_connected()
+                
+                print(f"✅ Kafka producer initialized successfully and connected to {self.bootstrap_servers}")
                 return
+                
             except Exception as e:
-                print(f"❌ Failed to initialize Kafka producer (attempt {attempt + 1}): {str(e)}")
+                last_error = e
+                print(f"❌ Failed to initialize Kafka producer (attempt {attempt + 1}/{self.max_retries}): {str(e)}")
                 if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (attempt + 1))
+                    wait_time = self.retry_delay * (attempt + 1)
+                    print(f"⏳ Waiting {wait_time} seconds before retry...")
+                    time.sleep(wait_time)
                 else:
-                    print(f"❌ Failed to initialize Kafka producer after {self.max_retries} attempts")
-                    self.producer = None
+                    # Final attempt failed - raise exception
+                    error_msg = f"❌ CRITICAL: Failed to initialize Kafka producer after {self.max_retries} attempts. Kafka connection is REQUIRED for honeypot to function. Last error: {str(e)}"
+                    print(error_msg)
+                    if self.producer:
+                        try:
+                            self.producer.close()
+                        except:
+                            pass
+                    raise ConnectionError(f"Cannot connect to Kafka at {self.bootstrap_servers} after {self.max_retries} attempts. Error: {str(last_error)}")
     
-    def _send_to_topic(self, topic, log_data, key=None):
-        """Send log data to specific Kafka topic"""
+    def _send_to_topic(self, topic, log_data, key=None, retry_count=3):
+        """Send log data to specific Kafka topic with retry logic"""
         if not self.producer:
-            print(f"❌ Kafka producer not initialized, cannot send to topic {topic}")
-            return False
+            raise RuntimeError(f"Kafka producer not initialized, cannot send to topic {topic}")
         
-        try:
-            # Add metadata
-            log_data['kafka_topic'] = topic
-            log_data['kafka_timestamp'] = datetime.now().isoformat()
-            
-            # Send to Kafka
-            future = self.producer.send(topic, value=log_data, key=key)
-            
-            # Wait for confirmation
-            record_metadata = future.get(timeout=10)
-            print(f"✅ Log sent to topic {topic}, partition {record_metadata.partition}, offset {record_metadata.offset}")
-            return True
-            
-        except Exception as e:
-            # Handle kafka-python specific errors without importing typing stubs
-            print(f"❌ Kafka error sending to topic {topic}: {str(e)}")
-            return False
+        last_error = None
+        
+        for attempt in range(retry_count):
+            try:
+                # Add metadata
+                log_data['kafka_topic'] = topic
+                log_data['kafka_timestamp'] = datetime.now().isoformat()
+                
+                # Send to Kafka
+                future = self.producer.send(topic, value=log_data, key=key)
+                
+                # Wait for confirmation with timeout
+                record_metadata = future.get(timeout=10)
+                print(f"✅ Log sent to topic {topic}, partition {record_metadata.partition}, offset {record_metadata.offset}")
+                return True
+                
+            except Exception as e:
+                last_error = e
+                if attempt < retry_count - 1:
+                    wait_time = 0.5 * (attempt + 1)
+                    print(f"⚠️ Failed to send to {topic} (attempt {attempt + 1}/{retry_count}), retrying in {wait_time}s: {str(e)}")
+                    time.sleep(wait_time)
+                else:
+                    # Final attempt failed
+                    error_msg = f"❌ Failed to send log to topic {topic} after {retry_count} attempts: {str(e)}"
+                    print(error_msg)
+                    # Don't raise exception here - let caller decide
+                    # This prevents crashing the entire request handling
+                    return False
+        
+        return False
         
     
     def send_browser_log(self, log_data):

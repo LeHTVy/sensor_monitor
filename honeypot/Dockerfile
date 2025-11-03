@@ -35,10 +35,24 @@ RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
 # Set Python path
 ENV PYTHONPATH=/app/app:$PYTHONPATH
 
-# Create startup script
+# Create startup script with proper Gunicorn config
 RUN echo '#!/bin/bash\n\
+set -e\n\
+# Start nginx in background\n\
 nginx &\n\
-cd /app && python -m gunicorn --bind 0.0.0.0:5000 app.app:app\n\
+# Wait a moment for nginx to start\n\
+sleep 2\n\
+# Start Gunicorn with proper configuration\n\
+cd /app && python -m gunicorn \\\n\
+    --bind 0.0.0.0:5000 \\\n\
+    --workers 2 \\\n\
+    --timeout 120 \\\n\
+    --keep-alive 5 \\\n\
+    --access-logfile - \\\n\
+    --error-logfile - \\\n\
+    --log-level info \\\n\
+    --preload \\\n\
+    app.app:app\n\
 ' > /start.sh && chmod +x /start.sh
 
 EXPOSE 80 443

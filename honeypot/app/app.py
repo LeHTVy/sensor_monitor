@@ -20,10 +20,45 @@ from utils.mysql_ai_console import MySQLAIConsole
 app = Flask(__name__)
 app.secret_key = 'honeypot_secret_key_12345'
 
-# Initialize logging, sender and Kafka producer
-logger = HoneypotLogger()
-sender = LogSender()
-kafka_producer = HoneypotKafkaProducer()
+# Initialize logging, sender and Kafka producer (with error handling)
+try:
+    logger = HoneypotLogger()
+except Exception as e:
+    print(f"❌ Failed to initialize logger: {e}")
+    raise
+
+# Initialize LogSender (optional, can continue without it)
+try:
+    sender = LogSender()
+except Exception as e:
+    print(f"⚠️ Failed to initialize LogSender: {e}, continuing without it")
+    sender = None
+
+# Initialize Kafka producer - MANDATORY: app will fail to start if Kafka is not available
+try:
+    print("🔗 Initializing Kafka producer (REQUIRED)...")
+    kafka_producer = HoneypotKafkaProducer()
+    if kafka_producer.producer is None:
+        raise RuntimeError("Kafka producer initialized but producer object is None")
+    print("✅ Kafka producer initialized successfully - honeypot is ready")
+except Exception as e:
+    error_msg = f"""
+    ❌ CRITICAL ERROR: Failed to initialize Kafka producer!
+    
+    Kafka is REQUIRED for honeypot operation. The application cannot start without Kafka connection.
+    
+    Error details: {str(e)}
+    
+    Please ensure:
+    1. Kafka is running and accessible at: {os.getenv('KAFKA_BOOTSTRAP_SERVERS', '172.232.224.160:9093')}
+    2. Network connectivity from honeypot to Kafka server
+    3. Kafka broker is listening on the correct port
+    4. WireGuard VPN is configured correctly (if using VPN)
+    
+    Application will exit now.
+    """
+    print(error_msg)
+    raise SystemExit(1) from e
 
 # Configuration
 UPLOAD_FOLDER = '/app/uploads'
@@ -81,31 +116,49 @@ def log_request():
             'log_category': log_entry.get('log_category', 'unknown')
         }
         
-        # Send to Kafka based on log category (with error handling)
+        # Send to Kafka based on log category - MANDATORY: must succeed
         try:
             category = log_entry.get('log_category')
+            success = False
+            
             if category == 'attack':
-                kafka_producer.send_attack_log(log_data)
-                print(f"✅ Sent attack log to Kafka: {log_entry.get('attack_tool', 'unknown')}")
+                success = kafka_producer.send_attack_log(log_data)
+                if success:
+                    print(f"✅ Sent attack log to Kafka: {log_entry.get('attack_tool', 'unknown')}")
             elif category == 'traffic':
-                kafka_producer.send_traffic_log(log_data)
-                print(f"✅ Sent traffic log to Kafka: {request.method} {request.path}")
+                success = kafka_producer.send_traffic_log(log_data)
+                if success:
+                    print(f"✅ Sent traffic log to Kafka: {request.method} {request.path}")
             elif category == 'honeypot':
-                kafka_producer.send_browser_log(log_data)
-                print(f"✅ Sent browser log to Kafka: {log_entry.get('attack_tool', 'browser')}")
+                success = kafka_producer.send_browser_log(log_data)
+                if success:
+                    print(f"✅ Sent browser log to Kafka: {log_entry.get('attack_tool', 'browser')}")
             else:
-                kafka_producer.send_error_log(log_data)
-                print(f"✅ Sent error log to Kafka: {category}")
+                success = kafka_producer.send_error_log(log_data)
+                if success:
+                    print(f"✅ Sent error log to Kafka: {category}")
+            
+            if not success:
+                print(f"⚠️ Warning: Failed to send {category} log to Kafka, but continuing...")
+                
         except Exception as kafka_error:
-            print(f"❌ Kafka error: {str(kafka_error)}")
+            # Log error but don't crash - retry will happen on next request
+            print(f"❌ Kafka error sending log: {str(kafka_error)}")
+            # Re-raise if it's a connection error (producer dead)
+            if "Connection" in str(kafka_error) or "Broker" in str(kafka_error):
+                print(f"❌ CRITICAL: Kafka connection lost, application may need restart")
         
         # Always send to capture server for backward compatibility
-        sender.send_log(log_data)
-        print(f"✅ Sent log to capture server: {log_entry.get('log_category', 'unknown')}")
+        if sender:
+            try:
+                sender.send_log(log_data)
+                print(f"✅ Sent log to capture server: {log_entry.get('log_category', 'unknown')}")
+            except Exception as sender_error:
+                print(f"❌ Error sending to capture server: {str(sender_error)}")
         
     except Exception as e:
         print(f"Error logging request: {str(e)}")
-        # Send error to Kafka
+        # Send error to Kafka (mandatory)
         try:
             kafka_producer.send_error_log({
                 'type': 'error',
@@ -113,8 +166,8 @@ def log_request():
                 'timestamp': datetime.now().isoformat(),
                 'ip': request.headers.get('X-Real-IP', request.remote_addr) if 'request' in locals() else 'unknown'
             })
-        except:
-            pass
+        except Exception as kafka_err:
+            print(f"❌ Failed to send error log to Kafka: {str(kafka_err)}")
 
 @app.route('/')
 def index():
