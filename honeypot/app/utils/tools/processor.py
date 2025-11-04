@@ -1,0 +1,238 @@
+"""
+Tool Processor
+Combines all tool detectors and processes requests
+"""
+
+from typing import Dict, List, Optional
+from flask import Request
+from datetime import datetime, timedelta
+from collections import defaultdict, deque
+
+from .base import ToolDetector, DetectionResult
+from .nmap_detector import NmapDetector
+from .sqlmap_detector import SqlmapDetector
+from .nikto_detector import NiktoDetector
+from .burp_detector import BurpDetector
+from .zap_detector import ZapDetector
+from .metasploit_detector import MetasploitDetector
+from .dirb_detector import DirbDetector
+from .hydra_detector import HydraDetector
+from .wfuzz_detector import WfuzzDetector
+from .cobalt_strike_detector import CobaltStrikeDetector
+
+
+class ToolProcessor:
+    """
+    Processes requests through all tool detectors
+    Maintains context for behavioral detection
+    """
+    
+    def __init__(self):
+        # Initialize all detectors
+        self.detectors: List[ToolDetector] = [
+            NmapDetector(),
+            SqlmapDetector(),
+            NiktoDetector(),
+            BurpDetector(),
+            ZapDetector(),
+            MetasploitDetector(),
+            DirbDetector(),
+            HydraDetector(),
+            WfuzzDetector(),
+            CobaltStrikeDetector(),
+        ]
+        
+        # Context tracking for behavioral detection
+        self.ip_contexts: Dict[str, Dict] = defaultdict(lambda: {
+            'request_times': deque(maxlen=100),  # Last 100 requests
+            'request_paths': deque(maxlen=100),
+            'response_codes': deque(maxlen=100),
+            'failed_auths': 0,
+            'last_reset': datetime.now(),
+        })
+        
+        # Reset contexts every hour
+        self.context_reset_interval = timedelta(hours=1)
+    
+    def process_request(self, request: Request, ip: str) -> Dict:
+        """
+        Process request through all detectors
+        
+        Args:
+            request: Flask request object
+            ip: Source IP address
+        
+        Returns:
+            Detection result dictionary with tool, confidence, method, details
+        """
+        # Update context for this IP
+        context = self._update_context(ip, request)
+        
+        # Run all detectors
+        detections: List[DetectionResult] = []
+        
+        for detector in self.detectors:
+            try:
+                result = detector.detect(request, context)
+                if result:
+                    detections.append(result)
+            except Exception as e:
+                # Log error but continue with other detectors
+                print(f"⚠️ Error in detector {detector.tool_name}: {e}")
+                continue
+        
+        # Select best detection (highest confidence)
+        if detections:
+            # Sort by confidence (descending)
+            detections.sort(key=lambda x: x.confidence, reverse=True)
+            best_detection = detections[0]
+            
+            # If multiple detections with high confidence, combine info
+            if len(detections) > 1 and detections[1].confidence >= 70:
+                # Multiple high-confidence detections = very suspicious
+                best_detection.confidence = min(100, best_detection.confidence + 10)
+                best_detection.details['multiple_detections'] = [
+                    {'tool': d.tool, 'confidence': d.confidence, 'method': d.method}
+                    for d in detections[:3]  # Top 3
+                ]
+            
+            return best_detection.to_dict()
+        
+        # No detection found
+        return {
+            'tool': 'unknown',
+            'confidence': 0,
+            'method': 'none',
+            'details': {}
+        }
+    
+    def _update_context(self, ip: str, request: Request) -> Dict:
+        """
+        Update and return context for behavioral detection
+        
+        Args:
+            ip: Source IP address
+            request: Flask request object
+        
+        Returns:
+            Context dictionary for behavioral detection
+        """
+        ctx = self.ip_contexts[ip]
+        current_time = datetime.now()
+        
+        # Reset context if needed
+        if current_time - ctx['last_reset'] > self.context_reset_interval:
+            ctx['request_times'].clear()
+            ctx['request_paths'].clear()
+            ctx['response_codes'].clear()
+            ctx['failed_auths'] = 0
+            ctx['last_reset'] = current_time
+        
+        # Add current request to context
+        ctx['request_times'].append(current_time)
+        ctx['request_paths'].append(request.path)
+        
+        # Calculate request rate (requests per second)
+        if len(ctx['request_times']) >= 2:
+            time_span = (ctx['request_times'][-1] - ctx['request_times'][0]).total_seconds()
+            if time_span > 0:
+                request_rate = len(ctx['request_times']) / time_span
+            else:
+                request_rate = 0
+        else:
+            request_rate = 0
+        
+        # Check for many 404s
+        # Note: This would need response code from actual response
+        # For now, we'll estimate based on paths
+        many_404s = False
+        if len(ctx['response_codes']) > 10:
+            # If we have response codes, check them
+            recent_404s = sum(1 for code in list(ctx['response_codes'])[-20:] if code == 404)
+            if recent_404s > 10:
+                many_404s = True
+        
+        # Check for sequential paths (scanning pattern)
+        sequential_paths = False
+        if len(ctx['request_paths']) > 5:
+            # Check if paths follow a pattern (e.g., /admin, /admin1, /admin2)
+            recent_paths = list(ctx['request_paths'])[-10:]
+            # Simple heuristic: if paths are similar or sequential
+            if len(set(recent_paths)) < len(recent_paths) * 0.5:  # Many duplicates
+                sequential_paths = True
+        
+        # Check for varying parameters (fuzzing pattern)
+        varying_params = False
+        if len(ctx['request_paths']) > 5:
+            # If paths vary but follow similar structure
+            path_variations = len(set(ctx['request_paths']))
+            if path_variations > len(ctx['request_paths']) * 0.7:  # High variation
+                varying_params = True
+        
+        # Check for failed auth attempts
+        if request.path.lower() in ['/login', '/auth', '/signin']:
+            # Note: Would need actual response code to determine failed auth
+            # For now, we'll track login attempts
+            pass
+        
+        # Build context dictionary
+        context = {
+            'request_rate': request_rate,
+            'many_404s': many_404s,
+            'sequential_paths': sequential_paths,
+            'varying_params': varying_params,
+            'many_failed_auths': ctx['failed_auths'] > 10,
+            'rapid_auth_attempts': ctx['failed_auths'] > 5 and request_rate > 5,
+        }
+        
+        return context
+    
+    def update_response_code(self, ip: str, response_code: int):
+        """
+        Update response code for context tracking
+        
+        Args:
+            ip: Source IP address
+            response_code: HTTP response code
+        """
+        if ip in self.ip_contexts:
+            ctx = self.ip_contexts[ip]
+            ctx['response_codes'].append(response_code)
+            
+            # Track failed auth attempts
+            if response_code == 401 or response_code == 403:
+                ctx['failed_auths'] += 1
+    
+    def get_ip_statistics(self, ip: str) -> Dict:
+        """
+        Get statistics for an IP address
+        
+        Args:
+            ip: Source IP address
+        
+        Returns:
+            Statistics dictionary
+        """
+        if ip not in self.ip_contexts:
+            return {}
+        
+        ctx = self.ip_contexts[ip]
+        
+        # Calculate current request rate
+        if len(ctx['request_times']) >= 2:
+            time_span = (ctx['request_times'][-1] - ctx['request_times'][0]).total_seconds()
+            if time_span > 0:
+                request_rate = len(ctx['request_times']) / time_span
+            else:
+                request_rate = 0
+        else:
+            request_rate = 0
+        
+        return {
+            'total_requests': len(ctx['request_times']),
+            'request_rate': request_rate,
+            'unique_paths': len(set(ctx['request_paths'])),
+            'failed_auths': ctx['failed_auths'],
+            'recent_404s': sum(1 for code in list(ctx['response_codes'])[-20:] if code == 404),
+        }
+

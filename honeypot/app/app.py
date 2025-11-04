@@ -96,6 +96,9 @@ def log_request():
         # Get detailed log data from logger
         log_entry = logger.log_request(request)
         
+        # Store request info for after_request hook
+        request._log_entry = log_entry
+        
         # Prepare log data for Kafka
         log_data = {
             'type': 'request',
@@ -110,6 +113,7 @@ def log_request():
             'form_data': dict(request.form) if request.form else {},
             'files': list(request.files.keys()) if request.files else [],
             'attack_tool': log_entry.get('attack_tool', 'unknown'),
+            'attack_tool_info': log_entry.get('attack_tool_info', {}),  # Include enhanced detection info
             'attack_technique': log_entry.get('attack_technique', []),
             'geoip': log_entry.get('geoip', {}),
             'os_info': log_entry.get('os_info', {}),
@@ -168,6 +172,17 @@ def log_request():
             })
         except Exception as kafka_err:
             print(f"❌ Failed to send error log to Kafka: {str(kafka_err)}")
+
+@app.after_request
+def update_response_context(response):
+    """Update tool processor context with response code"""
+    try:
+        if hasattr(request, '_log_entry'):
+            real_ip = request.headers.get('X-Real-IP', request.remote_addr)
+            logger.tool_processor.update_response_code(real_ip, response.status_code)
+    except Exception as e:
+        print(f"⚠️ Error updating response context: {e}")
+    return response
 
 @app.route('/')
 def index():

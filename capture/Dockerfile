@@ -24,10 +24,6 @@ COPY analyzer.py .
 COPY kafka_consumer.py .
 COPY security_middleware.py .
 
-# Copy templates and static files
-COPY templates/ ./templates/
-COPY static/ ./static/
-
 # Create directories
 RUN mkdir -p /app/logs/packets /app/logs/analysis /app/logs/honeypot /app/logs/reports
 

@@ -4,7 +4,7 @@ Log Receiver and Web Interface for Capture Server
 Receives logs from honeypot servers and provides web interface
 """
 
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify
 import json
 import os
 import sqlite3
@@ -606,12 +606,6 @@ def receive_bulk_logs():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-# Static files
-@app.route('/static/<path:filename>')
-def static_files(filename):
-    """Serve static files"""
-    return send_from_directory('static', filename)
 
 if __name__ == '__main__':
     # Initialize database

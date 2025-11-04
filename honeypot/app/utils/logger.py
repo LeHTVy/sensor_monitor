@@ -9,6 +9,7 @@ import os
 import requests
 from datetime import datetime
 from flask import request
+from .tools import ToolProcessor
 
 class HoneypotLogger:
     def __init__(self, log_dir='/app/logs'):
@@ -23,6 +24,10 @@ class HoneypotLogger:
         # Attack rate monitoring
         self.attack_counts = {}  # IP -> count
         self.last_reset = datetime.now()
+        
+        # Initialize tool processor for enhanced tool detection
+        self.tool_processor = ToolProcessor()
+        print("✅ ToolProcessor initialized with enhanced detectors")
     
     def log_request(self, request):
         """Log detailed request information"""
@@ -41,17 +46,18 @@ class HoneypotLogger:
             print(f"   Final IP: {real_ip}")
             print(f"   All Headers: {dict(request.headers)}")
             
-            # Detect attack tool/technique
+            # Detect attack tool using enhanced ToolProcessor
             user_agent = request.headers.get('User-Agent', '')
-            attack_tool_info = self._detect_attack_tool(request)
-            attack_tool = attack_tool_info['tool'] if isinstance(attack_tool_info, dict) else attack_tool_info
+            attack_tool_info = self.tool_processor.process_request(request, real_ip)
+            attack_tool = attack_tool_info.get('tool', 'unknown')
             attack_technique = self._detect_attack_technique(request)
             
             # Debug logging
-            print(f"🔍 Detection Debug for {real_ip}:")
+            print(f"🔍 Enhanced Detection Debug for {real_ip}:")
             print(f"   User-Agent: {user_agent}")
             print(f"   Attack Tool Info: {attack_tool_info}")
-            print(f"   Attack Tool: {attack_tool}")
+            print(f"   Attack Tool: {attack_tool} (confidence: {attack_tool_info.get('confidence', 0)}%)")
+            print(f"   Detection Method: {attack_tool_info.get('method', 'unknown')}")
             print(f"   Attack Technique: {attack_technique}")
             
             # Get GeoIP information
@@ -187,114 +193,12 @@ class HoneypotLogger:
             return {}
     
     def _detect_attack_tool(self, request):
-        """Enhanced attack tool detection from User-Agent and request patterns"""
-        user_agent = request.headers.get('User-Agent', '').lower()
-        
-        # Enhanced detection based on network patterns and headers
-        detection_score = 0
-        detected_tool = 'unknown'
-        confidence = 0
-        
-        # 1. User-Agent based detection
-        tools_ua = {
-            'nmap': ['nmap', 'nse'],
-            'sqlmap': ['sqlmap'],
-            'nikto': ['nikto'],
-            'dirb': ['dirb'],
-            'gobuster': ['gobuster'],
-            'burp': ['burp'],
-            'zap': ['zaproxy', 'owasp zap'],
-            'w3af': ['w3af'],
-            'metasploit': ['metasploit', 'msf'],
-            'curl': ['curl'],
-            'wget': ['wget'],
-            'python': ['python-requests', 'python-urllib'],
-            'perl': ['perl'],
-            'ruby': ['ruby'],
-            'php': ['php'],
-            'java': ['java'],
-            'scanner': ['scanner', 'scan'],
-            'bot': ['bot', 'crawler', 'spider'],
-            'automated': ['automated', 'script']
-        }
-        
-        for tool, patterns in tools_ua.items():
-            for pattern in patterns:
-                if pattern in user_agent:
-                    detected_tool = tool
-                    confidence = 80
-                    break
-            if confidence > 0:
-                break
-        
-        # 2. HTTP Header Analysis (Scanner Detection)
-        headers = request.headers
-        
-        # Missing common browser headers = scanner indicator
-        browser_headers = ['accept-language', 'accept-encoding', 'cache-control', 'sec-fetch-site', 'sec-fetch-mode']
-        missing_headers = sum(1 for h in browser_headers if h not in headers)
-        
-        if missing_headers >= 3:
-            detection_score -= 30
-            if detected_tool == 'unknown':
-                detected_tool = 'scanner'
-                confidence = 60
-        
-        # 3. Request Pattern Analysis
-        path = request.path.lower()
-        method = request.method
-        
-        # Common scanner paths
-        scanner_paths = [
-            '/admin', '/wp-admin', '/phpmyadmin', '/.env', '/config',
-            '/backup', '/test', '/api', '/robots.txt', '/sitemap.xml'
-        ]
-        
-        if any(scanner_path in path for scanner_path in scanner_paths):
-            detection_score -= 20
-            if detected_tool == 'unknown':
-                detected_tool = 'web_scanner'
-                confidence = 70
-        
-        # 4. Telnet Detection (if applicable)
-        if 'telnet' in user_agent or 'telnet' in path:
-            detected_tool = 'telnet'
-            confidence = 90
-        
-        # 5. Empty or minimal User-Agent
-        if not user_agent or user_agent in ['', '-', 'none']:
-            detection_score -= 40
-            if detected_tool == 'unknown':
-                detected_tool = 'minimal_client'
-                confidence = 50
-        
-        # 6. Request method analysis
-        if method not in ['GET', 'POST', 'HEAD']:
-            detection_score -= 25
-            if detected_tool == 'unknown':
-                detected_tool = 'unusual_method'
-                confidence = 60
-        
-        # 7. Query parameter analysis
-        if request.args:
-            # Common attack parameters
-            attack_params = ['id', 'cmd', 'exec', 'eval', 'system', 'shell']
-            if any(param in request.args for param in attack_params):
-                detection_score -= 15
-                if detected_tool == 'unknown':
-                    detected_tool = 'parameter_attack'
-                    confidence = 65
-        
-        # Final confidence calculation
-        final_confidence = max(confidence, abs(detection_score))
-        
-        return {
-            'tool': detected_tool,
-            'confidence': min(final_confidence, 100),
-            'score': detection_score,
-            'user_agent': user_agent,
-            'missing_headers': missing_headers
-        }
+        """
+        Legacy method - kept for backward compatibility
+        Now uses ToolProcessor internally
+        """
+        real_ip = request.headers.get('X-Real-IP', request.remote_addr)
+        return self.tool_processor.process_request(request, real_ip)
     
     def _detect_attack_technique(self, request):
         """Detect attack technique from request"""
