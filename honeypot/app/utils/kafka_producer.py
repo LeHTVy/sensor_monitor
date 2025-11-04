@@ -14,10 +14,9 @@ class HoneypotKafkaProducer:
     def __init__(self, bootstrap_servers=None):
         self.bootstrap_servers = bootstrap_servers or os.getenv('KAFKA_BOOTSTRAP_SERVERS', '172.232.224.160:9093')
         self.producer = None
-        self.max_retries = 5  # Tăng số lần retry
-        self.retry_delay = 2  # Tăng delay giữa các lần retry
+        self.max_retries = 5  
+        self.retry_delay = 2  
         
-        # Initialize producer - MANDATORY: must succeed
         self._init_producer()
     
     def _init_producer(self):
@@ -33,10 +32,11 @@ class HoneypotKafkaProducer:
                     key_serializer=lambda k: k.encode('utf-8') if k else None,
                     retries=3,
                     retry_backoff_ms=1000,
-                    request_timeout_ms=30000,
+                    request_timeout_ms=10000,  
                     connections_max_idle_ms=540000,
                     api_version=(2, 5, 0),
-                    metadata_max_age_ms=300000
+                    metadata_max_age_ms=300000,
+                    metadata_request_timeout_ms=5000  
                 )
                 
                 # Test connection by getting metadata
@@ -63,8 +63,8 @@ class HoneypotKafkaProducer:
                             pass
                     raise ConnectionError(f"Cannot connect to Kafka at {self.bootstrap_servers} after {self.max_retries} attempts. Error: {str(last_error)}")
     
-    def _send_to_topic(self, topic, log_data, key=None, retry_count=3):
-        """Send log data to specific Kafka topic with retry logic"""
+    def _send_to_topic(self, topic, log_data, key=None, retry_count=2):
+        """Send log data to specific Kafka topic with retry logic (non-blocking)"""
         if not self.producer:
             raise RuntimeError(f"Kafka producer not initialized, cannot send to topic {topic}")
         
@@ -76,26 +76,29 @@ class HoneypotKafkaProducer:
                 log_data['kafka_topic'] = topic
                 log_data['kafka_timestamp'] = datetime.now().isoformat()
                 
-                # Send to Kafka
                 future = self.producer.send(topic, value=log_data, key=key)
                 
-                # Wait for confirmation with timeout
-                record_metadata = future.get(timeout=10)
-                print(f"✅ Log sent to topic {topic}, partition {record_metadata.partition}, offset {record_metadata.offset}")
-                return True
+                try:
+                    record_metadata = future.get(timeout=2) 
+                    print(f"✅ Log sent to topic {topic}, partition {record_metadata.partition}, offset {record_metadata.offset}")
+                    return True
+                except Exception as timeout_error:
+                    print(f"⏳ Log queued to {topic} (async send, may complete later)")
+                    return True  
                 
             except Exception as e:
                 last_error = e
-                if attempt < retry_count - 1:
-                    wait_time = 0.5 * (attempt + 1)
-                    print(f"⚠️ Failed to send to {topic} (attempt {attempt + 1}/{retry_count}), retrying in {wait_time}s: {str(e)}")
-                    time.sleep(wait_time)
+                if "Connection" in str(e) or "Broker" in str(e):
+                    if attempt < retry_count - 1:
+                        wait_time = 0.3 * (attempt + 1)  
+                        print(f"⚠️ Failed to send to {topic} (attempt {attempt + 1}/{retry_count}), retrying in {wait_time}s: {str(e)}")
+                        time.sleep(wait_time)
+                    else:
+                        error_msg = f"❌ Failed to send log to topic {topic} after {retry_count} attempts: {str(e)}"
+                        print(error_msg)
+                        return False
                 else:
-                    # Final attempt failed
-                    error_msg = f"❌ Failed to send log to topic {topic} after {retry_count} attempts: {str(e)}"
-                    print(error_msg)
-                    # Don't raise exception here - let caller decide
-                    # This prevents crashing the entire request handling
+                    print(f"⚠️ Error sending to {topic}: {str(e)}")
                     return False
         
         return False

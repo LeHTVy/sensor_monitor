@@ -45,9 +45,10 @@ sleep 2\n\
 # Start Gunicorn with proper configuration\n\
 cd /app && python -m gunicorn \\\n\
     --bind 0.0.0.0:5000 \\\n\
-    --workers 2 \\\n\
-    --timeout 120 \\\n\
-    --keep-alive 5 \\\n\
+    --workers 4 \\\n\
+    --timeout 180 \\\n\
+    --keep-alive 10 \\\n\
+    --graceful-timeout 30 \\\n\
     --access-logfile - \\\n\
     --error-logfile - \\\n\
     --log-level info \\\n\

@@ -22,30 +22,31 @@ class SqlmapDetector(ToolDetector):
         ]
         
         # SQLMap payload signatures (from sqlmap repository patterns)
+        # Note: Using raw strings to avoid regex escaping issues
         self.payload_patterns = [
             # SQLMap specific patterns
-            'sqlmap',
-            'union.*select',
-            '1=1.*--',
-            '1=1.*#',
-            'or 1=1',
-            'or 1=1--',
-            'or 1=1#',
-            'admin\'--',
-            'admin\'#',
+            r'sqlmap',
+            r'union.*select',
+            r'1=1.*--',
+            r'1=1.*#',
+            r'or\s+1=1',
+            r'or\s+1=1--',
+            r'or\s+1=1#',
+            r"admin'--",
+            r"admin'#",
             # SQLMap specific parameter names
-            'sqlmapid=',
-            'sqlmap=',
+            r'sqlmapid=',
+            r'sqlmap=',
             # SQLMap test patterns
-            'benchmark(',
-            'sleep(',
-            'waitfor delay',
-            'pg_sleep(',
+            r'benchmark\(',
+            r'sleep\(',
+            r'waitfor\s+delay',
+            r'pg_sleep\(',
             # Boolean-based blind patterns
-            'and 1=1',
-            'and 1=2',
-            'and true',
-            'and false',
+            r'and\s+1=1',
+            r'and\s+1=2',
+            r'and\s+true',
+            r'and\s+false',
         ]
         
         # Header patterns
