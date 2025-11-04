@@ -1,18 +1,27 @@
 <template>
-  <v-card>
-    <v-card-title>
-      <v-icon icon="mdi-file-document-multiple" class="mr-2" />
-      Logs
+  <v-card class="logs-table-card" elevation="2">
+    <v-card-title class="d-flex align-center pa-4">
+      <v-icon icon="mdi-file-document-multiple" class="mr-2" size="24" />
+      <span class="text-h6 font-weight-medium">Logs</span>
       <v-spacer />
-      <v-btn
-        @click="$emit('refresh')"
-        :loading="loading"
+      <v-chip
+        v-if="loading"
         color="primary"
-        variant="outlined"
+        size="small"
+        variant="flat"
+        class="mr-2"
       >
-        <v-icon left>mdi-refresh</v-icon>
-        Refresh
-      </v-btn>
+        <v-icon start size="small" class="rotating">mdi-refresh</v-icon>
+        <span class="text-caption">Updating...</span>
+      </v-chip>
+      <v-chip
+        v-else-if="logs.length > 0"
+        color="success"
+        size="small"
+        variant="flat"
+      >
+        {{ logs.length }} logs
+      </v-chip>
     </v-card-title>
 
     <v-data-table
@@ -22,6 +31,7 @@
       class="elevation-1"
       items-per-page="25"
       @click:row="onRowClick"
+      :no-data-text="loading ? 'Loading logs...' : 'No logs found'"
     >
       <template v-slot:item.timestamp="{ item }">
         {{ formatDate(item.timestamp) }}
@@ -220,9 +230,38 @@ function prettyJson(obj: unknown) {
 </script>
 
 <style scoped>
+.logs-table-card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
 .code-block {
   white-space: pre-wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 12px;
+  background-color: rgba(var(--v-theme-surface), 0.8);
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.rotating {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+:deep(.v-data-table) {
+  border-radius: 0 0 12px 12px;
+}
+
+:deep(.v-data-table__thead) {
+  background-color: rgba(var(--v-theme-surface), 0.5);
 }
 </style>

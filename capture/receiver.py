@@ -154,25 +154,40 @@ def process_log_queue():
 def es_search_logs(log_type: str, limit: int):
     """Search logs from Elasticsearch"""
     if not es_client:
+        print("⚠️ Elasticsearch client not available")
         return []
     
     try:
-        # Search in today's and yesterday's indices
-        today = datetime.utcnow().strftime('%Y.%m.%d')
-        yesterday = (datetime.utcnow() - timedelta(days=1)).strftime('%Y.%m.%d')
+        # Search in all indices matching prefix
         query_index = f"{ES_PREFIX}-*"
         
+        # Build query - use match instead of term for better compatibility
         must = []
         if log_type != "all":
-            must.append({"term": {"log_category": log_type}})
+            # Try both exact match and keyword field
+            must.append({
+                "bool": {
+                    "should": [
+                        {"term": {"log_category.keyword": log_type}},
+                        {"term": {"log_category": log_type}}
+                    ],
+                    "minimum_should_match": 1
+                }
+            })
         
         body = {
             "size": limit,
             "sort": [{"timestamp": {"order": "desc"}}],
-            "query": {"bool": {"must": must}},
+            "query": {"bool": {"must": must}} if must else {"match_all": {}},
         }
         
+        print(f"🔍 ES Query: index={query_index}, type={log_type}, limit={limit}")
+        print(f"🔍 ES Query body: {json.dumps(body, indent=2)}")
+        
         res = es_client.search(index=query_index, body=body)
+        
+        print(f"📊 ES Search results: {res['hits']['total']} total hits, {len(res['hits']['hits'])} returned")
+        
         logs = []
         for hit in res["hits"]["hits"]:
             source = hit["_source"]
@@ -184,11 +199,11 @@ def es_search_logs(log_type: str, limit: int):
                 "dst_ip": source.get("dst_ip", ""),
                 "attack_tool": source.get("attack_tool", ""),
                 "geoip": {
-                    "country": source.get("geoip", {}).get("country", ""),
-                    "city": source.get("geoip", {}).get("city", ""),
-                    "isp": source.get("geoip", {}).get("isp", "")
+                    "country": source.get("geoip", {}).get("country", "") if isinstance(source.get("geoip"), dict) else "",
+                    "city": source.get("geoip", {}).get("city", "") if isinstance(source.get("geoip"), dict) else "",
+                    "isp": source.get("geoip", {}).get("isp", "") if isinstance(source.get("geoip"), dict) else ""
                 },
-                "message": source.get("payload", ""),
+                "message": source.get("payload", source.get("message", "")),
                 "method": source.get("method", ""),
                 "path": source.get("path", ""),
                 "user_agent": source.get("user_agent", ""),
@@ -197,9 +212,12 @@ def es_search_logs(log_type: str, limit: int):
             }
             logs.append(log)
         
+        print(f"✅ Normalized {len(logs)} logs for frontend")
         return logs
     except Exception as e:
         logging.error(f"Elasticsearch search error: {e}")
+        import traceback
+        print(f"❌ ES Search error traceback: {traceback.format_exc()}")
         return []
 
 def update_attack_patterns(log_data):

@@ -19,23 +19,36 @@
       </v-btn>
     </v-app-bar>
 
-    <v-main>
-      <v-container fluid class="pt-12">
+    <v-main class="dashboard-main">
+      <v-container fluid class="pa-4">
         <!-- Stats Cards -->
         <StatsCards />
 
         <!-- Filter Tabs -->
-        <v-card class="mb-6">
+        <v-card class="mb-6 filter-tabs-card" elevation="2">
           <v-tabs
             v-model="dashboardStore.currentFilter"
-                     @update:model-value="(value: 'all' | 'attack' | 'honeypot' | 'traffic') => dashboardStore.setFilter(value)"
+            @update:model-value="(value: 'all' | 'attack' | 'honeypot' | 'traffic') => dashboardStore.setFilter(value)"
             color="primary"
             align-tabs="center"
+            bg-color="transparent"
           >
-            <v-tab value="all">All Logs</v-tab>
-            <v-tab value="attack">Attacks</v-tab>
-            <v-tab value="honeypot">Honeypot</v-tab>
-            <v-tab value="traffic">Traffic</v-tab>
+            <v-tab value="all" class="text-capitalize">
+              <v-icon start>mdi-format-list-bulleted</v-icon>
+              All Logs
+            </v-tab>
+            <v-tab value="attack" class="text-capitalize">
+              <v-icon start>mdi-shield-alert</v-icon>
+              Attacks
+            </v-tab>
+            <v-tab value="honeypot" class="text-capitalize">
+              <v-icon start>mdi-bee</v-icon>
+              Honeypot
+            </v-tab>
+            <v-tab value="traffic" class="text-capitalize">
+              <v-icon start>mdi-traffic-light</v-icon>
+              Traffic
+            </v-tab>
           </v-tabs>
         </v-card>
 
@@ -43,7 +56,6 @@
         <LogsTable
           :logs="dashboardStore.logs"
           :loading="dashboardStore.loading || refreshStore.isRefreshing"
-          @refresh="refreshStore.refreshData"
         />
 
         <!-- Attack Patterns -->
@@ -91,7 +103,27 @@ onUnmounted(() => {
   position: sticky;
   top: 12px;
   margin: 12px;
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-main {
+  background: linear-gradient(135deg, rgba(var(--v-theme-background), 0.95) 0%, rgba(var(--v-theme-surface), 0.9) 100%);
+  min-height: 100vh;
+}
+
+.filter-tabs-card {
   border-radius: 12px;
-  backdrop-filter: blur(6px);
+  overflow: hidden;
+}
+
+:deep(.v-tabs) {
+  background-color: transparent;
+}
+
+:deep(.v-tab) {
+  min-width: 120px;
+  font-weight: 500;
 }
 </style>

@@ -12,7 +12,7 @@ from kafka import KafkaProducer
 
 class HoneypotKafkaProducer:
     def __init__(self, bootstrap_servers=None):
-        self.bootstrap_servers = bootstrap_servers or os.getenv('KAFKA_BOOTSTRAP_SERVERS', '172.232.224.160:9093')
+        self.bootstrap_servers = bootstrap_servers or os.getenv('KAFKA_BOOTSTRAP_SERVERS', '10.8.0.1:9093')
         self.producer = None
         self.max_retries = 5  
         self.retry_delay = 2  

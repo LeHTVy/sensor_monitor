@@ -25,7 +25,7 @@ export interface Stats {
 }
 
 export interface Pattern {
-  tool: string
+  pattern: string
   count: number
   first_seen: string
   last_seen: string
