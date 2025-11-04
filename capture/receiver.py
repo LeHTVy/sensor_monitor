@@ -377,16 +377,19 @@ def es_get_stats():
         honeypot_logs = 0
         traffic_logs = 0
         
-        for bucket in res['aggregations']['by_category']['buckets']:
-            category = bucket['key']
-            count = bucket['doc_count']
-            
-            if category == 'attack':
-                attack_logs = count
-            elif category == 'honeypot':
-                honeypot_logs = count
-            elif category == 'traffic':
-                traffic_logs = count
+        # Check if aggregations exist
+        if 'aggregations' in res and 'by_category' in res['aggregations']:
+            buckets = res['aggregations']['by_category'].get('buckets', [])
+            for bucket in buckets:
+                category = bucket.get('key', '')
+                count = bucket.get('doc_count', 0)
+                
+                if category == 'attack':
+                    attack_logs = count
+                elif category == 'honeypot':
+                    honeypot_logs = count
+                elif category == 'traffic':
+                    traffic_logs = count
         
         # Get latest timestamp
         latest_res = es_client.search(

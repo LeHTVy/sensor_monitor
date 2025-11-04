@@ -22,19 +22,29 @@ flush_interval_ms = int(os.getenv("FLUSH_INTERVAL_MS", "1000"))
 auto_offset_reset = os.getenv("AUTO_OFFSET_RESET", "latest")
 
 # Initialize Elasticsearch
-es = Elasticsearch(es_host)
+es = None
+consumer = None
 
-# Initialize Kafka Consumer
-consumer = KafkaConsumer(
-    *topics,
-    bootstrap_servers=[bootstrap],
-    value_deserializer=lambda m: json.loads(m.decode("utf-8")),
-    key_deserializer=lambda k: k.decode("utf-8") if k else None,
-    enable_auto_commit=True,
-    group_id=group_id,
-    auto_offset_reset=auto_offset_reset,
-    api_version=(2, 5, 0),
-)
+def wait_for_elasticsearch(max_retries=30, retry_delay=2):
+    """Wait for Elasticsearch to be ready"""
+    global es
+    print(f"⏳ Waiting for Elasticsearch at {es_host}...")
+    
+    for attempt in range(max_retries):
+        try:
+            es = Elasticsearch(es_host)
+            if es.ping():
+                print(f"✅ Elasticsearch is ready!")
+                return True
+        except Exception as e:
+            pass
+        
+        if attempt < max_retries - 1:
+            print(f"⏳ Elasticsearch not ready (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+            time.sleep(retry_delay)
+    
+    print(f"❌ Elasticsearch not available after {max_retries} attempts")
+    return False
 
 def index_name_for_topic(topic: str) -> str:
     """Generate clean index name without date suffix"""
@@ -50,6 +60,10 @@ def index_name_for_topic(topic: str) -> str:
 
 def ensure_template():
     """Create Elasticsearch index template"""
+    if not es:
+        print("❌ Elasticsearch client not initialized")
+        return False
+    
     template = {
         "index_patterns": [f"{index_prefix}-*"],
         "template": {
@@ -77,26 +91,62 @@ def ensure_template():
         },
         "priority": 1,
     }
-    try:
-        es.indices.put_index_template(
-            name=f"{index_prefix}-template", 
-            body=template, 
-            create=True, 
-            ignore=409
-        )
-        print("✅ Elasticsearch template created")
-    except Exception as e:
-        print(f"❌ Error creating template: {e}")
+    
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            es.indices.put_index_template(
+                name=f"{index_prefix}-template", 
+                body=template, 
+                create=True, 
+                ignore=409
+            )
+            print("✅ Elasticsearch template created")
+            return True
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"⚠️ Error creating template (attempt {attempt + 1}/{max_retries}): {e}, retrying...")
+                time.sleep(2)
+            else:
+                print(f"❌ Error creating template after {max_retries} attempts: {e}")
+                return False
+    return False
 
 def run():
     """Main collector loop"""
+    global es, consumer
+    
     print("🔄 Starting Kafka to Elasticsearch collector...")
     print(f"📊 Topics: {topics}")
     print(f"📦 Batch size: {batch_size}")
     print(f"⏱️ Flush interval: {flush_interval_ms}ms")
     
+    # Wait for Elasticsearch to be ready
+    if not wait_for_elasticsearch():
+        print("❌ Cannot start collector: Elasticsearch not available")
+        return
+    
     # Ensure template exists
-    ensure_template()
+    if not ensure_template():
+        print("⚠️ Warning: Could not create template, continuing anyway...")
+    
+    # Initialize Kafka Consumer
+    print(f"📡 Connecting to Kafka at {bootstrap}...")
+    try:
+        consumer = KafkaConsumer(
+            *topics,
+            bootstrap_servers=[bootstrap],
+            value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+            key_deserializer=lambda k: k.decode("utf-8") if k else None,
+            enable_auto_commit=True,
+            group_id=group_id,
+            auto_offset_reset=auto_offset_reset,
+            api_version=(2, 5, 0),
+        )
+        print("✅ Kafka consumer connected")
+    except Exception as e:
+        print(f"❌ Failed to connect to Kafka: {e}")
+        return
     
     buffer = []
     last_flush = time.time()
@@ -139,15 +189,18 @@ def run():
         print("🛑 Collector stopped by user")
     except Exception as e:
         print(f"❌ Collector error: {e}")
+        import traceback
+        print(traceback.format_exc())
     finally:
         # Flush remaining documents
-        if buffer:
+        if buffer and es:
             try:
                 helpers.bulk(es, buffer, raise_on_error=False)
                 print(f"📤 Final flush: {len(buffer)} documents")
             except Exception as e:
                 print(f"❌ Error in final flush: {e}")
-        consumer.close()
+        if consumer:
+            consumer.close()
         print("🔒 Collector shutdown complete")
 
 if __name__ == "__main__":
