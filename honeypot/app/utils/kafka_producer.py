@@ -32,11 +32,10 @@ class HoneypotKafkaProducer:
                     key_serializer=lambda k: k.encode('utf-8') if k else None,
                     retries=3,
                     retry_backoff_ms=1000,
-                    request_timeout_ms=10000,  
+                    request_timeout_ms=10000,  # Reduced from 30000 to 10000 (10s)
                     connections_max_idle_ms=540000,
                     api_version=(2, 5, 0),
-                    metadata_max_age_ms=300000,
-                    metadata_request_timeout_ms=5000  
+                    metadata_max_age_ms=300000
                 )
                 
                 # Test connection by getting metadata
