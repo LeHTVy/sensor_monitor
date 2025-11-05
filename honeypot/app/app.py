@@ -67,23 +67,45 @@ kafka_queue = queue.Queue(maxsize=1000)
 
 def kafka_worker():
     """Background worker to send logs to Kafka without blocking requests"""
+    print(f"🔄 Kafka worker thread started, waiting for logs...")
+    processed = 0
     while True:
         try:
             log_task = kafka_queue.get(timeout=1)
             if log_task is None:
                 break
             category, log_data = log_task
+            processed += 1
+            print(f"📥 Kafka worker: Processing {category} log #{processed} from queue (queue size: {kafka_queue.qsize()})")
             try:
                 if category == 'attack':
-                    kafka_producer.send_attack_log(log_data)
+                    result = kafka_producer.send_attack_log(log_data)
+                    if result:
+                        print(f"✅ Worker: Successfully sent {category} log to Kafka")
+                    else:
+                        print(f"⚠️ Worker: Failed to send {category} log to Kafka")
                 elif category == 'traffic':
-                    kafka_producer.send_traffic_log(log_data)
+                    result = kafka_producer.send_traffic_log(log_data)
+                    if result:
+                        print(f"✅ Worker: Successfully sent {category} log to Kafka")
+                    else:
+                        print(f"⚠️ Worker: Failed to send {category} log to Kafka")
                 elif category == 'honeypot':
-                    kafka_producer.send_browser_log(log_data)
+                    result = kafka_producer.send_browser_log(log_data)
+                    if result:
+                        print(f"✅ Worker: Successfully sent {category} log to Kafka")
+                    else:
+                        print(f"⚠️ Worker: Failed to send {category} log to Kafka")
                 else:
-                    kafka_producer.send_error_log(log_data)
+                    result = kafka_producer.send_error_log(log_data)
+                    if result:
+                        print(f"✅ Worker: Successfully sent {category} log to Kafka")
+                    else:
+                        print(f"⚠️ Worker: Failed to send {category} log to Kafka")
             except Exception as e:
-                print(f"❌ Error in kafka worker: {str(e)}")
+                print(f"❌ Error in kafka worker sending log: {str(e)}")
+                import traceback
+                print(traceback.format_exc())
             finally:
                 kafka_queue.task_done()
         except queue.Empty:
@@ -164,12 +186,15 @@ def log_request():
             # Queue for background worker - non-blocking
             try:
                 kafka_queue.put_nowait((category, log_data))
+                print(f"📤 Queued {category} log to Kafka worker (queue size: {kafka_queue.qsize()})")
             except queue.Full:
                 # Queue full - log but don't block
-                print(f"⚠️ Kafka queue full, dropping log: {category}")
+                print(f"⚠️ Kafka queue full ({kafka_queue.qsize()} items), dropping log: {category}")
         except Exception as kafka_error:
             # Log error but don't crash
             print(f"❌ Kafka queue error: {str(kafka_error)}")
+            import traceback
+            print(traceback.format_exc())
         
         # Note: Logs are sent via Kafka only (no HTTP duplicate)
         # Kafka → Collector → Elasticsearch → Frontend
