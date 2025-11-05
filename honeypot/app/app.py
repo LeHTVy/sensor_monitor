@@ -11,6 +11,7 @@ import json
 import hashlib
 import threading
 import queue
+from functools import wraps
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.utils import secure_filename
@@ -168,8 +169,23 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.before_request
+def check_authentication():
+    """Check authentication for all routes except public ones"""
+    # Allow public routes
+    if request.path in PUBLIC_ROUTES or request.path.startswith('/static'):
+        return
+    
+    # Check if user is logged in
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+
+@app.before_request
 def log_request():
     """Log every request before processing"""
+    # Skip logging for certain routes (reduce noise)
+    if request.path in SKIP_LOG_ROUTES:
+        return
+    
     # Ensure Kafka worker is started (Gunicorn workers need this)
     ensure_kafka_worker_started()
     
@@ -245,6 +261,22 @@ def update_response_context(response):
         print(f"⚠️ Error updating response context: {e}")
     return response
 
+# Authentication decorator
+def login_required(f):
+    """Decorator to require login for routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Whitelist of routes that don't require authentication
+PUBLIC_ROUTES = ['/login', '/auth', '/health', '/static', '/favicon.ico']
+
+# Routes to skip logging (reduce noise)
+SKIP_LOG_ROUTES = ['/favicon.ico', '/health']
+
 @app.route('/health')
 def health():
     """Health check endpoint"""
@@ -255,6 +287,11 @@ def health():
         'timestamp': datetime.now().isoformat()
     }), 200
 
+@app.route('/favicon.ico')
+def favicon():
+    """Return 204 No Content for favicon to prevent 404/502 errors"""
+    return '', 204
+
 @app.route('/')
 def index():
     """Redirect to login page"""
@@ -262,47 +299,27 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Vulnerable login page with SQL injection"""
+    """Login page - redirect to dashboard if already logged in"""
+    # If already logged in, redirect to dashboard
+    if session.get('logged_in'):
+        return redirect(url_for('dashboard'))
+    
     if request.method == 'POST':
-        username = request.form.get('username', '')
-        password = request.form.get('password', '')
-        
-        # Intentionally vulnerable SQL query for SQL injection
-        query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
-        
-        # Log the attack attempt
-        attack_data = {
-            'type': 'sql_injection_attempt',
-            'username': username,
-            'password': password,
-            'query': query,
-            'ip': request.remote_addr,
-            'user_agent': request.headers.get('User-Agent', ''),
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        logger.log_attack(attack_data)
-        sender.send_log(attack_data)
-        
-        # Simulate database response (always fail to keep them trying)
-        flash('Invalid credentials. Please try again.', 'error')
-        return render_template('login.html', error='Invalid credentials')
+        # POST requests go to /auth endpoint
+        return redirect(url_for('auth'))
     
     return render_template('login.html')
 
 @app.route('/dashboard')
+@login_required
 def dashboard():
     """Fake admin dashboard"""
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    
     return render_template('dashboard.html', databases=FAKE_DATABASES)
 
 @app.route('/database/<db_name>')
+@login_required
 def view_database(db_name):
     """View fake database tables"""
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
     
     if db_name in FAKE_DATABASES:
         return render_template('database.html', 
@@ -313,11 +330,9 @@ def view_database(db_name):
         return redirect(url_for('dashboard'))
 
 @app.route('/upload', methods=['GET', 'POST'])
+@login_required
 def upload_file():
     """Vulnerable file upload"""
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    
     if request.method == 'POST':
         if 'file' not in request.files:
             flash('No file selected', 'error')
@@ -354,11 +369,9 @@ def upload_file():
     return render_template('upload.html')
 
 @app.route('/console', methods=['GET', 'POST'])
+@login_required
 def console():
     """AI-driven MySQL-like console (no real command execution)"""
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-
     # Initialize console per session
     if 'mysql_console' not in session:
         session['mysql_console'] = True
@@ -396,6 +409,7 @@ def console():
     return render_template('console.html', output=output)
 
 @app.route('/api/users')
+@login_required
 def api_users():
     """API endpoint for user data (vulnerable to injection)"""
     search = request.args.get('search', '')
@@ -424,6 +438,7 @@ def api_users():
     return jsonify(FAKE_DATABASES['users'])
 
 @app.route('/admin')
+@login_required
 def admin_panel():
     """Hidden admin panel"""
     return render_template('admin.html', databases=FAKE_DATABASES)
@@ -435,31 +450,56 @@ def logout():
     flash('You have been logged out', 'info')
     return redirect(url_for('login'))
 
-# Simulate successful login for demonstration
+# Authentication credentials
+ADMIN_USERNAME = 'admin'
+ADMIN_PASSWORD = 'DeepGreen2025'
+
 @app.route('/auth', methods=['POST'])
 def auth():
-    """Fake authentication endpoint"""
+    """Authentication endpoint - requires correct credentials"""
     username = request.form.get('username', '')
     password = request.form.get('password', '')
     
-    # Always "succeed" to keep them engaged
-    session['logged_in'] = True
-    session['username'] = username
-    
-    attack_data = {
-        'type': 'authentication_attempt',
-        'username': username,
-        'password': password,
-        'success': True,
-        'ip': request.remote_addr,
-        'user_agent': request.headers.get('User-Agent', ''),
-        'timestamp': datetime.now().isoformat()
-    }
-    
-    logger.log_attack(attack_data)
-    sender.send_log(attack_data)
-    
-    return redirect(url_for('dashboard'))
+    # Check credentials
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        # Valid credentials
+        session['logged_in'] = True
+        session['username'] = username
+        
+        attack_data = {
+            'type': 'authentication_attempt',
+            'username': username,
+            'password': password,
+            'success': True,
+            'ip': request.remote_addr,
+            'user_agent': request.headers.get('User-Agent', ''),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        logger.log_attack(attack_data)
+        if sender:
+            sender.send_log(attack_data)
+        
+        flash('Login successful!', 'success')
+        return redirect(url_for('dashboard'))
+    else:
+        # Invalid credentials - log failed attempt
+        attack_data = {
+            'type': 'authentication_attempt',
+            'username': username,
+            'password': password,
+            'success': False,
+            'ip': request.remote_addr,
+            'user_agent': request.headers.get('User-Agent', ''),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        logger.log_attack(attack_data)
+        if sender:
+            sender.send_log(attack_data)
+        
+        flash('Invalid username or password. Please try again.', 'error')
+        return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
