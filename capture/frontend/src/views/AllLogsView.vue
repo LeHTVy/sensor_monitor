@@ -4,14 +4,25 @@
 
     <v-main>
       <v-container fluid class="pa-4">
-        <!-- Hero Section -->
-        <HeroSection />
+        <v-row>
+          <!-- Filter Panel (Sidebar) -->
+          <v-col cols="12" md="3">
+            <FilterPanel />
+          </v-col>
 
-        <!-- Stats Cards -->
-        <StatsCards />
+          <!-- Main Content -->
+          <v-col cols="12" md="9">
+            <!-- Logs Table -->
+            <LogsTable
+              :logs="dashboardStore.logs"
+              :loading="dashboardStore.loading || refreshStore.isRefreshing"
+              class="mb-6"
+            />
 
-        <!-- Kibana Dashboard -->
-        <KibanaDashboard />
+            <!-- Attack Patterns -->
+            <PatternsTable :patterns="dashboardStore.patterns" />
+          </v-col>
+        </v-row>
       </v-container>
     </v-main>
   </v-app>
@@ -23,9 +34,9 @@ import { useAuthStore } from '@/stores/auth'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useRefreshStore } from '@/stores/refreshData'
 import Navbar from '@/components/Navbar.vue'
-import HeroSection from '@/components/dashboard/HeroSection.vue'
-import KibanaDashboard from '@/components/dashboard/KibanaDashboard.vue'
-import StatsCards from '@/components/StatsCards.vue'
+import FilterPanel from '@/components/alllogs/FilterPanel.vue'
+import LogsTable from '@/components/alllogs/LogsTable.vue'
+import PatternsTable from '@/components/alllogs/PatternsTable.vue'
 
 const authStore = useAuthStore()
 const dashboardStore = useDashboardStore()
@@ -44,9 +55,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Dashboard main container styling */
 :deep(.v-main) {
   background: linear-gradient(135deg, rgba(var(--v-theme-background), 0.95) 0%, rgba(var(--v-theme-surface), 0.9) 100%);
   min-height: 100vh;
 }
 </style>
+

@@ -13,7 +13,7 @@ import threading
 import queue
 from functools import wraps
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory
 from werkzeug.utils import secure_filename
 from utils.logger import HoneypotLogger
 from utils.sender import LogSender
@@ -289,8 +289,24 @@ def health():
 
 @app.route('/favicon.ico')
 def favicon():
-    """Return 204 No Content for favicon to prevent 404/502 errors"""
-    return '', 204
+    """Serve favicon.ico from assets folder"""
+    try:
+        # Get the directory where app.py is located
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        # Path to assets folder: app/templates/assets
+        assets_dir = os.path.join(app_dir, 'templates', 'assets')
+        favicon_path = os.path.join(assets_dir, 'databaseadmin.ico')
+        
+        # Check if file exists
+        if os.path.exists(favicon_path):
+            return send_from_directory(assets_dir, 'databaseadmin.ico', mimetype='image/x-icon')
+        else:
+            print(f"⚠️ Favicon not found at: {favicon_path}")
+            return '', 204
+    except Exception as e:
+        # Fallback to 204 if file not found or error
+        print(f"⚠️ Error serving favicon: {e}")
+        return '', 204
 
 @app.route('/')
 def index():
