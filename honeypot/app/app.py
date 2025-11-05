@@ -21,6 +21,8 @@ from utils.mysql_ai_console import MySQLAIConsole
 
 app = Flask(__name__)
 app.secret_key = 'honeypot_secret_key_12345'
+_worker_started = threading.Lock()
+_worker_started_flag = False
 
 # Initialize logging, sender and Kafka producer (with error handling)
 try:
@@ -115,10 +117,26 @@ def kafka_worker():
             import time
             time.sleep(0.1)
 
-# Start background worker thread
-kafka_thread = threading.Thread(target=kafka_worker, daemon=True)
-kafka_thread.start()
-print("✅ Kafka background worker started")
+# Global variable to track worker thread
+kafka_thread = None
+
+def ensure_kafka_worker_started():
+    """Ensure Kafka worker thread is started (thread-safe, called from request handler)"""
+    global kafka_thread, _worker_started_flag
+    if not _worker_started_flag:
+        with _worker_started:
+            if not _worker_started_flag:
+                kafka_thread = threading.Thread(target=kafka_worker, daemon=True)
+                kafka_thread.start()
+                _worker_started_flag = True
+                print(f"✅ Kafka background worker started in process {os.getpid()}")
+
+# Start worker thread immediately (mỗi worker process sẽ tự start khi load module)
+# Không cần --preload với app nhỏ, nên mỗi worker sẽ tự động start thread
+try:
+    ensure_kafka_worker_started()
+except Exception as e:
+    print(f"⚠️ Could not start Kafka worker: {e}")
 
 # Configuration
 UPLOAD_FOLDER = '/app/uploads'
@@ -152,6 +170,9 @@ def allowed_file(filename):
 @app.before_request
 def log_request():
     """Log every request before processing"""
+    # Ensure Kafka worker is started (Gunicorn workers need this)
+    ensure_kafka_worker_started()
+    
     try:
         # Get detailed log data from logger
         log_entry = logger.log_request(request)

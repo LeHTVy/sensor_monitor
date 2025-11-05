@@ -52,9 +52,10 @@ cd /app && python -m gunicorn \\\n\
     --access-logfile - \\\n\
     --error-logfile - \\\n\
     --log-level info \\\n\
-    --preload \\\n\
     --max-requests 1000 \\\n\
     --max-requests-jitter 100 \\\n\
+    --worker-connections 1000 \\\n\
+    --config /dev/null \\\n\
     app.app:app\n\
 ' > /start.sh && chmod +x /start.sh
 
