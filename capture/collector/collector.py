@@ -17,9 +17,9 @@ topics = [t.strip() for t in os.getenv("KAFKA_TOPICS", "honeypot-attacks,honeypo
 group_id = os.getenv("KAFKA_GROUP", "capture-es-collector")
 es_host = os.getenv("ES_HOST", "http://elasticsearch:9200")
 index_prefix = os.getenv("ES_INDEX_PREFIX", "sensor-logs")
-batch_size = int(os.getenv("BATCH_SIZE", "500"))
-flush_interval_ms = int(os.getenv("FLUSH_INTERVAL_MS", "1000"))
-auto_offset_reset = os.getenv("AUTO_OFFSET_RESET", "latest")
+batch_size = int(os.getenv("BATCH_SIZE", "50"))  # Giảm batch size để giảm độ trễ
+flush_interval_ms = int(os.getenv("FLUSH_INTERVAL_MS", "500"))  # Flush nhanh hơn (500ms)
+auto_offset_reset = os.getenv("AUTO_OFFSET_RESET", "earliest")
 
 # Initialize Elasticsearch
 es = None
@@ -75,17 +75,48 @@ def ensure_template():
                 "dynamic": "true",
                 "properties": {
                     "timestamp": {"type": "date"},
+                    "@ingested_at": {"type": "date"},
                     "ip": {"type": "ip"},
                     "src_ip": {"type": "ip"},
                     "dst_ip": {"type": "ip"},
                     "attack_tool": {"type": "keyword"},
+                    "attack_tool_info": {"type": "object", "enabled": True},
                     "attack_technique": {"type": "keyword"},
                     "log_category": {"type": "keyword"},
+                    "type": {"type": "keyword"},
                     "user_agent": {"type": "text"},
-                    "kafka_topic": {"type": "keyword"},
                     "method": {"type": "keyword"},
                     "path": {"type": "keyword"},
+                    "url": {"type": "keyword"},
                     "protocol": {"type": "keyword"},
+                    "headers": {"type": "object", "enabled": True},
+                    "geoip": {
+                        "type": "object",
+                        "properties": {
+                            "country": {"type": "keyword"},
+                            "city": {"type": "keyword"},
+                            "isp": {"type": "keyword"},
+                            "org": {"type": "keyword"},
+                            "lat": {"type": "float"},
+                            "lon": {"type": "float"},
+                            "timezone": {"type": "keyword"},
+                            "region": {"type": "keyword"},
+                            "postal": {"type": "keyword"}
+                        }
+                    },
+                    "os_info": {
+                        "type": "object",
+                        "properties": {
+                            "os": {"type": "keyword"},
+                            "version": {"type": "keyword"},
+                            "architecture": {"type": "keyword"}
+                        }
+                    },
+                    "kafka_topic": {"type": "keyword"},
+                    "kafka_partition": {"type": "integer"},
+                    "kafka_offset": {"type": "long"},
+                    "source": {"type": "keyword"},
+                    "server_ip": {"type": "ip"},
                 },
             },
         },
@@ -152,6 +183,9 @@ def run():
     last_flush = time.time()
     processed_count = 0
     
+    print(f"🎯 Starting to consume messages from Kafka topics: {topics}")
+    print(f"📝 Auto offset reset: {auto_offset_reset} (use 'earliest' to read all messages)")
+    
     try:
         for msg in consumer:
             doc = msg.value.copy()
@@ -160,11 +194,29 @@ def run():
             if "timestamp" not in doc:
                 doc["timestamp"] = datetime.utcnow().isoformat()
             
+            # Map topic to log_category if not present
+            if "log_category" not in doc:
+                topic_to_category = {
+                    'honeypot-attacks': 'attack',
+                    'honeypot-browser': 'honeypot',
+                    'honeypot-traffic': 'traffic',
+                    'honeypot-errors': 'error'
+                }
+                doc["log_category"] = topic_to_category.get(msg.topic, 'unknown')
+            
+            # Ensure type field matches log_category for backward compatibility
+            if "type" not in doc or doc.get("type") != doc.get("log_category"):
+                doc["type"] = doc.get("log_category", "unknown")
+            
             # Add metadata
             doc["kafka_topic"] = msg.topic
             doc["@ingested_at"] = datetime.utcnow().isoformat()
             doc["kafka_partition"] = msg.partition
             doc["kafka_offset"] = msg.offset
+            
+            # Normalize IP fields
+            if "src_ip" not in doc and "ip" in doc:
+                doc["src_ip"] = doc["ip"]
             
             # Create bulk action
             action = {
@@ -172,6 +224,10 @@ def run():
                 "_source": doc,
             }
             buffer.append(action)
+            
+            # Log first message to confirm we're receiving data
+            if processed_count == 0 and len(buffer) == 1:
+                print(f"📥 Received first message from topic '{msg.topic}': {doc.get('log_category', 'unknown')} log from {doc.get('src_ip', doc.get('ip', 'unknown'))}")
             
             # Flush when batch size reached or time interval passed
             if len(buffer) >= batch_size or (time.time() - last_flush) * 1000 >= flush_interval_ms:

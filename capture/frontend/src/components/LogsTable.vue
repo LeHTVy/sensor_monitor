@@ -105,15 +105,59 @@
               </v-list>
             </v-col>
             <v-col cols="12" md="6">
-              <v-card variant="outlined">
+              <v-card variant="outlined" class="mb-2">
                 <v-card-title class="text-subtitle-2">GeoIP</v-card-title>
                 <v-card-text>
                   <div v-if="selectedLog?.geoip">
                     <div><strong>Country:</strong> {{ selectedLog?.geoip?.country }}</div>
                     <div><strong>City:</strong> {{ selectedLog?.geoip?.city }}</div>
+                    <div><strong>Region:</strong> {{ selectedLog?.geoip?.region || '-' }}</div>
                     <div><strong>ISP:</strong> {{ selectedLog?.geoip?.isp || '-' }}</div>
+                    <div><strong>Organization:</strong> {{ selectedLog?.geoip?.org || '-' }}</div>
+                    <div v-if="selectedLog?.geoip?.lat && selectedLog?.geoip?.lon">
+                      <strong>Location:</strong> {{ selectedLog?.geoip?.lat }}, {{ selectedLog?.geoip?.lon }}
+                    </div>
+                    <div><strong>Timezone:</strong> {{ selectedLog?.geoip?.timezone || '-' }}</div>
                   </div>
                   <div v-else>-</div>
+                </v-card-text>
+              </v-card>
+              <v-card variant="outlined" class="mb-2" v-if="selectedLog?.os_info">
+                <v-card-title class="text-subtitle-2">OS Info</v-card-title>
+                <v-card-text>
+                  <div><strong>OS:</strong> {{ selectedLog?.os_info?.os || '-' }}</div>
+                  <div><strong>Version:</strong> {{ selectedLog?.os_info?.version || '-' }}</div>
+                  <div><strong>Architecture:</strong> {{ selectedLog?.os_info?.architecture || '-' }}</div>
+                </v-card-text>
+              </v-card>
+              <v-card variant="outlined" v-if="selectedLog?.attack_tool_info">
+                <v-card-title class="text-subtitle-2">Attack Tool Info</v-card-title>
+                <v-card-text>
+                  <pre class="code-block-small">{{ JSON.stringify(selectedLog?.attack_tool_info, null, 2) }}</pre>
+                </v-card-text>
+              </v-card>
+            </v-col>
+            <v-col cols="12" v-if="selectedLog?.headers">
+              <v-card variant="outlined">
+                <v-card-title class="text-subtitle-2">HTTP Headers</v-card-title>
+                <v-card-text>
+                  <pre class="code-block-small">{{ JSON.stringify(selectedLog?.headers, null, 2) }}</pre>
+                </v-card-text>
+              </v-card>
+            </v-col>
+            <v-col cols="12" v-if="selectedLog?.attack_technique && selectedLog?.attack_technique.length > 0">
+              <v-card variant="outlined">
+                <v-card-title class="text-subtitle-2">Attack Techniques</v-card-title>
+                <v-card-text>
+                  <v-chip
+                    v-for="(technique, idx) in selectedLog?.attack_technique"
+                    :key="idx"
+                    color="error"
+                    size="small"
+                    class="ma-1"
+                  >
+                    {{ technique }}
+                  </v-chip>
                 </v-card-text>
               </v-card>
             </v-col>
@@ -139,19 +183,41 @@
 <script setup lang="ts">
 
 interface Log {
+  id?: string
   timestamp: string
   type: string
   src_ip: string
+  dst_ip?: string
   attack_tool?: string
+  attack_tool_info?: any
+  attack_technique?: string[]
   geoip?: {
     country: string
     city: string
     isp?: string
+    org?: string
+    lat?: number
+    lon?: number
+    timezone?: string
+    region?: string
+    postal?: string
+  }
+  os_info?: {
+    os?: string
+    version?: string
+    architecture?: string
   }
   message?: string
   method?: string
   path?: string
+  url?: string
   user_agent?: string
+  headers?: Record<string, string>
+  protocol?: string
+  args?: Record<string, any>
+  form_data?: Record<string, any>
+  kafka_topic?: string
+  '@ingested_at'?: string
 }
 
 interface Props {
@@ -233,6 +299,15 @@ function prettyJson(obj: unknown) {
 .logs-table-card {
   border-radius: 12px;
   overflow: hidden;
+}
+
+.code-block-small {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  max-height: 200px;
+  overflow: auto;
 }
 
 .code-block {

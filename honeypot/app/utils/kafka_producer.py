@@ -31,11 +31,14 @@ class HoneypotKafkaProducer:
                     value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode('utf-8'),
                     key_serializer=lambda k: k.encode('utf-8') if k else None,
                     retries=3,
-                    retry_backoff_ms=1000,
-                    request_timeout_ms=10000,  # Reduced from 30000 to 10000 (10s)
+                    retry_backoff_ms=500,  # Giảm retry delay để nhanh hơn
+                    request_timeout_ms=5000,  # Giảm timeout để giảm độ trễ (5s)
                     connections_max_idle_ms=540000,
                     api_version=(2, 5, 0),
-                    metadata_max_age_ms=300000
+                    metadata_max_age_ms=300000,
+                    linger_ms=0,  # Gửi ngay lập tức, không đợi batch
+                    batch_size=16384,  # Batch size nhỏ để gửi nhanh
+                    max_in_flight_requests_per_connection=5  # Tăng throughput
                 )
                 
                 # Test connection by getting metadata
@@ -78,11 +81,12 @@ class HoneypotKafkaProducer:
                 future = self.producer.send(topic, value=log_data, key=key)
                 
                 try:
-                    record_metadata = future.get(timeout=2) 
+                    record_metadata = future.get(timeout=1)  # Giảm timeout để nhanh hơn
                     print(f"✅ Log sent to topic {topic}, partition {record_metadata.partition}, offset {record_metadata.offset}")
                     return True
                 except Exception as timeout_error:
-                    print(f"⏳ Log queued to {topic} (async send, may complete later)")
+                    # Log đã được queue, sẽ gửi async - không block
+                    print(f"⏳ Log queued to {topic} (async, will be sent shortly)")
                     return True  
                 
             except Exception as e:

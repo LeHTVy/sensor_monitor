@@ -152,13 +152,8 @@ def log_request():
             if "Connection" in str(kafka_error) or "Broker" in str(kafka_error):
                 print(f"❌ CRITICAL: Kafka connection lost, application may need restart")
         
-        # Always send to capture server for backward compatibility
-        if sender:
-            try:
-                sender.send_log(log_data)
-                print(f"✅ Sent log to capture server: {log_entry.get('log_category', 'unknown')}")
-            except Exception as sender_error:
-                print(f"❌ Error sending to capture server: {str(sender_error)}")
+        # Note: Logs are sent via Kafka only (no HTTP duplicate)
+        # Kafka → Collector → Elasticsearch → Frontend
         
     except Exception as e:
         print(f"Error logging request: {str(e)}")

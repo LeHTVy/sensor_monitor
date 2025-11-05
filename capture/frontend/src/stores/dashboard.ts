@@ -44,6 +44,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const patterns = ref<Pattern[]>([])
   const currentFilter = ref<'all' | 'attack' | 'honeypot' | 'traffic'>('all')
   const loading = ref(false)
+  const dateFrom = ref<string | null>(null)
+  const dateTo = ref<string | null>(null)
 
   const statCards = computed(() => [
     { title: 'Total Logs', value: stats.value.total_logs_received },
@@ -79,9 +81,19 @@ export const useDashboardStore = defineStore('dashboard', () => {
     if (!authStore.isLoggedIn || !authStore.apiKey) return
 
     try {
-      const url = currentFilter.value === 'all'
-        ? '/api/logs'
-        : `/api/logs?type=${currentFilter.value}`
+      const params = new URLSearchParams()
+      if (currentFilter.value !== 'all') {
+        params.append('type', currentFilter.value)
+      }
+      if (dateFrom.value) {
+        params.append('date_from', dateFrom.value)
+      }
+      if (dateTo.value) {
+        params.append('date_to', dateTo.value)
+      }
+      params.append('limit', '1000')  // Tăng limit để hiển thị nhiều logs hơn
+
+      const url = `/api/logs?${params.toString()}`
 
       const response = await fetch(url, {
         method: 'GET',
@@ -100,6 +112,18 @@ export const useDashboardStore = defineStore('dashboard', () => {
     } catch (error) {
       console.error('Error loading logs:', error)
     }
+  }
+
+  function setDateFilter(from: string | null, to: string | null) {
+    dateFrom.value = from
+    dateTo.value = to
+    loadLogs()
+  }
+
+  function clearDateFilter() {
+    dateFrom.value = null
+    dateTo.value = null
+    loadLogs()
   }
 
   async function loadPatterns() {
@@ -149,11 +173,15 @@ export const useDashboardStore = defineStore('dashboard', () => {
     patterns,
     currentFilter,
     loading,
+    dateFrom,
+    dateTo,
     statCards,
     loadStats,
     loadLogs,
     loadPatterns,
     setFilter,
+    setDateFilter,
+    clearDateFilter,
     loadAllData
   }
 })

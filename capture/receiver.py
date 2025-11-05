@@ -151,8 +151,8 @@ def process_log_queue():
         except Exception as e:
             logging.error(f"Error processing log: {e}")
 
-def es_search_logs(log_type: str, limit: int):
-    """Search logs from Elasticsearch"""
+def es_search_logs(log_type: str, limit: int, date_from: str = None, date_to: str = None):
+    """Search logs from Elasticsearch with date filtering"""
     if not es_client:
         print("⚠️ Elasticsearch client not available")
         return []
@@ -161,10 +161,11 @@ def es_search_logs(log_type: str, limit: int):
         # Search in all indices matching prefix
         query_index = f"{ES_PREFIX}-*"
         
-        # Build query - use match instead of term for better compatibility
+        # Build query
         must = []
+        
+        # Filter by log category
         if log_type != "all":
-            # Try both exact match and keyword field
             must.append({
                 "bool": {
                     "should": [
@@ -175,40 +176,69 @@ def es_search_logs(log_type: str, limit: int):
                 }
             })
         
+        # Filter by date range
+        if date_from or date_to:
+            date_filter = {}
+            if date_from:
+                date_filter["gte"] = date_from
+            if date_to:
+                date_filter["lte"] = date_to
+            must.append({"range": {"timestamp": date_filter}})
+        
         body = {
             "size": limit,
             "sort": [{"timestamp": {"order": "desc"}}],
             "query": {"bool": {"must": must}} if must else {"match_all": {}},
         }
         
-        print(f"🔍 ES Query: index={query_index}, type={log_type}, limit={limit}")
-        print(f"🔍 ES Query body: {json.dumps(body, indent=2)}")
+        print(f"🔍 ES Query: index={query_index}, type={log_type}, limit={limit}, date_from={date_from}, date_to={date_to}")
         
         res = es_client.search(index=query_index, body=body)
         
-        print(f"📊 ES Search results: {res['hits']['total']} total hits, {len(res['hits']['hits'])} returned")
+        # Handle both old and new ES response formats
+        total = res['hits']['total']
+        if isinstance(total, dict):
+            total = total.get('value', 0)
+        
+        print(f"📊 ES Search results: {total} total hits, {len(res['hits']['hits'])} returned")
         
         logs = []
         for hit in res["hits"]["hits"]:
             source = hit["_source"]
-            # Normalize log format for frontend
+            # Return full log data with all fields
             log = {
+                "id": hit.get("_id", ""),
                 "timestamp": source.get("timestamp", ""),
-                "type": source.get("log_category", "unknown"),
+                "type": source.get("log_category", source.get("type", "unknown")),
                 "src_ip": source.get("src_ip", source.get("ip", "")),
                 "dst_ip": source.get("dst_ip", ""),
-                "attack_tool": source.get("attack_tool", ""),
+                "attack_tool": source.get("attack_tool", "unknown"),
+                "attack_tool_info": source.get("attack_tool_info", {}),
+                "attack_technique": source.get("attack_technique", []),
                 "geoip": {
                     "country": source.get("geoip", {}).get("country", "") if isinstance(source.get("geoip"), dict) else "",
                     "city": source.get("geoip", {}).get("city", "") if isinstance(source.get("geoip"), dict) else "",
-                    "isp": source.get("geoip", {}).get("isp", "") if isinstance(source.get("geoip"), dict) else ""
+                    "isp": source.get("geoip", {}).get("isp", "") if isinstance(source.get("geoip"), dict) else "",
+                    "org": source.get("geoip", {}).get("org", "") if isinstance(source.get("geoip"), dict) else "",
+                    "lat": source.get("geoip", {}).get("lat", 0) if isinstance(source.get("geoip"), dict) else 0,
+                    "lon": source.get("geoip", {}).get("lon", 0) if isinstance(source.get("geoip"), dict) else 0,
+                    "timezone": source.get("geoip", {}).get("timezone", "") if isinstance(source.get("geoip"), dict) else "",
+                    "region": source.get("geoip", {}).get("region", "") if isinstance(source.get("geoip"), dict) else "",
+                    "postal": source.get("geoip", {}).get("postal", "") if isinstance(source.get("geoip"), dict) else ""
                 },
-                "message": source.get("payload", source.get("message", "")),
+                "os_info": source.get("os_info", {}),
                 "method": source.get("method", ""),
                 "path": source.get("path", ""),
+                "url": source.get("url", ""),
                 "user_agent": source.get("user_agent", ""),
+                "headers": source.get("headers", {}),
                 "protocol": source.get("protocol", ""),
-                "port": source.get("dst_port", source.get("port", 0))
+                "args": source.get("args", {}),
+                "form_data": source.get("form_data", {}),
+                "message": source.get("payload", source.get("message", "")),
+                "port": source.get("dst_port", source.get("port", 0)),
+                "kafka_topic": source.get("kafka_topic", ""),
+                "@ingested_at": source.get("@ingested_at", "")
             }
             logs.append(log)
         
@@ -306,41 +336,30 @@ def health():
 @app.route('/api/logs')
 @api_key_required
 def get_logs():
-    """Get recent logs from Elasticsearch or Kafka"""
+    """Get logs from Elasticsearch with optional date filtering"""
     limit = request.args.get('limit', 100, type=int)
     log_type = request.args.get('type', 'all')
+    date_from = request.args.get('date_from', None)  # Format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
+    date_to = request.args.get('date_to', None)  # Format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
     
-    print(f"🔄 API /api/logs called with type={log_type}, limit={limit}")
+    print(f"🔄 API /api/logs called with type={log_type}, limit={limit}, date_from={date_from}, date_to={date_to}")
     
     logs = []
     if USE_ELASTICSEARCH:
-        logs = es_search_logs(log_type, limit)
+        logs = es_search_logs(log_type, limit, date_from, date_to)
         print(f"🔍 Retrieved {len(logs)} logs from Elasticsearch")
     else:
-        # Fallback to Kafka consumer
-        if log_type == 'attack':
-            logs = kafka_consumer.get_attack_logs(limit)
-            print(f"⚔️ Retrieved {len(logs)} attack logs from Kafka")
-        elif log_type == 'honeypot':
-            logs = kafka_consumer.get_browser_logs(limit)
-            print(f"🌐 Retrieved {len(logs)} browser logs from Kafka")
-        elif log_type == 'error':
-            logs = kafka_consumer.get_error_logs(limit)
-            print(f"❌ Retrieved {len(logs)} error logs from Kafka")
-        else:
-            logs = kafka_consumer.get_all_logs(limit)
-            print(f"📊 Retrieved {len(logs)} total logs from Kafka")
-    
-    # Debug: Print sample log if available
-    if logs:
-        print(f"📝 Sample log: {logs[0]}")
+        # Fallback: return empty if Elasticsearch not available
+        print("⚠️ Elasticsearch not enabled, returning empty logs")
+        logs = []
     
     return jsonify({
         'logs': logs,
         'total': len(logs),
         'type': log_type,
         'limit': limit,
-        'kafka_status': 'via_elasticsearch' if USE_ELASTICSEARCH else ('connected' if kafka_consumer.consumer else 'disconnected'),
+        'date_from': date_from,
+        'date_to': date_to,
         'timestamp': datetime.now().isoformat()
     })
 

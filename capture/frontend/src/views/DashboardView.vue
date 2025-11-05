@@ -50,6 +50,42 @@
               Traffic
             </v-tab>
           </v-tabs>
+          
+          <!-- Date Filter -->
+          <v-card-text class="d-flex align-center flex-wrap ga-2">
+            <v-icon>mdi-calendar-filter</v-icon>
+            <span class="text-subtitle-2 mr-2">Filter by Date:</span>
+            <v-text-field
+              v-model="dashboardStore.dateFrom"
+              type="date"
+              label="From"
+              density="compact"
+              variant="outlined"
+              hide-details
+              style="max-width: 180px"
+              @update:model-value="dashboardStore.loadLogs()"
+            />
+            <v-text-field
+              v-model="dashboardStore.dateTo"
+              type="date"
+              label="To"
+              density="compact"
+              variant="outlined"
+              hide-details
+              style="max-width: 180px"
+              @update:model-value="dashboardStore.loadLogs()"
+            />
+            <v-btn
+              v-if="dashboardStore.dateFrom || dashboardStore.dateTo"
+              @click="dashboardStore.clearDateFilter()"
+              color="error"
+              size="small"
+              variant="text"
+            >
+              <v-icon start>mdi-close</v-icon>
+              Clear
+            </v-btn>
+          </v-card-text>
         </v-card>
 
         <!-- Logs Table -->
