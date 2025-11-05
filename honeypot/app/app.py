@@ -9,6 +9,8 @@ import subprocess
 import sqlite3
 import json
 import hashlib
+import threading
+import queue
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.utils import secure_filename
@@ -59,6 +61,42 @@ except Exception as e:
     """
     print(error_msg)
     raise SystemExit(1) from e
+
+# Background queue for Kafka sending (non-blocking)
+kafka_queue = queue.Queue(maxsize=1000)
+
+def kafka_worker():
+    """Background worker to send logs to Kafka without blocking requests"""
+    while True:
+        try:
+            log_task = kafka_queue.get(timeout=1)
+            if log_task is None:
+                break
+            category, log_data = log_task
+            try:
+                if category == 'attack':
+                    kafka_producer.send_attack_log(log_data)
+                elif category == 'traffic':
+                    kafka_producer.send_traffic_log(log_data)
+                elif category == 'honeypot':
+                    kafka_producer.send_browser_log(log_data)
+                else:
+                    kafka_producer.send_error_log(log_data)
+            except Exception as e:
+                print(f"❌ Error in kafka worker: {str(e)}")
+            finally:
+                kafka_queue.task_done()
+        except queue.Empty:
+            continue
+        except Exception as e:
+            print(f"❌ Kafka worker error: {str(e)}")
+            import time
+            time.sleep(0.1)
+
+# Start background worker thread
+kafka_thread = threading.Thread(target=kafka_worker, daemon=True)
+kafka_thread.start()
+print("✅ Kafka background worker started")
 
 # Configuration
 UPLOAD_FOLDER = '/app/uploads'
@@ -120,53 +158,35 @@ def log_request():
             'log_category': log_entry.get('log_category', 'unknown')
         }
         
-        # Send to Kafka based on log category - MANDATORY: must succeed
+        # Send to Kafka via background queue (non-blocking)
         try:
-            category = log_entry.get('log_category')
-            success = False
-            
-            if category == 'attack':
-                success = kafka_producer.send_attack_log(log_data)
-                if success:
-                    print(f"✅ Sent attack log to Kafka: {log_entry.get('attack_tool', 'unknown')}")
-            elif category == 'traffic':
-                success = kafka_producer.send_traffic_log(log_data)
-                if success:
-                    print(f"✅ Sent traffic log to Kafka: {request.method} {request.path}")
-            elif category == 'honeypot':
-                success = kafka_producer.send_browser_log(log_data)
-                if success:
-                    print(f"✅ Sent browser log to Kafka: {log_entry.get('attack_tool', 'browser')}")
-            else:
-                success = kafka_producer.send_error_log(log_data)
-                if success:
-                    print(f"✅ Sent error log to Kafka: {category}")
-            
-            if not success:
-                print(f"⚠️ Warning: Failed to send {category} log to Kafka, but continuing...")
-                
+            category = log_entry.get('log_category', 'unknown')
+            # Queue for background worker - non-blocking
+            try:
+                kafka_queue.put_nowait((category, log_data))
+            except queue.Full:
+                # Queue full - log but don't block
+                print(f"⚠️ Kafka queue full, dropping log: {category}")
         except Exception as kafka_error:
-            # Log error but don't crash - retry will happen on next request
-            print(f"❌ Kafka error sending log: {str(kafka_error)}")
-            # Re-raise if it's a connection error (producer dead)
-            if "Connection" in str(kafka_error) or "Broker" in str(kafka_error):
-                print(f"❌ CRITICAL: Kafka connection lost, application may need restart")
+            # Log error but don't crash
+            print(f"❌ Kafka queue error: {str(kafka_error)}")
         
         # Note: Logs are sent via Kafka only (no HTTP duplicate)
         # Kafka → Collector → Elasticsearch → Frontend
         
     except Exception as e:
         print(f"Error logging request: {str(e)}")
-        # Send error to Kafka (mandatory)
+        # Send error to Kafka queue (non-blocking)
         try:
-            kafka_producer.send_error_log({
+            error_log = {
                 'type': 'error',
                 'error': str(e),
                 'timestamp': datetime.now().isoformat(),
                 'ip': request.headers.get('X-Real-IP', request.remote_addr) if 'request' in locals() else 'unknown'
-            })
-        except Exception as kafka_err:
-            print(f"❌ Failed to send error log to Kafka: {str(kafka_err)}")
+            }
+            kafka_queue.put_nowait(('error', error_log))
+        except:
+            pass
 
 @app.after_request
 def update_response_context(response):
@@ -178,6 +198,16 @@ def update_response_context(response):
     except Exception as e:
         print(f"⚠️ Error updating response context: {e}")
     return response
+
+@app.route('/health')
+def health():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'kafka': 'connected' if kafka_producer and kafka_producer.producer else 'disconnected',
+        'queue_size': kafka_queue.qsize(),
+        'timestamp': datetime.now().isoformat()
+    }), 200
 
 @app.route('/')
 def index():
