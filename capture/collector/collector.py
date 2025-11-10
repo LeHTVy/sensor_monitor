@@ -17,8 +17,8 @@ topics = [t.strip() for t in os.getenv("KAFKA_TOPICS", "honeypot-attacks,honeypo
 group_id = os.getenv("KAFKA_GROUP", "capture-es-collector")
 es_host = os.getenv("ES_HOST", "http://elasticsearch:9200")
 index_prefix = os.getenv("ES_INDEX_PREFIX", "sensor-logs")
-batch_size = int(os.getenv("BATCH_SIZE", "50"))  # Giảm batch size để giảm độ trễ
-flush_interval_ms = int(os.getenv("FLUSH_INTERVAL_MS", "500"))  # Flush nhanh hơn (500ms)
+batch_size = int(os.getenv("BATCH_SIZE", "50"))  
+flush_interval_ms = int(os.getenv("FLUSH_INTERVAL_MS", "500"))  
 auto_offset_reset = os.getenv("AUTO_OFFSET_RESET", "earliest")
 
 # Initialize Elasticsearch
@@ -53,7 +53,6 @@ def index_name_for_topic(topic: str) -> str:
         'honeypot-attacks': f"{index_prefix}-attacks",
         'honeypot-browser': f"{index_prefix}-honeypot", 
         'honeypot-traffic': f"{index_prefix}-traffic",
-        # Backward compat if còn log cũ
         'honeypot-errors': f"{index_prefix}-traffic"
     }
     return topic_mapping.get(topic, f"{index_prefix}-{topic}")
@@ -157,7 +156,6 @@ def run():
         print("❌ Cannot start collector: Elasticsearch not available")
         return
     
-    # Ensure template exists
     if not ensure_template():
         print("⚠️ Warning: Could not create template, continuing anyway...")
     
@@ -225,11 +223,9 @@ def run():
             }
             buffer.append(action)
             
-            # Log first message to confirm we're receiving data
             if processed_count == 0 and len(buffer) == 1:
                 print(f"📥 Received first message from topic '{msg.topic}': {doc.get('log_category', 'unknown')} log from {doc.get('src_ip', doc.get('ip', 'unknown'))}")
             
-            # Flush when batch size reached or time interval passed
             if len(buffer) >= batch_size or (time.time() - last_flush) * 1000 >= flush_interval_ms:
                 try:
                     helpers.bulk(es, buffer, raise_on_error=False)

@@ -32,14 +32,12 @@ except Exception as e:
     print(f"❌ Failed to initialize logger: {e}")
     raise
 
-# Initialize LogSender (optional, can continue without it)
 try:
     sender = LogSender()
 except Exception as e:
     print(f"⚠️ Failed to initialize LogSender: {e}, continuing without it")
     sender = None
 
-# Initialize Kafka producer - MANDATORY: app will fail to start if Kafka is not available
 try:
     print("🔗 Initializing Kafka producer (REQUIRED)...")
     kafka_producer = HoneypotKafkaProducer()
@@ -65,7 +63,6 @@ except Exception as e:
     print(error_msg)
     raise SystemExit(1) from e
 
-# Background queue for Kafka sending (non-blocking)
 kafka_queue = queue.Queue(maxsize=1000)
 
 def kafka_worker():
@@ -118,7 +115,6 @@ def kafka_worker():
             import time
             time.sleep(0.1)
 
-# Global variable to track worker thread
 kafka_thread = None
 
 def ensure_kafka_worker_started():
@@ -132,8 +128,6 @@ def ensure_kafka_worker_started():
                 _worker_started_flag = True
                 print(f"✅ Kafka background worker started in process {os.getpid()}")
 
-# Start worker thread immediately (mỗi worker process sẽ tự start khi load module)
-# Không cần --preload với app nhỏ, nên mỗi worker sẽ tự động start thread
 try:
     ensure_kafka_worker_started()
 except Exception as e:
@@ -144,7 +138,6 @@ UPLOAD_FOLDER = '/app/uploads'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'php', 'sh', 'py', 'exe'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Create upload directory
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Fake database data
@@ -171,32 +164,25 @@ def allowed_file(filename):
 @app.before_request
 def check_authentication():
     """Check authentication for all routes except public ones"""
-    # Allow public routes
     if request.path in PUBLIC_ROUTES or request.path.startswith('/static'):
         return
     
-    # Check if user is logged in
     if not session.get('logged_in'):
         return redirect(url_for('login'))
 
 @app.before_request
 def log_request():
     """Log every request before processing"""
-    # Skip logging for certain routes (reduce noise)
     if request.path in SKIP_LOG_ROUTES:
         return
     
-    # Ensure Kafka worker is started (Gunicorn workers need this)
     ensure_kafka_worker_started()
     
     try:
-        # Get detailed log data from logger
         log_entry = logger.log_request(request)
         
-        # Store request info for after_request hook
         request._log_entry = log_entry
         
-        # Prepare log data for Kafka
         log_data = {
             'type': 'request',
             'method': request.method,
@@ -217,28 +203,20 @@ def log_request():
             'log_category': log_entry.get('log_category', 'unknown')
         }
         
-        # Send to Kafka via background queue (non-blocking)
         try:
             category = log_entry.get('log_category', 'unknown')
-            # Queue for background worker - non-blocking
             try:
                 kafka_queue.put_nowait((category, log_data))
                 print(f"📤 Queued {category} log to Kafka worker (queue size: {kafka_queue.qsize()})")
             except queue.Full:
-                # Queue full - log but don't block
                 print(f"⚠️ Kafka queue full ({kafka_queue.qsize()} items), dropping log: {category}")
         except Exception as kafka_error:
-            # Log error but don't crash
             print(f"❌ Kafka queue error: {str(kafka_error)}")
             import traceback
             print(traceback.format_exc())
         
-        # Note: Logs are sent via Kafka only (no HTTP duplicate)
-        # Kafka → Collector → Elasticsearch → Frontend
-        
     except Exception as e:
         print(f"Error logging request: {str(e)}")
-        # Send error to Kafka queue (non-blocking)
         try:
             error_log = {
                 'type': 'error',
@@ -261,7 +239,6 @@ def update_response_context(response):
         print(f"⚠️ Error updating response context: {e}")
     return response
 
-# Authentication decorator
 def login_required(f):
     """Decorator to require login for routes"""
     @wraps(f)
@@ -271,10 +248,8 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Whitelist of routes that don't require authentication
 PUBLIC_ROUTES = ['/login', '/auth', '/health', '/static', '/favicon.ico']
 
-# Routes to skip logging (reduce noise)
 SKIP_LOG_ROUTES = ['/favicon.ico', '/health']
 
 @app.route('/health')
@@ -291,20 +266,16 @@ def health():
 def favicon():
     """Serve favicon.ico from assets folder"""
     try:
-        # Get the directory where app.py is located
         app_dir = os.path.dirname(os.path.abspath(__file__))
-        # Path to assets folder: app/templates/assets
         assets_dir = os.path.join(app_dir, 'templates', 'assets')
         favicon_path = os.path.join(assets_dir, 'databaseadmin.ico')
         
-        # Check if file exists
         if os.path.exists(favicon_path):
             return send_from_directory(assets_dir, 'databaseadmin.ico', mimetype='image/x-icon')
         else:
             print(f"⚠️ Favicon not found at: {favicon_path}")
             return '', 204
     except Exception as e:
-        # Fallback to 204 if file not found or error
         print(f"⚠️ Error serving favicon: {e}")
         return '', 204
 
@@ -316,12 +287,10 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page - redirect to dashboard if already logged in"""
-    # If already logged in, redirect to dashboard
     if session.get('logged_in'):
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        # POST requests go to /auth endpoint
         return redirect(url_for('auth'))
     
     return render_template('login.html')
@@ -388,7 +357,6 @@ def upload_file():
 @login_required
 def console():
     """AI-driven MySQL-like console (no real command execution)"""
-    # Initialize console per session
     if 'mysql_console' not in session:
         session['mysql_console'] = True
     console_engine = app.config.setdefault('mysql_console_engine', MySQLAIConsole())
@@ -397,7 +365,6 @@ def console():
     if request.method == 'POST':
         command = request.form.get('command', '')
 
-        # Log interaction as activity (not actual command execution)
         attack_data = {
             'type': 'console_interaction',
             'command': command,
@@ -408,11 +375,9 @@ def console():
         logger.log_attack(attack_data)
         sender.send_log(attack_data)
 
-        # Use stateful simulator
         session_id = session.get('username', request.remote_addr or 'anon')
         output = console_engine.handle_command(command, session_id)
 
-    # Initial banner like MySQL client
     if not output:
         output = (
             "Welcome to the MySQL monitor.  Commands end with ; or \n.\n"
@@ -430,13 +395,11 @@ def api_users():
     """API endpoint for user data (vulnerable to injection)"""
     search = request.args.get('search', '')
     
-    # Vulnerable query construction
     if search:
         query = f"SELECT * FROM users WHERE username LIKE '%{search}%'"
     else:
         query = "SELECT * FROM users"
     
-    # Log API access
     attack_data = {
         'type': 'api_access',
         'endpoint': '/api/users',
@@ -450,7 +413,6 @@ def api_users():
     logger.log_attack(attack_data)
     sender.send_log(attack_data)
     
-    # Return fake data
     return jsonify(FAKE_DATABASES['users'])
 
 @app.route('/admin')

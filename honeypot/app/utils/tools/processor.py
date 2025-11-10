@@ -3,6 +3,7 @@ Tool Processor
 Combines all tool detectors and processes requests
 """
 
+import re
 from typing import Dict, List, Optional
 from flask import Request
 from datetime import datetime, timedelta
@@ -143,22 +144,48 @@ class ToolProcessor:
             request_rate = 0
         
         # Check for many 404s
-        # Note: This would need response code from actual response
-        # For now, we'll estimate based on paths
         many_404s = False
-        if len(ctx['response_codes']) > 10:
-            # If we have response codes, check them
-            recent_404s = sum(1 for code in list(ctx['response_codes'])[-20:] if code == 404)
-            if recent_404s > 10:
+        if len(ctx['response_codes']) > 5:
+            # Check recent response codes for 404s
+            recent_codes = list(ctx['response_codes'])[-20:]
+            recent_404s = sum(1 for code in recent_codes if code == 404)
+            # If more than 30% are 404s, likely scanning
+            if recent_404s > 5 or (len(recent_codes) > 10 and recent_404s / len(recent_codes) > 0.3):
                 many_404s = True
+        # Also check if we have many unique paths but few successful responses
+        # (indicates scanning many paths, most returning 404)
+        if len(ctx['request_paths']) > 10:
+            unique_paths = len(set(ctx['request_paths']))
+            if unique_paths > len(ctx['request_paths']) * 0.7 and len(ctx['response_codes']) > 0:
+                # Many unique paths but few successful responses
+                success_codes = sum(1 for code in ctx['response_codes'] if 200 <= code < 300)
+                if success_codes < len(ctx['response_codes']) * 0.2:
+                    many_404s = True
         
         # Check for sequential paths (scanning pattern)
         sequential_paths = False
         if len(ctx['request_paths']) > 5:
-            # Check if paths follow a pattern (e.g., /admin, /admin1, /admin2)
-            recent_paths = list(ctx['request_paths'])[-10:]
-            # Simple heuristic: if paths are similar or sequential
-            if len(set(recent_paths)) < len(recent_paths) * 0.5:  # Many duplicates
+            recent_paths = list(ctx['request_paths'])[-15:]
+            
+            # Pattern 1: Many unique paths (scanning different endpoints)
+            unique_paths = len(set(recent_paths))
+            if unique_paths > len(recent_paths) * 0.8:  # High uniqueness
+                sequential_paths = True
+            
+            # Pattern 2: Paths with numeric sequences (e.g., /test1, /test2, /test3)
+            numeric_patterns = 0
+            for path in recent_paths:
+                # Check for numeric patterns in path
+                if re.search(r'/\w*\d+', path) or re.search(r'\d+\.\w+', path):
+                    numeric_patterns += 1
+            if numeric_patterns > len(recent_paths) * 0.4:
+                sequential_paths = True
+            
+            # Pattern 3: Common scan paths (robots.txt, sitemap.xml, etc.)
+            scan_paths = ['/robots.txt', '/sitemap.xml', '/.well-known', '/favicon.ico', 
+                         '/admin', '/login', '/test', '/index', '/wp-admin', '/phpmyadmin']
+            scan_path_count = sum(1 for path in recent_paths if any(sp in path.lower() for sp in scan_paths))
+            if scan_path_count > 3:  # Multiple scan paths
                 sequential_paths = True
         
         # Check for varying parameters (fuzzing pattern)
