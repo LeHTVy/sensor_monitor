@@ -20,6 +20,24 @@ from .dirb_detector import DirbDetector
 from .hydra_detector import HydraDetector
 from .wfuzz_detector import WfuzzDetector
 from .cobalt_strike_detector import CobaltStrikeDetector
+# New detectors (15 additional tools)
+from .gobuster_detector import GobusterDetector
+from .masscan_detector import MasscanDetector
+from .ffuf_detector import FfufDetector
+from .acunetix_detector import AcunetixDetector
+from .nuclei_detector import NucleiDetector
+from .commix_detector import CommixDetector
+from .beef_detector import BeefDetector
+from .shodan_detector import ShodanDetector
+from .censys_detector import CensysDetector
+from .curl_detector import CurlDetector
+from .wget_detector import WgetDetector
+from .python_requests_detector import PythonRequestsDetector
+from .skipfish_detector import SkipfishDetector
+from .w3af_detector import W3afDetector
+from .xsstrike_detector import XSStrikeDetector
+# Generic detector for unknown tools
+from .generic_detector import GenericDetector
 
 
 class ToolProcessor:
@@ -29,8 +47,9 @@ class ToolProcessor:
     """
     
     def __init__(self):
-        # Initialize all detectors
+        # Initialize all detectors (25 tools total)
         self.detectors: List[ToolDetector] = [
+            # Original 10 detectors
             NmapDetector(),
             SqlmapDetector(),
             NiktoDetector(),
@@ -41,7 +60,30 @@ class ToolProcessor:
             HydraDetector(),
             WfuzzDetector(),
             CobaltStrikeDetector(),
+            # New 15 detectors
+            GobusterDetector(),
+            MasscanDetector(),
+            FfufDetector(),
+            AcunetixDetector(),
+            NucleiDetector(),
+            CommixDetector(),
+            BeefDetector(),
+            ShodanDetector(),
+            CensysDetector(),
+            CurlDetector(),
+            WgetDetector(),
+            PythonRequestsDetector(),
+            SkipfishDetector(),
+            W3afDetector(),
+            XSStrikeDetector(),
         ]
+
+        # Add generic detector LAST (lowest priority)
+        # Generic detector should only trigger if no specific tool detected
+        self.generic_detector = GenericDetector()
+
+        print(f"✅ ToolProcessor initialized with {len(self.detectors)} specific detectors + 1 generic detector")
+        print(f"   Supported tools: {', '.join([d.tool_name for d in self.detectors])}")
         
         # Context tracking for behavioral detection
         self.ip_contexts: Dict[str, Dict] = defaultdict(lambda: {
@@ -87,7 +129,7 @@ class ToolProcessor:
             # Sort by confidence (descending)
             detections.sort(key=lambda x: x.confidence, reverse=True)
             best_detection = detections[0]
-            
+
             # If multiple detections with high confidence, combine info
             if len(detections) > 1 and detections[1].confidence >= 70:
                 # Multiple high-confidence detections = very suspicious
@@ -96,10 +138,18 @@ class ToolProcessor:
                     {'tool': d.tool, 'confidence': d.confidence, 'method': d.method}
                     for d in detections[:3]  # Top 3
                 ]
-            
+
             return best_detection.to_dict()
-        
-        # No detection found
+
+        # No specific tool detected - try generic detector
+        try:
+            generic_result = self.generic_detector.detect(request, context)
+            if generic_result:
+                return generic_result.to_dict()
+        except Exception as e:
+            print(f"⚠️ Error in generic detector: {e}")
+
+        # No detection found at all
         return {
             'tool': 'unknown',
             'confidence': 0,
