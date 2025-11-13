@@ -62,10 +62,16 @@ class PacketSniffer:
         Initialize packet sniffer
 
         Args:
-            interface: Network interface to sniff on ('any' for all interfaces)
+            interface: Network interface to sniff on ('any' for all interfaces, 'auto' to detect)
             kafka_bootstrap: Kafka server address for log transmission
         """
-        self.interface = interface
+        # Auto-detect interface if needed
+        if interface == 'auto':
+            self.interface = self._detect_interface()
+            print(f"🔍 Auto-detected interface: {self.interface}")
+        else:
+            self.interface = interface
+
         self.kafka_producer = None
         self.kafka_bootstrap = kafka_bootstrap
         self.running = False
@@ -355,6 +361,45 @@ class PacketSniffer:
 
         if to_remove:
             print(f"🧹 Cleaned up {len(to_remove)} old IP contexts")
+
+    def _detect_interface(self) -> str:
+        """
+        Detect the best network interface to use for packet capture
+        Tries multiple fallback strategies for Docker/host environments
+        """
+        from scapy.all import get_if_list, conf
+
+        # Get list of available interfaces
+        interfaces = get_if_list()
+        print(f"📡 Available interfaces: {interfaces}")
+
+        # Priority list of interfaces to try
+        priority_interfaces = [
+            'eth0',    # Common in Docker
+            'ens33',   # Common in VMs
+            'ens18',   # Common in Proxmox VMs
+            'enp0s3',  # Common in VirtualBox
+            'wlan0',   # WiFi
+            'wlp',     # WiFi (new naming)
+        ]
+
+        # Try priority interfaces first
+        for iface in priority_interfaces:
+            if iface in interfaces:
+                return iface
+
+        # Try interfaces starting with 'eth', 'en', 'wl'
+        for iface in interfaces:
+            if iface.startswith(('eth', 'en', 'wl')) and iface != 'lo':
+                return iface
+
+        # Fallback to first non-loopback interface
+        for iface in interfaces:
+            if iface not in ['lo', 'lo0', 'any']:
+                return iface
+
+        # Last resort: use default
+        return conf.iface
 
     def start(self):
         """Start packet sniffing"""

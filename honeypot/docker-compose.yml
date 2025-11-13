@@ -2,9 +2,8 @@ services:
   honeypot:
     build: .
     container_name: honeypot-server
-    ports:
-      - "80:80"
-      - "443:443"
+    # Use host network mode for packet capture (recommended for network monitor)
+    network_mode: host
     volumes:
       - ./logs:/app/logs
     environment:
@@ -12,22 +11,17 @@ services:
       - CAPTURE_SERVER_URL=http://10.8.0.1:8082  # Gửi log qua VPN
       - KAFKA_BOOTSTRAP_SERVERS=10.8.0.1:9093   # Kafka qua VPN
       - USE_OLLAMA=true
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=http://127.0.0.1:11434  # Use localhost with host network
       - OLLAMA_MODEL=qwen2.5:7b
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     restart: unless-stopped
-    networks:
-      - honeypot-network
     # Network capabilities for packet capture
     cap_add:
       - NET_ADMIN
       - NET_RAW
-    # Use host network mode for better packet capture
-    # Uncomment below if you want to use host network (alternative approach)
-    # network_mode: host
+    # Note: host network mode ignores 'ports' mapping
+    # Container directly uses host's network, so port 80/443 will be accessible
 
   ollama:
     image: ollama/ollama:latest
