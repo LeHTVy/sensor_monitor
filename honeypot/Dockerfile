@@ -6,6 +6,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     nginx \
     openssl \
+    libpcap-dev \
+    tcpdump \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
@@ -14,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY app/ ./app/
+COPY network_monitor/ ./network_monitor/
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 
 # Create directories
@@ -35,15 +38,25 @@ RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
 # Set Python path
 ENV PYTHONPATH=/app/app:$PYTHONPATH
 
-# Create startup script with proper Gunicorn config
+# Create startup script with proper Gunicorn config and Network Monitor
 RUN echo '#!/bin/bash\n\
 set -e\n\
+echo "🚀 Starting Honeypot Services..."\n\
 # Start nginx in background\n\
+echo "📡 Starting Nginx..."\n\
 nginx &\n\
 # Wait a moment for nginx to start\n\
 sleep 2\n\
-# Start Gunicorn with proper configuration\n\
-cd /app && python -m gunicorn \\\n\
+echo "✅ Nginx started"\n\
+# Start Network Monitor in background\n\
+echo "🌐 Starting Network Monitor..."\n\
+cd /app/network_monitor && python3 packet_sniffer.py --interface any --kafka 10.8.0.1:9093 &\n\
+NETWORK_MONITOR_PID=$!\n\
+echo "✅ Network Monitor started (PID: $NETWORK_MONITOR_PID)"\n\
+sleep 2\n\
+# Start Gunicorn with proper configuration (foreground)\n\
+echo "🐍 Starting Gunicorn Flask App..."\n\
+cd /app && exec python -m gunicorn \\\n\
     --bind 0.0.0.0:5000 \\\n\
     --workers 2 \\\n\
     --timeout 120 \\\n\

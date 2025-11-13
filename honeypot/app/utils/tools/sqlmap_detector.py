@@ -15,10 +15,14 @@ class SqlmapDetector(ToolDetector):
     def __init__(self):
         super().__init__('sqlmap')
         
-        # User-Agent patterns
+        # User-Agent patterns (including recent versions)
         self.ua_patterns = [
             'sqlmap',
             'sqlmap/',
+            'sqlmap/1.7',  # Version 1.7.x
+            'sqlmap/1.8',  # Version 1.8.x
+            'sqlmap/1.6',  # Version 1.6.x
+            'python-requests',  # SQLMap often uses this (lower confidence)
         ]
         
         # SQLMap payload signatures (from sqlmap repository patterns)
@@ -47,6 +51,28 @@ class SqlmapDetector(ToolDetector):
             r'and\s+1=2',
             r'and\s+true',
             r'and\s+false',
+            # Time-based blind patterns
+            r"if\(.*,sleep\(",
+            r"if\(.*,benchmark\(",
+            # Error-based patterns
+            r"extractvalue\(",
+            r"updatexml\(",
+            r"exp\(~\(",
+            # UNION injection patterns
+            r"union.*all.*select",
+            r"union.*select.*from",
+            r"order\s+by\s+\d+",
+            # Stacked queries
+            r";\s*drop\s+table",
+            r";\s*exec\(",
+            r";\s*execute\(",
+            # SQLMap fingerprinting
+            r"cast\(.*as.*varchar",
+            r"convert\(.*varchar",
+            r"concat\(.*0x",
+            # Recent SQLMap patterns (2024-2025)
+            r"json_.*\(",
+            r"xmlextractvalue\(",
         ]
         
         # Header patterns

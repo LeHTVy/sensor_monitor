@@ -21,6 +21,13 @@ services:
     restart: unless-stopped
     networks:
       - honeypot-network
+    # Network capabilities for packet capture
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    # Use host network mode for better packet capture
+    # Uncomment below if you want to use host network (alternative approach)
+    # network_mode: host
 
   ollama:
     image: ollama/ollama:latest

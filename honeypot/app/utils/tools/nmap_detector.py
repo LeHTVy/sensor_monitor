@@ -20,15 +20,35 @@ class NmapDetector(ToolDetector):
             'nmap',
             'nmap scripting engine',
             'nse',
+            'mozilla/5.0 (compatible; nmap scripting engine',
             'libwww-perl',  # Nmap often uses Perl
             'libcurl',  # Nmap sometimes uses curl
+            'nmap/7.',  # Nmap 7.x versions
+            'nmap/8.',  # Nmap 8.x versions
+            'nmap nse',
+            'http-enum.nse',
+            'http-vuln',
+            'http-headers.nse',
         ]
         
-        # Payload patterns (Nmap scan signatures)
+        # Payload patterns (Nmap scan signatures and NSE scripts)
         self.payload_patterns = [
             'nmap',
             'nse',
             'script',
+            'http-enum',
+            'http-vuln',
+            'http-headers',
+            'http-methods',
+            'http-shellshock',
+            'http-sql-injection',
+            'http-stored-xss',
+            'http-csrf',
+            'ssl-enum-ciphers',
+            'ssl-cert',
+            'http-wordpress',
+            'http-joomla',
+            'http-drupal',
         ]
         
         # Header patterns
