@@ -50,7 +50,7 @@ sleep 2\n\
 echo "✅ Nginx started"\n\
 # Start Network Monitor in background\n\
 echo "🌐 Starting Network Monitor..."\n\
-cd /app/network_monitor && python3 packet_sniffer.py --interface any --kafka 10.8.0.1:9093 &\n\
+cd /app/network_monitor && PYTHONPATH=/app:/app/app:$PYTHONPATH python3 packet_sniffer.py --interface any --kafka 10.8.0.1:9093 &\n\
 NETWORK_MONITOR_PID=$!\n\
 echo "✅ Network Monitor started (PID: $NETWORK_MONITOR_PID)"\n\
 sleep 2\n\

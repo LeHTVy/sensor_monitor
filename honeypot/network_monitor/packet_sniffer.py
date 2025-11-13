@@ -16,7 +16,15 @@ from typing import Dict, List, Optional, Tuple
 import queue
 
 # Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# This adds /app/ to the path so we can import app.utils.kafka_producer
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+# Also add /app/app to path as fallback
+app_dir = os.path.join(parent_dir, 'app')
+if app_dir not in sys.path:
+    sys.path.insert(0, app_dir)
 
 try:
     from scapy.all import sniff, IP, TCP, UDP, ICMP, conf
@@ -25,7 +33,17 @@ except ImportError:
     print("ERROR: Scapy not installed. Install with: pip install scapy")
     sys.exit(1)
 
-from app.utils.kafka_producer import KafkaProducer
+# Import Kafka producer - try multiple import paths
+try:
+    from app.utils.kafka_producer import KafkaProducer
+except ImportError:
+    try:
+        from utils.kafka_producer import KafkaProducer
+    except ImportError:
+        print("ERROR: Cannot import KafkaProducer")
+        print(f"sys.path: {sys.path}")
+        print(f"Looking for: {os.path.join(parent_dir, 'app', 'utils', 'kafka_producer.py')}")
+        sys.exit(1)
 
 # Import network detectors
 from detectors.nmap_network_detector import NmapNetworkDetector
