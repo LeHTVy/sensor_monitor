@@ -128,14 +128,51 @@ class LLMAttackConsumer:
                 print(f"⏭️  Skipping non-attack log (category: {log_data.get('log_category')})")
                 return
 
-            if not log_data.get('llm_context'):
-                print(f"⏭️  Skipping attack log without LLM context")
-                return
-
             # Extract necessary data
-            ip = log_data.get('ip', 'unknown')
+            ip = log_data.get('src_ip', log_data.get('ip', 'unknown'))
             attack_tool = log_data.get('attack_tool', 'unknown')
-            llm_context = log_data.get('llm_context', {})
+            
+            # Build LLM context if missing
+            llm_context = log_data.get('llm_context')
+            if not llm_context:
+                print(f"⚠️  LLM context missing, building from raw log...")
+                llm_context = {
+                    'attacker_profile': {
+                        'ip_address': ip,
+                        'reputation_score': 50, # Default
+                        'threat_level': 'unknown',
+                        'location': log_data.get('geoip', {}),
+                        'infrastructure': {'asn': 'unknown'},
+                        'attack_history': {'abuse_reports': 0}
+                    },
+                    'attack_details': {
+                        'timestamp': log_data.get('timestamp'),
+                        'attack_tool': attack_tool,
+                        'attack_technique': [log_data.get('type', 'unknown')],
+                        'target_path': log_data.get('path', ''),
+                        'http_method': log_data.get('method', ''),
+                        'user_agent': log_data.get('user_agent', ''),
+                        'payload': {
+                            'query_string': log_data.get('args', {}),
+                            'form_data': log_data.get('form_data', {}),
+                            'files': []
+                        }
+                    },
+                    'technical_intelligence': {
+                        'open_ports': [],
+                        'operating_system': 'unknown',
+                        'vulnerabilities': [],
+                        'tags': []
+                    },
+                    'behavioral_indicators': {
+                        'request_rate': 0,
+                        'failed_auth_attempts': 0,
+                        'unique_paths_accessed': 1,
+                        'scan_detected': False,
+                        'malicious_payload_detected': True,
+                        'ids_blocked': False
+                    }
+                }
 
             print(f"\n{'='*70}")
             print(f"🚨 Processing Attack from {ip}")

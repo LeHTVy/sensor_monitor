@@ -18,6 +18,8 @@ import hashlib
 from kafka_consumer import CaptureKafkaConsumer
 from security_middleware import CaptureSecurity, admin_required, api_key_required, ip_whitelist_required
 from elasticsearch import Elasticsearch
+from kafka import KafkaProducer
+from tool_detection import ToolDetector
 
 app = Flask(__name__)
 
@@ -29,6 +31,20 @@ app.security = security
 # Global variables for logging and statistics
 log_queue = queue.Queue()
 kafka_consumer = CaptureKafkaConsumer()
+tool_detector = ToolDetector()
+
+# Initialize Kafka Producer
+kafka_producer = None
+try:
+    kafka_producer = KafkaProducer(
+        bootstrap_servers=os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092'),
+        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+        acks='all',
+        retries=3
+    )
+    print("✅ Kafka producer initialized")
+except Exception as e:
+    print(f"❌ Failed to initialize Kafka producer: {e}")
 
 # Elasticsearch configuration
 USE_ELASTICSEARCH = os.getenv('USE_ELASTICSEARCH', 'false').lower() == 'true'
@@ -145,6 +161,27 @@ def process_log_queue():
                 # Update attack patterns
                 update_attack_patterns(log_data)
                 
+                # Detect tool
+                tool = tool_detector.detect(log_data)
+                log_data['attack_tool'] = tool
+                
+                # Determine Kafka topic
+                topic = 'honeypot-traffic'
+                if tool != 'unknown' or log_type == 'attack':
+                    topic = 'honeypot-attacks'
+                    log_data['log_category'] = 'attack'
+                elif log_type == 'honeypot':
+                    topic = 'honeypot-browser'
+                    log_data['log_category'] = 'honeypot'
+                
+                # Send to Kafka
+                if kafka_producer:
+                    try:
+                        kafka_producer.send(topic, log_data)
+                        print(f"✅ Sent to Kafka topic {topic}: {tool} from {log_data.get('src_ip', 'unknown')}")
+                    except Exception as e:
+                        logging.error(f"Failed to send to Kafka: {e}")
+
                 log_queue.task_done()
         except queue.Empty:
             continue
