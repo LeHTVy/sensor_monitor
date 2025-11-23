@@ -23,10 +23,6 @@ COPY receiver.py .
 COPY analyzer.py .
 COPY kafka_consumer.py .
 COPY security_middleware.py .
-COPY tool_detection.py .
-COPY enrichment_engine.py .
-COPY geoip_enricher.py .
-COPY osint_enricher.py .
 
 # Create directories
 RUN mkdir -p /app/logs/packets /app/logs/analysis /app/logs/honeypot /app/logs/reports
