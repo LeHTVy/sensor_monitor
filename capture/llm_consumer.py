@@ -74,15 +74,22 @@ class LLMAttackConsumer:
 
         # Initialize Elasticsearch
         print("\n🔍 Connecting to Elasticsearch...")
-        try:
-            self.es_client = Elasticsearch([self.es_host])
-            if self.es_client.ping():
-                print(f"✅ Elasticsearch connected to {self.es_host}")
-            else:
-                raise Exception("Elasticsearch ping failed")
-        except Exception as e:
-            print(f"❌ Failed to connect to Elasticsearch: {e}")
-            raise
+        max_es_retries = 30
+        for i in range(max_es_retries):
+            try:
+                self.es_client = Elasticsearch([self.es_host])
+                if self.es_client.ping():
+                    print(f"✅ Elasticsearch connected to {self.es_host}")
+                    break
+                else:
+                    print(f"   Elasticsearch ping failed (attempt {i+1}/{max_es_retries})")
+            except Exception as e:
+                print(f"   Failed to connect to Elasticsearch: {e} (attempt {i+1}/{max_es_retries})")
+            
+            if i < max_es_retries - 1:
+                time.sleep(5)
+        else:
+            raise Exception("Failed to connect to Elasticsearch after multiple retries")
 
         # Initialize LLM analyzer
         print("\n🤖 Initializing LLM analyzer...")

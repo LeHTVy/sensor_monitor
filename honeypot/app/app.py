@@ -191,6 +191,7 @@ def log_request():
         
         request._log_entry = log_entry
         
+        # Send raw log data to Kafka (enrichment happens on capture server)
         log_data = {
             'type': 'request',
             'method': request.method,
@@ -203,12 +204,7 @@ def log_request():
             'args': dict(request.args),
             'form_data': dict(request.form) if request.form else {},
             'files': list(request.files.keys()) if request.files else [],
-            'attack_tool': log_entry.get('attack_tool', 'unknown'),
-            'attack_tool_info': log_entry.get('attack_tool_info', {}),  # Include enhanced detection info
-            'attack_technique': log_entry.get('attack_technique', []),
-            'geoip': log_entry.get('geoip', {}),
-            'os_info': log_entry.get('os_info', {}),
-            'log_category': log_entry.get('log_category', 'unknown')
+            'log_category': log_entry.get('log_category', 'traffic')
         }
         
         try:
@@ -238,13 +234,8 @@ def log_request():
 
 @app.after_request
 def update_response_context(response):
-    """Update tool processor context with response code"""
-    try:
-        if hasattr(request, '_log_entry'):
-            real_ip = request.headers.get('X-Real-IP', request.remote_addr)
-            logger.tool_processor.update_response_code(real_ip, response.status_code)
-    except Exception as e:
-        print(f"⚠️ Error updating response context: {e}")
+    """Lightweight response handler (no heavy processing)"""
+    # Just return response - no tool processor in lightweight mode
     return response
 
 def login_required(f):

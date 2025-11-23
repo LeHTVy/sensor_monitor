@@ -19,7 +19,7 @@ from kafka_consumer import CaptureKafkaConsumer
 from security_middleware import CaptureSecurity, admin_required, api_key_required, ip_whitelist_required
 from elasticsearch import Elasticsearch
 from kafka import KafkaProducer
-from tool_detection import ToolDetector
+from enrichment_engine import EnrichmentEngine
 
 app = Flask(__name__)
 
@@ -31,7 +31,16 @@ app.security = security
 # Global variables for logging and statistics
 log_queue = queue.Queue()
 kafka_consumer = CaptureKafkaConsumer()
-tool_detector = ToolDetector()
+
+# Initialize Enrichment Engine
+enrichment_engine = None
+try:
+    # Enable OSINT only if API keys are set
+    enable_osint = bool(os.getenv('SHODAN_API_KEY') or os.getenv('ABUSEIPDB_API_KEY') or os.getenv('VIRUSTOTAL_API_KEY'))
+    enrichment_engine = EnrichmentEngine(enable_osint=enable_osint)
+    print("✅ Enrichment engine initialized")
+except Exception as e:
+    print(f"❌ Failed to initialize enrichment engine: {e}")
 
 # Initialize Kafka Producer
 kafka_producer = None
@@ -161,11 +170,17 @@ def process_log_queue():
                 # Update attack patterns
                 update_attack_patterns(log_data)
                 
-                # Detect tool
-                tool = tool_detector.detect(log_data)
-                log_data['attack_tool'] = tool
+                # ENRICH THE LOG
+                if enrichment_engine:
+                    try:
+                        enriched_data = enrichment_engine.enrich_log(log_data)
+                        log_data = enriched_data
+                    except Exception as e:
+                        logging.error(f"Failed to enrich log: {e}")
+                        # Continue with raw log if enrichment fails
                 
-                # Determine Kafka topic
+                # Determine Kafka topic based on enriched data
+                tool = log_data.get('attack_tool', 'unknown')
                 topic = 'honeypot-traffic'
                 if tool != 'unknown' or log_type == 'attack':
                     topic = 'honeypot-attacks'
@@ -178,7 +193,7 @@ def process_log_queue():
                 if kafka_producer:
                     try:
                         kafka_producer.send(topic, log_data)
-                        print(f"✅ Sent to Kafka topic {topic}: {tool} from {log_data.get('src_ip', 'unknown')}")
+                        print(f"✅ Sent enriched log to Kafka topic {topic}: {tool} from {log_data.get('ip', 'unknown')}")
                     except Exception as e:
                         logging.error(f"Failed to send to Kafka: {e}")
 
