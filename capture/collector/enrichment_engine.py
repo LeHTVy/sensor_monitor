@@ -54,12 +54,12 @@ class EnrichmentEngine:
         
         # 1. Detect attack tool
         print("🛠️  Detecting attack tool...")
-        tool_info = self.tool_detector.detect(
-            user_agent=user_agent,
-            path=path,
-            payload=raw_log.get('args', {}),
-            headers=raw_log.get('headers', {})
-        )
+        detected_tool = self.tool_detector.detect(raw_log)
+        tool_info = {
+            'tool': detected_tool,
+            'confidence': 95 if detected_tool != 'unknown' else 0,
+            'method': 'signature_based'
+        }
         
         # 2. GeoIP lookup
         print(f"🌍 Looking up GeoIP for {ip}...")
