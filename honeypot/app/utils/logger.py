@@ -10,6 +10,8 @@ import requests
 from datetime import datetime
 from flask import request
 from .tools import ToolProcessor
+from .ids_engine import IDSEngine
+from .threat_intelligence import ThreatIntelligenceEnricher
 
 class HoneypotLogger:
     def __init__(self, log_dir='/app/logs'):
@@ -28,15 +30,49 @@ class HoneypotLogger:
         # Initialize tool processor for enhanced tool detection
         self.tool_processor = ToolProcessor()
         print("✅ ToolProcessor initialized with enhanced detectors")
+
+        # Initialize IDS engine for advanced threat detection
+        self.ids_engine = IDSEngine()
+        print("✅ IDS Engine initialized with rate limiting and anomaly detection")
+
+        # Initialize Threat Intelligence enricher
+        self.threat_intel = ThreatIntelligenceEnricher()
+        print("✅ Threat Intelligence enricher initialized (Shodan, AbuseIPDB)")
     
     def log_request(self, request):
-        """Log detailed request information"""
+        """Log detailed request information with IDS checking"""
         try:
             # Get real IP from nginx headers
             real_ip = request.headers.get('X-Real-IP', request.remote_addr)
             forwarded_for = request.headers.get('X-Forwarded-For', '')
             forwarded_proto = request.headers.get('X-Forwarded-Proto', 'http')
-            
+
+            # Prepare request data for IDS check
+            request_data = {
+                'method': request.method,
+                'url': request.url,
+                'path': request.path,
+                'query_string': request.query_string.decode() if request.query_string else '',
+                'headers': dict(request.headers),
+                'form_data': dict(request.form) if request.form else {},
+                'content_length': request.content_length or 0,
+            }
+
+            # IDS check - block malicious requests early
+            allowed, block_reason, threat_info = self.ids_engine.check_request(real_ip, request_data)
+
+            if not allowed:
+                # Request blocked by IDS
+                print(f"🚫 Request BLOCKED by IDS: {real_ip} | Reason: {block_reason}")
+                return {
+                    'timestamp': datetime.now().isoformat(),
+                    'ip': real_ip,
+                    'blocked': True,
+                    'block_reason': block_reason,
+                    'threat_info': threat_info,
+                    'log_category': 'attack'
+                }
+
             # Debug IP information
             print(f"🌐 IP Debug for request:")
             print(f"   Remote Addr: {request.remote_addr}")
@@ -44,7 +80,8 @@ class HoneypotLogger:
             print(f"   X-Forwarded-For: {forwarded_for}")
             print(f"   X-Forwarded-Proto: {forwarded_proto}")
             print(f"   Final IP: {real_ip}")
-            print(f"   All Headers: {dict(request.headers)}")
+            print(f"   Threat Level: {threat_info.get('threat_level', 'unknown')}")
+            print(f"   Threat Score: {threat_info.get('threat_score', 0)}")
             
             # Detect attack tool using enhanced ToolProcessor
             user_agent = request.headers.get('User-Agent', '')
@@ -62,13 +99,20 @@ class HoneypotLogger:
             
             # Get GeoIP information
             geoip_info = self._get_geoip_info(real_ip)
-            
+
             # Detect OS from User-Agent
             os_info = self._detect_os(user_agent)
-            
+
             # Determine log category
             log_category = self._categorize_log(attack_tool, attack_technique)
             print(f"   Log Category: {log_category}")
+
+            # Enrich with Threat Intelligence (Shodan, AbuseIPDB)
+            # Only enrich for attack category to save API quota
+            threat_intel_data = {}
+            if log_category == 'attack':
+                print(f"🔍 Enriching attack data with threat intelligence for {real_ip}")
+                threat_intel_data = self.threat_intel.enrich_ip(real_ip)
             
             # Monitor attack rate
             self._monitor_attack_rate(real_ip, log_category)
@@ -95,7 +139,30 @@ class HoneypotLogger:
                 'args': dict(request.args),
                 'form_data': dict(request.form) if request.form else {},
                 'files': list(request.files.keys()) if request.files else [],
-                'is_attack': self._is_potential_attack(request)
+                'is_attack': self._is_potential_attack(request),
+                # IDS threat information
+                'threat_level': threat_info.get('threat_level', 'low'),
+                'threat_score': threat_info.get('threat_score', 0),
+                'threat_reasons': threat_info.get('reasons', []),
+                'blocked': False,
+                # Threat Intelligence (Shodan, AbuseIPDB)
+                'threat_intelligence': threat_intel_data,
+                # LLM Context (structured data for AI analysis)
+                'llm_context': self.threat_intel.create_llm_context(real_ip, threat_intel_data, {
+                    'timestamp': datetime.now().isoformat(),
+                    'attack_tool': attack_tool,
+                    'attack_technique': attack_technique,
+                    'threat_score': threat_info.get('threat_score', 0),
+                    'method': request.method,
+                    'path': request.path,
+                    'user_agent': user_agent,
+                    'args': dict(request.args),
+                    'form_data': dict(request.form) if request.form else {},
+                    'files': list(request.files.keys()) if request.files else [],
+                    'geoip': geoip_info,
+                    'os_info': os_info,
+                    'is_attack': self._is_potential_attack(request),
+                }) if threat_intel_data else {}
             }
             
             with open(self.request_log, 'a', encoding='utf-8') as f:
@@ -191,15 +258,7 @@ class HoneypotLogger:
         except Exception as e:
             self.log_error(f"Error getting stats: {str(e)}")
             return {}
-    
-    def _detect_attack_tool(self, request):
-        """
-        Legacy method - kept for backward compatibility
-        Now uses ToolProcessor internally
-        """
-        real_ip = request.headers.get('X-Real-IP', request.remote_addr)
-        return self.tool_processor.process_request(request, real_ip)
-    
+
     def _detect_attack_technique(self, request):
         """Detect attack technique from request"""
         techniques = []

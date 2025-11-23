@@ -130,8 +130,56 @@ services:
     volumes:
       - ./collector:/app
     working_dir: /app
-    command: ["bash", "-lc", "pip install -r requirements.txt && python -u collector.py"]   
+    command: ["bash", "-lc", "pip install -r requirements.txt && python -u collector.py"]
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-llm
+    restart: unless-stopped
+    ports:
+      - "10.8.0.1:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - sensor-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=2
+
+  llm-analyzer:
+    image: python:3.11-slim
+    container_name: llm-analyzer
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - elasticsearch
+      - ollama
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_TOPICS=honeypot-attacks
+      - KAFKA_GROUP=llm-analyzer-group
+      - ES_HOST=http://elasticsearch:9200
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2
+    networks:
+      - sensor-network
+    volumes:
+      - ./llm_analyzer.py:/app/llm_analyzer.py
+      - ./llm_consumer.py:/app/llm_consumer.py
+      - ./logs:/app/logs
+    working_dir: /app
+    command: ["bash", "-c", "pip install requests kafka-python elasticsearch && python -u llm_consumer.py"]
 
 networks:
   sensor-network:
     driver: bridge
+
+volumes:
+  ollama-models:

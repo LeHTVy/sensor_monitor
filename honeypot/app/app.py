@@ -11,14 +11,13 @@ import json
 import hashlib
 import threading
 import queue
+import time
 from functools import wraps
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory
 from werkzeug.utils import secure_filename
 from utils.logger import HoneypotLogger
-from utils.sender import LogSender
 from utils.kafka_producer import HoneypotKafkaProducer
-from utils.mysql_ai_console import MySQLAIConsole
 
 app = Flask(__name__)
 app.secret_key = 'honeypot_secret_key_12345'
@@ -31,12 +30,6 @@ try:
 except Exception as e:
     print(f"❌ Failed to initialize logger: {e}")
     raise
-
-try:
-    sender = LogSender()
-except Exception as e:
-    print(f"⚠️ Failed to initialize LogSender: {e}, continuing without it")
-    sender = None
 
 try:
     print("🔗 Initializing Kafka producer (REQUIRED)...")
@@ -116,17 +109,32 @@ def kafka_worker():
             time.sleep(0.1)
 
 kafka_thread = None
+cleanup_thread = None
+
+def ids_cleanup_worker():
+    """Background worker to cleanup IDS engine expired blocks and old contexts"""
+    print("🧹 IDS cleanup worker started")
+    while True:
+        try:
+            time.sleep(300)  # Run every 5 minutes
+            logger.ids_engine.cleanup_expired_blocks()
+            logger.ids_engine.cleanup_old_contexts(max_age_hours=24)
+        except Exception as e:
+            print(f"❌ IDS cleanup worker error: {e}")
 
 def ensure_kafka_worker_started():
     """Ensure Kafka worker thread is started (thread-safe, called from request handler)"""
-    global kafka_thread, _worker_started_flag
+    global kafka_thread, cleanup_thread, _worker_started_flag
     if not _worker_started_flag:
         with _worker_started:
             if not _worker_started_flag:
                 kafka_thread = threading.Thread(target=kafka_worker, daemon=True)
                 kafka_thread.start()
+                cleanup_thread = threading.Thread(target=ids_cleanup_worker, daemon=True)
+                cleanup_thread.start()
                 _worker_started_flag = True
                 print(f"✅ Kafka background worker started in process {os.getpid()}")
+                print(f"✅ IDS cleanup worker started in process {os.getpid()}")
 
 try:
     ensure_kafka_worker_started()
@@ -255,12 +263,70 @@ SKIP_LOG_ROUTES = ['/favicon.ico', '/health']
 @app.route('/health')
 def health():
     """Health check endpoint"""
+    ids_stats = logger.ids_engine.get_statistics()
     return jsonify({
         'status': 'healthy',
         'kafka': 'connected' if kafka_producer and kafka_producer.producer else 'disconnected',
         'queue_size': kafka_queue.qsize(),
+        'ids': ids_stats,
         'timestamp': datetime.now().isoformat()
     }), 200
+
+@app.route('/api/ids/stats')
+@login_required
+def ids_stats():
+    """IDS statistics endpoint"""
+    stats = logger.ids_engine.get_statistics()
+    return jsonify(stats), 200
+
+@app.route('/api/ids/ip/<ip>')
+@login_required
+def ids_ip_info(ip):
+    """Get IDS information for specific IP"""
+    ip_stats = logger.ids_engine.get_ip_stats(ip)
+    return jsonify(ip_stats), 200
+
+@app.route('/api/ids/blocked')
+@login_required
+def ids_blocked_ips():
+    """Get list of blocked IPs"""
+    blocked = []
+    for ip, block_info in logger.ids_engine.blocked_ips.items():
+        if not block_info.is_expired():
+            blocked.append({
+                'ip': ip,
+                'reason': block_info.reason.value,
+                'blocked_at': block_info.blocked_at.isoformat(),
+                'blocked_until': block_info.blocked_until.isoformat(),
+                'block_count': block_info.block_count
+            })
+    return jsonify({'blocked_ips': blocked, 'count': len(blocked)}), 200
+
+@app.route('/api/ids/whitelist', methods=['GET', 'POST'])
+@login_required
+def ids_whitelist():
+    """Manage whitelist"""
+    if request.method == 'POST':
+        ip = request.json.get('ip')
+        if ip:
+            logger.ids_engine.add_to_whitelist(ip)
+            return jsonify({'status': 'success', 'message': f'IP {ip} added to whitelist'}), 200
+        return jsonify({'status': 'error', 'message': 'IP required'}), 400
+    else:
+        return jsonify({'whitelist': list(logger.ids_engine.whitelist)}), 200
+
+@app.route('/api/ids/blacklist', methods=['GET', 'POST'])
+@login_required
+def ids_blacklist():
+    """Manage blacklist"""
+    if request.method == 'POST':
+        ip = request.json.get('ip')
+        if ip:
+            logger.ids_engine.add_to_blacklist(ip)
+            return jsonify({'status': 'success', 'message': f'IP {ip} added to blacklist'}), 200
+        return jsonify({'status': 'error', 'message': 'IP required'}), 400
+    else:
+        return jsonify({'blacklist': list(logger.ids_engine.blacklist)}), 200
 
 @app.route('/favicon.ico')
 def favicon():
@@ -344,7 +410,6 @@ def upload_file():
             }
             
             logger.log_attack(attack_data)
-            sender.send_log(attack_data)
             
             flash(f'File {filename} uploaded successfully!', 'success')
             return redirect(url_for('upload_file'))
@@ -356,11 +421,7 @@ def upload_file():
 @app.route('/console', methods=['GET', 'POST'])
 @login_required
 def console():
-    """AI-driven MySQL-like console (no real command execution)"""
-    if 'mysql_console' not in session:
-        session['mysql_console'] = True
-    console_engine = app.config.setdefault('mysql_console_engine', MySQLAIConsole())
-
+    """Simple SQL console simulator (no real command execution)"""
     output = ""
     if request.method == 'POST':
         command = request.form.get('command', '')
@@ -373,10 +434,32 @@ def console():
             'timestamp': datetime.now().isoformat()
         }
         logger.log_attack(attack_data)
-        sender.send_log(attack_data)
 
-        session_id = session.get('username', request.remote_addr or 'anon')
-        output = console_engine.handle_command(command, session_id)
+        # Simple responses for common commands
+        cmd_upper = command.strip().upper()
+        if cmd_upper.startswith('SHOW TABLES'):
+            output = (
+                "+-----------------+\n"
+                "| Tables_in_admin |\n"
+                "+-----------------+\n"
+                "| users           |\n"
+                "| products        |\n"
+                "| orders          |\n"
+                "+-----------------+\n"
+                "3 rows in set (0.00 sec)\n\nmysql> "
+            )
+        elif cmd_upper.startswith('SELECT'):
+            output = (
+                "+----+----------+---------------------+---------+\n"
+                "| id | username | email               | role    |\n"
+                "+----+----------+---------------------+---------+\n"
+                "|  1 | admin    | admin@company.com   | Admin   |\n"
+                "|  2 | john     | john@company.com    | User    |\n"
+                "+----+----------+---------------------+---------+\n"
+                "2 rows in set (0.01 sec)\n\nmysql> "
+            )
+        else:
+            output = f"Query OK, 1 row affected (0.00 sec)\n\nmysql> "
 
     if not output:
         output = (
@@ -411,8 +494,7 @@ def api_users():
     }
     
     logger.log_attack(attack_data)
-    sender.send_log(attack_data)
-    
+
     return jsonify(FAKE_DATABASES['users'])
 
 @app.route('/admin')
@@ -453,11 +535,9 @@ def auth():
             'user_agent': request.headers.get('User-Agent', ''),
             'timestamp': datetime.now().isoformat()
         }
-        
+
         logger.log_attack(attack_data)
-        if sender:
-            sender.send_log(attack_data)
-        
+
         flash('Login successful!', 'success')
         return redirect(url_for('dashboard'))
     else:
@@ -471,11 +551,9 @@ def auth():
             'user_agent': request.headers.get('User-Agent', ''),
             'timestamp': datetime.now().isoformat()
         }
-        
+
         logger.log_attack(attack_data)
-        if sender:
-            sender.send_log(attack_data)
-        
+
         flash('Invalid username or password. Please try again.', 'error')
         return redirect(url_for('login'))
 
