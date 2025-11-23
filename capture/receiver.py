@@ -18,8 +18,6 @@ import hashlib
 from kafka_consumer import CaptureKafkaConsumer
 from security_middleware import CaptureSecurity, admin_required, api_key_required, ip_whitelist_required
 from elasticsearch import Elasticsearch
-from kafka import KafkaProducer
-from enrichment_engine import EnrichmentEngine
 
 app = Flask(__name__)
 
@@ -32,28 +30,8 @@ app.security = security
 log_queue = queue.Queue()
 kafka_consumer = CaptureKafkaConsumer()
 
-# Initialize Enrichment Engine
-enrichment_engine = None
-try:
-    # Enable OSINT only if API keys are set
-    enable_osint = bool(os.getenv('SHODAN_API_KEY') or os.getenv('ABUSEIPDB_API_KEY') or os.getenv('VIRUSTOTAL_API_KEY'))
-    enrichment_engine = EnrichmentEngine(enable_osint=enable_osint)
-    print("✅ Enrichment engine initialized")
-except Exception as e:
-    print(f"❌ Failed to initialize enrichment engine: {e}")
-
-# Initialize Kafka Producer
-kafka_producer = None
-try:
-    kafka_producer = KafkaProducer(
-        bootstrap_servers=os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092'),
-        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-        acks='all',
-        retries=3
-    )
-    print("✅ Kafka producer initialized")
-except Exception as e:
-    print(f"❌ Failed to initialize Kafka producer: {e}")
+print("ℹ️  Receiver: HTTP API only - logs sent directly to Kafka from honeypot")
+print("ℹ️  Enrichment: Handled by collector service")
 
 # Elasticsearch configuration
 USE_ELASTICSEARCH = os.getenv('USE_ELASTICSEARCH', 'false').lower() == 'true'
@@ -170,32 +148,8 @@ def process_log_queue():
                 # Update attack patterns
                 update_attack_patterns(log_data)
                 
-                # ENRICH THE LOG
-                if enrichment_engine:
-                    try:
-                        enriched_data = enrichment_engine.enrich_log(log_data)
-                        log_data = enriched_data
-                    except Exception as e:
-                        logging.error(f"Failed to enrich log: {e}")
-                        # Continue with raw log if enrichment fails
-                
-                # Determine Kafka topic based on enriched data
-                tool = log_data.get('attack_tool', 'unknown')
-                topic = 'honeypot-traffic'
-                if tool != 'unknown' or log_type == 'attack':
-                    topic = 'honeypot-attacks'
-                    log_data['log_category'] = 'attack'
-                elif log_type == 'honeypot':
-                    topic = 'honeypot-browser'
-                    log_data['log_category'] = 'honeypot'
-                
-                # Send to Kafka
-                if kafka_producer:
-                    try:
-                        kafka_producer.send(topic, log_data)
-                        print(f"✅ Sent enriched log to Kafka topic {topic}: {tool} from {log_data.get('ip', 'unknown')}")
-                    except Exception as e:
-                        logging.error(f"Failed to send to Kafka: {e}")
+                # Note: Logs from honeypot go directly to Kafka
+                # No need to send from here - collector handles enrichment
 
                 log_queue.task_done()
         except queue.Empty:

@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """
-Kafka to Elasticsearch Collector
-Consumes logs from Kafka topics and bulk indexes to Elasticsearch
+Kafka to Elasticsearch Collector with Enrichment
+Consumes logs from Kafka, enriches them, and bulk indexes to Elasticsearch
 """
 
 import os
 import json
 import time
+import sys
 from datetime import datetime
 from kafka import KafkaConsumer
 from elasticsearch import Elasticsearch, helpers
+
+# Add parent directory to path for imports
+sys.path.append('/app')
+from enrichment_engine import EnrichmentEngine
 
 # Configuration from environment
 bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
@@ -20,10 +25,13 @@ index_prefix = os.getenv("ES_INDEX_PREFIX", "sensor-logs")
 batch_size = int(os.getenv("BATCH_SIZE", "50"))  
 flush_interval_ms = int(os.getenv("FLUSH_INTERVAL_MS", "500"))  
 auto_offset_reset = os.getenv("AUTO_OFFSET_RESET", "earliest")
+enable_enrichment = os.getenv("ENABLE_ENRICHMENT", "true").lower() == "true"
+enable_osint = os.getenv("ENABLE_OSINT", "false").lower() == "true"
 
-# Initialize Elasticsearch
+# Global instances
 es = None
 consumer = None
+enrichment_engine = None
 
 def wait_for_elasticsearch(max_retries=30, retry_delay=2):
     """Wait for Elasticsearch to be ready"""
@@ -46,9 +54,25 @@ def wait_for_elasticsearch(max_retries=30, retry_delay=2):
     print(f"❌ Elasticsearch not available after {max_retries} attempts")
     return False
 
+def initialize_enrichment():
+    """Initialize enrichment engine"""
+    global enrichment_engine
+    
+    if not enable_enrichment:
+        print("ℹ️  Enrichment disabled")
+        return True
+    
+    try:
+        print("\n🔧 Initializing enrichment engine...")
+        enrichment_engine = EnrichmentEngine(enable_osint=enable_osint)
+        print("✅ Enrichment engine ready")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to initialize enrichment engine: {e}")
+        return False
+
 def index_name_for_topic(topic: str) -> str:
     """Generate clean index name without date suffix"""
-    # Map topics to clean index names
     topic_mapping = {
         'honeypot-attacks': f"{index_prefix}-attacks",
         'honeypot-browser': f"{index_prefix}-honeypot", 
@@ -79,85 +103,116 @@ def ensure_template():
                     "src_ip": {"type": "ip"},
                     "dst_ip": {"type": "ip"},
                     "attack_tool": {"type": "keyword"},
-                    "attack_tool_info": {"type": "object", "enabled": True},
-                    "attack_technique": {"type": "keyword"},
+                    "attack_techniques": {"type": "keyword"},
                     "log_category": {"type": "keyword"},
                     "type": {"type": "keyword"},
                     "user_agent": {"type": "text"},
                     "method": {"type": "keyword"},
                     "path": {"type": "keyword"},
-                    "url": {"type": "keyword"},
-                    "protocol": {"type": "keyword"},
-                    "headers": {"type": "object", "enabled": True},
+                    "threat_level": {"type": "keyword"},
+                    "threat_score": {"type": "integer"},
                     "geoip": {
-                        "type": "object",
                         "properties": {
                             "country": {"type": "keyword"},
                             "city": {"type": "keyword"},
                             "isp": {"type": "keyword"},
-                            "org": {"type": "keyword"},
                             "lat": {"type": "float"},
-                            "lon": {"type": "float"},
-                            "timezone": {"type": "keyword"},
-                            "region": {"type": "keyword"},
-                            "postal": {"type": "keyword"}
+                            "lon": {"type": "float"}
                         }
                     },
-                    "os_info": {
-                        "type": "object",
-                        "properties": {
-                            "os": {"type": "keyword"},
-                            "version": {"type": "keyword"},
-                            "architecture": {"type": "keyword"}
-                        }
-                    },
-                    "kafka_topic": {"type": "keyword"},
-                    "kafka_partition": {"type": "integer"},
-                    "kafka_offset": {"type": "long"},
-                    "source": {"type": "keyword"},
-                    "server_ip": {"type": "ip"},
-                },
-            },
-        },
-        "priority": 1,
+                    "osint": {"type": "object", "enabled": True}
+                }
+            }
+        }
     }
     
-    max_retries = 5
-    for attempt in range(max_retries):
+    try:
+        es.indices.put_index_template(name=f"{index_prefix}-template", body=template)
+        print(f"✅ Created index template: {index_prefix}-template")
+        return True
+    except Exception as e:
+        print(f"⚠️  Warning: Could not create template: {e}")
+        return False
+
+def normalize_log(log: dict, topic: str) -> dict:
+    """Normalize log data before indexing"""
+    # Ensure timestamp exists
+    if 'timestamp' not in log:
+        log['timestamp'] = datetime.now().isoformat()
+    
+    # Add ingestion timestamp
+    log['@ingested_at'] = datetime.now().isoformat()
+    
+    # Add source topic
+    log['kafka_topic'] = topic
+    
+    return log
+
+def bulk_index(batch: list, topic: str):
+    """Bulk index documents to Elasticsearch"""
+    if not batch or not es:
+        return
+    
+    index_name = index_name_for_topic(topic)
+    
+    actions = [
+        {
+            "_index": index_name,
+            "_source": doc
+        }
+        for doc in batch
+    ]
+    
+    try:
+        success, failed = helpers.bulk(es, actions, raise_on_error=False, raise_on_exception=False)
+        if success:
+            print(f"✅ Indexed {success} documents to {index_name}")
+        if failed:
+            print(f"⚠️  Failed to index {len(failed)} documents")
+    except Exception as e:
+        print(f"❌ Bulk indexing error: {e}")
+
+def process_log(log: dict, topic: str) -> dict:
+    """Process and enrich a single log"""
+    # Normalize first
+    log = normalize_log(log, topic)
+    
+    # Enrich if enabled
+    if enable_enrichment and enrichment_engine:
         try:
-            es.indices.put_index_template(
-                name=f"{index_prefix}-template", 
-                body=template, 
-                create=True, 
-                ignore=409
-            )
-            print("✅ Elasticsearch template created")
-            return True
+            log = enrichment_engine.enrich_log(log)
         except Exception as e:
-            if attempt < max_retries - 1:
-                print(f"⚠️ Error creating template (attempt {attempt + 1}/{max_retries}): {e}, retrying...")
-                time.sleep(2)
-            else:
-                print(f"❌ Error creating template after {max_retries} attempts: {e}")
-                return False
-    return False
+            print(f"⚠️  Enrichment failed for log: {e}")
+            # Continue with unenriched log
+    
+    return log
 
 def run():
     """Main collector loop"""
     global es, consumer
     
-    print("🔄 Starting Kafka to Elasticsearch collector...")
+    print("\n" + "="*70)
+    print("🚀 Starting Kafka to Elasticsearch Collector")
+    print("="*70)
     print(f"📊 Topics: {topics}")
     print(f"📦 Batch size: {batch_size}")
-    print(f"⏱️ Flush interval: {flush_interval_ms}ms")
+    print(f"⏱️  Flush interval: {flush_interval_ms}ms")
+    print(f"🔧 Enrichment: {'✓' if enable_enrichment else '✗'}")
+    print(f"🔎 OSINT: {'✓' if enable_osint else '✗'}")
+    print("="*70 + "\n")
     
     # Wait for Elasticsearch to be ready
     if not wait_for_elasticsearch():
         print("❌ Cannot start collector: Elasticsearch not available")
         return
     
+    # Initialize enrichment
+    if not initialize_enrichment():
+        print("⚠️  Warning: Enrichment initialization failed, continuing without enrichment...")
+    
+    # Create template
     if not ensure_template():
-        print("⚠️ Warning: Could not create template, continuing anyway...")
+        print("⚠️  Warning: Could not create template, continuing anyway...")
     
     # Initialize Kafka Consumer
     print(f"📡 Connecting to Kafka at {bootstrap}...")
@@ -172,88 +227,59 @@ def run():
             auto_offset_reset=auto_offset_reset,
             api_version=(2, 5, 0),
         )
-        print("✅ Kafka consumer connected")
+        print("✅ Kafka consumer connected\n")
     except Exception as e:
         print(f"❌ Failed to connect to Kafka: {e}")
         return
     
-    buffer = []
+    buffer = {}  # topic -> list of docs
     last_flush = time.time()
-    processed_count = 0
     
-    print(f"🎯 Starting to consume messages from Kafka topics: {topics}")
-    print(f"📝 Auto offset reset: {auto_offset_reset} (use 'earliest' to read all messages)")
+    print("👂 Listening for logs...\n")
     
     try:
-        for msg in consumer:
-            doc = msg.value.copy()
+        for message in consumer:
+            topic = message.topic
+            log = message.value
             
-            # Normalize timestamp
-            if "timestamp" not in doc:
-                doc["timestamp"] = datetime.utcnow().isoformat()
+            # Process and enrich log
+            processed_log = process_log(log, topic)
             
-            # Map topic to log_category if not present
-            if "log_category" not in doc:
-                topic_to_category = {
-                    'honeypot-attacks': 'attack',
-                    'honeypot-browser': 'honeypot',
-                    'honeypot-traffic': 'traffic',
-                    'honeypot-errors': 'error'
-                }
-                doc["log_category"] = topic_to_category.get(msg.topic, 'unknown')
+            # Add to buffer
+            if topic not in buffer:
+                buffer[topic] = []
+            buffer[topic].append(processed_log)
             
-            # Ensure type field matches log_category for backward compatibility
-            if "type" not in doc or doc.get("type") != doc.get("log_category"):
-                doc["type"] = doc.get("log_category", "unknown")
+            # Flush if batch size reached or time elapsed
+            current_time = time.time()
+            should_flush = (
+                any(len(docs) >= batch_size for docs in buffer.values()) or
+                (current_time - last_flush) * 1000 >= flush_interval_ms
+            )
             
-            # Add metadata
-            doc["kafka_topic"] = msg.topic
-            doc["@ingested_at"] = datetime.utcnow().isoformat()
-            doc["kafka_partition"] = msg.partition
-            doc["kafka_offset"] = msg.offset
-            
-            # Normalize IP fields
-            if "src_ip" not in doc and "ip" in doc:
-                doc["src_ip"] = doc["ip"]
-            
-            # Create bulk action
-            action = {
-                "_index": index_name_for_topic(msg.topic),
-                "_source": doc,
-            }
-            buffer.append(action)
-            
-            if processed_count == 0 and len(buffer) == 1:
-                print(f"📥 Received first message from topic '{msg.topic}': {doc.get('log_category', 'unknown')} log from {doc.get('src_ip', doc.get('ip', 'unknown'))}")
-            
-            if len(buffer) >= batch_size or (time.time() - last_flush) * 1000 >= flush_interval_ms:
-                try:
-                    helpers.bulk(es, buffer, raise_on_error=False)
-                    processed_count += len(buffer)
-                    print(f"📤 Indexed {len(buffer)} documents (total: {processed_count})")
-                    buffer.clear()
-                    last_flush = time.time()
-                except Exception as e:
-                    print(f"❌ Error indexing batch: {e}")
-                    buffer.clear()
-                    
+            if should_flush:
+                for topic_name, docs in buffer.items():
+                    if docs:
+                        bulk_index(docs, topic_name)
+                
+                buffer = {}
+                last_flush = current_time
+    
     except KeyboardInterrupt:
-        print("🛑 Collector stopped by user")
+        print("\n⏸️  Shutting down...")
     except Exception as e:
-        print(f"❌ Collector error: {e}")
+        print(f"❌ Error in collector loop: {e}")
         import traceback
-        print(traceback.format_exc())
+        traceback.print_exc()
     finally:
-        # Flush remaining documents
-        if buffer and es:
-            try:
-                helpers.bulk(es, buffer, raise_on_error=False)
-                print(f"📤 Final flush: {len(buffer)} documents")
-            except Exception as e:
-                print(f"❌ Error in final flush: {e}")
+        # Flush remaining docs
+        for topic_name, docs in buffer.items():
+            if docs:
+                bulk_index(docs, topic_name)
+        
         if consumer:
             consumer.close()
-        print("🔒 Collector shutdown complete")
+            print("🔒 Kafka consumer closed")
 
 if __name__ == "__main__":
     run()

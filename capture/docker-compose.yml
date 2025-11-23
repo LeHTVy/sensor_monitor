@@ -125,6 +125,16 @@ services:
       - BATCH_SIZE=50
       - FLUSH_INTERVAL_MS=500
       - AUTO_OFFSET_RESET=earliest
+      # Enrichment settings
+      - ENABLE_ENRICHMENT=true
+      - ENABLE_OSINT=true
+      # API keys loaded from .env file
+      - GEOIP_API_KEY=${GEOIP_API_KEY:-}
+      - SHODAN_API_KEY=${SHODAN_API_KEY:-}
+      - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY:-}
+      - VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY:-}
+    env_file:
+      - .env
     networks:
       - sensor-network
     volumes:
