@@ -506,6 +506,195 @@ def get_attack_patterns():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/logs/timeline')
+@api_key_required
+def get_attack_timeline():
+    """Get attack timeline data for charts (last 24 hours by default)"""
+    try:
+        # Get time range from query params
+        hours = int(request.args.get('hours', 24))
+        interval = request.args.get('interval', '1h')  # 1h, 30m, 15m, etc.
+        
+        if not USE_ELASTICSEARCH or not es_client:
+            return jsonify({'error': 'Elasticsearch not configured'}), 503
+        
+        # Calculate time range
+        now = datetime.now()
+        start_time = (now - timedelta(hours=hours)).isoformat()
+        
+        # Query ES with date histogram aggregation
+        query = {
+            "size": 0,
+            "query": {
+                "range": {
+                    "timestamp": {
+                        "gte": start_time
+                    }
+                }
+            },
+            "aggs": {
+                "timeline": {
+                    "date_histogram": {
+                        "field": "timestamp",
+                        "fixed_interval": interval,
+                        "min_doc_count": 0
+                    },
+                    "aggs": {
+                        "by_tool": {
+                            "terms": {
+                                "field": "attack_tool.keyword",
+                                "size": 10
+                            }
+                        },
+                        "by_severity": {
+                            "terms": {
+                                "field": "threat_level.keyword",
+                                "size": 5
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+        
+        # Parse timeline data
+        timeline = []
+        if 'aggregations' in res and 'timeline' in res['aggregations']:
+            buckets = res['aggregations']['timeline'].get('buckets', [])
+            
+            for bucket in buckets:
+                timestamp = bucket['key_as_string'] if 'key_as_string' in bucket else bucket['key']
+                count = bucket['doc_count']
+                
+                # Get top tools and severities for this time bucket
+                tools = {}
+                if 'by_tool' in bucket:
+                    for tool_bucket in bucket['by_tool'].get('buckets', []):
+                        tools[tool_bucket['key']] = tool_bucket['doc_count']
+                
+                severities = {}
+                if 'by_severity' in bucket:
+                    for sev_bucket in bucket['by_severity'].get('buckets', []):
+                        severities[sev_bucket['key']] = sev_bucket['doc_count']
+                
+                timeline.append({
+                    'timestamp': timestamp,
+                    'count': count,
+                    'tools': tools,
+                    'severities': severities
+                })
+        
+        return jsonify({
+            'timeline': timeline,
+            'total': res['hits']['total']['value'],
+            'time_range': {'start': start_time, 'end': now.isoformat()},
+            'interval': interval
+        })
+        
+    except Exception as e:
+        logging.error(f"Timeline error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/logs/heatmap')
+@api_key_required
+def get_endpoint_heatmap():
+    """Get attack frequency by endpoint (heatmap data)"""
+    try:
+        # Get time range from query params
+        hours = int(request.args.get('hours', 24))
+        limit = int(request.args.get('limit', 20))
+        
+        if not USE_ELASTICSEARCH or not es_client:
+            return jsonify({'error': 'Elasticsearch not configured'}), 503
+        
+        # Calculate time range
+        now = datetime.now()
+        start_time = (now - timedelta(hours=hours)).isoformat()
+        
+        # Query ES for endpoint aggregation
+        query = {
+            "size": 0,
+            "query": {
+                "range": {
+                    "timestamp": {
+                        "gte": start_time
+                    }
+                }
+            },
+            "aggs": {
+                "endpoints": {
+                    "terms": {
+                        "field": "path.keyword",
+                        "size": limit,
+                        "order": {"_count": "desc"}
+                    },
+                    "aggs": {
+                        "methods": {
+                            "terms": {
+                                "field": "method.keyword"
+                            }
+                        },
+                        "threat_levels": {
+                            "terms": {
+                                "field": "threat_level.keyword"
+                            }
+                        },
+                        "unique_ips": {
+                            "cardinality": {
+                                "field": "ip.keyword"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+        
+        # Parse heatmap data
+        heatmap = []
+        if 'aggregations' in res and 'endpoints' in res['aggregations']:
+            buckets = res['aggregations']['endpoints'].get('buckets', [])
+            
+            for bucket in buckets:
+                endpoint = bucket['key']
+                count = bucket['doc_count']
+                
+                # Get methods distribution
+                methods = {}
+                if 'methods' in bucket:
+                    for method_bucket in bucket['methods'].get('buckets', []):
+                        methods[method_bucket['key']] = method_bucket['doc_count']
+                
+                # Get threat levels
+                threat_levels = {}
+                if 'threat_levels' in bucket:
+                    for threat_bucket in bucket['threat_levels'].get('buckets', []):
+                        threat_levels[threat_bucket['key']] = threat_bucket['doc_count']
+                
+                # Get unique IPs
+                unique_ips = bucket.get('unique_ips', {}).get('value', 0)
+                
+                heatmap.append({
+                    'endpoint': endpoint,
+                    'count': count,
+                    'unique_ips': unique_ips,
+                    'methods': methods,
+                    'threat_levels': threat_levels
+                })
+        
+        return jsonify({
+            'heatmap': heatmap,
+            'total_endpoints': len(heatmap),
+            'time_range': {'start': start_time, 'end': now.isoformat()}
+        })
+        
+    except Exception as e:
+        logging.error(f"Heatmap error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/logs/search')
 def search_logs():
     """Search logs by criteria"""
