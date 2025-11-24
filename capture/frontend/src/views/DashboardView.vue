@@ -21,10 +21,10 @@
 
         <!-- Charts Row -->
         <v-row class="mt-4">
-          <v-col cols="12" md="8">
+          <v-col cols="12" md="6">
             <AttackTimeline />
           </v-col>
-          <v-col cols="12" md="4">
+          <v-col cols="12" md="6">
             <EndpointHeatmap />
           </v-col>
         </v-row>

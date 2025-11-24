@@ -124,7 +124,7 @@ async function fetchAttackData() {
   }
 }
 
-function renderMap() {
+async function renderMap() {
   if (!mapSvg.value) return
 
   const width = 900
@@ -142,49 +142,64 @@ function renderMap() {
   const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--v-theme-surface').trim()
   const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--v-theme-primary').trim()
   
-  // Convert RGB color values to hex if needed
   const getSvgColor = (rgbString: string) => {
-    // If it's already a color name or hex, return it
     if (!rgbString.includes(',')) return `rgb(${rgbString})`
     return `rgb(${rgbString})`
   }
 
-  // Add world map background with grid
+  // Add background
   svg.append('rect')
     .attr('width', width)
     .attr('height', height)
     .attr('fill', getSvgColor(surfaceColor))
-    .attr('stroke', getSvgColor(primaryColor))
-    .attr('stroke-width', 1)
     .attr('opacity', 0.1)
 
-  // Draw latitude/longitude grid lines
-  const gridGroup = svg.append('g').attr('class', 'grid')
-  
-  // Horizontal lines (latitudes)
-  for (let lat = -90; lat <= 90; lat += 30) {
-    const y = ((90 - lat) / 180) * height
-    gridGroup.append('line')
-      .attr('x1', 0)
-      .attr('y1', y)
-      .attr('x2', width)
-      .attr('y2', y)
+  // Load world map GeoJSON from free CDN (no API key needed)
+  try {
+    const response = await fetch('https://unpkg.com/world-atlas@2/countries-110m.json')
+    const world = await response.json()
+    
+    // Convert TopoJSON to GeoJSON
+    const countries = (window as any).topojson.feature(world, world.objects.countries)
+    
+    // Create projection
+    const projection = d3.geoMercator()
+      .fitSize([width, height], countries)
+    
+    const path = d3.geoPath().projection(projection)
+    
+    // Draw countries
+    svg.append('g')
+      .selectAll('path')
+      .data(countries.features)
+      .enter()
+      .append('path')
+      .attr('d', path as any)
+      .attr('fill', getSvgColor(surfaceColor))
       .attr('stroke', getSvgColor(primaryColor))
       .attr('stroke-width', 0.5)
-      .attr('opacity', 0.2)
-  }
-
-  // Vertical lines (longitudes)
-  for (let lon = -180; lon <= 180; lon += 30) {
-    const x = ((lon + 180) / 360) * width
-    gridGroup.append('line')
-      .attr('x1', x)
-      .attr('y1', 0)
-      .attr('x2', x)
-      .attr('y2', height)
-      .attr('stroke', getSvgColor(primaryColor))
-      .attr('stroke-width', 0.5)
-      .attr('opacity', 0.2)
+      .attr('opacity', 0.3)
+  } catch (error) {
+    console.warn('Could not load world map, showing grid instead:', error)
+    
+    // Fallback: Draw grid if map fails to load
+    const gridGroup = svg.append('g').attr('class', 'grid')
+    
+    for (let lat = -90; lat <= 90; lat += 30) {
+      const y = ((90 - lat) / 180) * height
+      gridGroup.append('line')
+        .attr('x1', 0).attr('y1', y).attr('x2', width).attr('y2', y)
+        .attr('stroke', getSvgColor(primaryColor))
+        .attr('stroke-width', 0.5).attr('opacity', 0.2)
+    }
+    
+    for (let lon = -180; lon <= 180; lon += 30) {
+      const x = ((lon + 180) / 360) * width
+      gridGroup.append('line')
+        .attr('x1', x).attr('y1', 0).attr('x2', x).attr('y2', height)
+        .attr('stroke', getSvgColor(primaryColor))
+        .attr('stroke-width', 0.5).attr('opacity', 0.2)
+    }
   }
 
   // Convert lat/lon to x/y
@@ -202,41 +217,29 @@ function renderMap() {
     
     // Outer pulsing circle
     markersGroup.append('circle')
-      .attr('cx', x)
-      .attr('cy', y)
-      .attr('r', 8)
+      .attr('cx', x).attr('cy', y).attr('r', 8)
       .attr('fill', getSvgColor(primaryColor))
       .attr('opacity', 0.3)
       .append('animate')
       .attr('attributeName', 'r')
-      .attr('from', 8)
-      .attr('to', 25)
+      .attr('from', 8).attr('to', 25)
       .attr('dur', '2s')
       .attr('repeatCount', 'indefinite')
 
     markersGroup.append('circle')
-      .attr('cx', x)
-      .attr('cy', y)
+      .attr('cx', x).attr('cy', y)
       .attr('r', 8 + (attack.count * 2))
       .attr('fill', 'none')
       .attr('stroke', getSvgColor(primaryColor))
-      .attr('stroke-width', 2)
-      .attr('opacity', 0.6)
+      .attr('stroke-width', 2).attr('opacity', 0.6)
 
     // Inner solid circle
     markersGroup.append('circle')
-      .attr('cx', x)
-      .attr('cy', y)
-      .attr('r', 6)
+      .attr('cx', x).attr('cy', y).attr('r', 6)
       .attr('fill', getSvgColor(primaryColor))
-      .attr('opacity', 0.9)
-      .style('cursor', 'pointer')
-      .on('mouseover', function() {
-        d3.select(this).attr('r', 9)
-      })
-      .on('mouseout', function() {
-        d3.select(this).attr('r', 6)
-      })
+      .attr('opacity', 0.9).style('cursor', 'pointer')
+      .on('mouseover', function() { d3.select(this).attr('r', 9) })
+      .on('mouseout', function() { d3.select(this).attr('r', 6) })
       .append('title')
       .text(`${attack.country}: ${attack.count} attacks`)
   })
