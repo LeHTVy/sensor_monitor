@@ -8,19 +8,19 @@ import '@mdi/font/css/materialdesignicons.css'
 const darkTheme = {
   dark: true,
   colors: {
-    background: '#0a0a0a',
+    background: '#000000',        // Black background
     surface: '#1a1a1a',
     'surface-variant': '#141414',
-    primary: '#D4AF37', // Gold
+    primary: '#d5ba76',           // Golden
     'primary-darken-1': '#B8941F',
     secondary: '#F4E4C1',
-    accent: '#D4AF37',
+    accent: '#d5ba76',
     error: '#EF4444',
     info: '#3B82F6',
     success: '#10B981',
     warning: '#F59E0B',
-    'on-background': '#FFFFFF',
-    'on-surface': '#FFFFFF',
+    'on-background': '#d5ba76',   // Golden text
+    'on-surface': '#d5ba76',       // Golden text
     'on-primary': '#000000',
   }
 }
@@ -28,19 +28,19 @@ const darkTheme = {
 const lightTheme = {
   dark: false,
   colors: {
-    background: '#F5F5F5',
-    surface: '#FFFFFF',
+    background: '#FFFFFF',        // White background
+    surface: '#F5F5F5',
     'surface-variant': '#FEFEFE',
-    primary: '#C9A961', // Beige
-    'primary-darken-1': '#B39551',
+    primary: '#9e8662',           // Brown/beige text color
+    'primary-darken-1': '#8B7456',
     secondary: '#E8D7B8',
-    accent: '#C9A961',
+    accent: '#9e8662',
     error: '#EF4444',
     info: '#3B82F6',
     success: '#10B981',
     warning: '#F59E0B',
-    'on-background': '#000000', // Black text
-    'on-surface': '#000000',     // Black text
+    'on-background': '#9e8662',   // Brown text
+    'on-surface': '#9e8662',       // Brown text
     'on-primary': '#FFFFFF',
   }
 }

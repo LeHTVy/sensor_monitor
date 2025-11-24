@@ -1,39 +1,62 @@
 <template>
+  <!-- Navigation Drawer (Slide-out Sidebar) -->
+  <v-navigation-drawer
+    v-model="drawer"
+    temporary
+    location="left"
+    width="280"
+  >
+    <v-list nav>
+      <v-list-item class="py-4 px-4">
+        <div class="d-flex align-center">
+          <v-icon icon="mdi-shield-check" color="primary" size="32" class="mr-3" />
+          <div>
+            <div class="text-subtitle-1 font-weight-bold">Capture</div>
+            <div class="text-caption">Intelligence</div>
+          </div>
+        </div>
+      </v-list-item>
+
+      <v-divider class="my-2" />
+
+      <v-list-item
+        :to="{ name: 'dashboard' }"
+        prepend-icon="mdi-view-dashboard"
+        title="Dashboard"
+        value="dashboard"
+      />
+
+      <v-list-item
+        :to="{ name: 'all-logs' }"
+        prepend-icon="mdi-shield-alert"
+        title="Threat Feed"
+        value="threat-feed"
+      />
+
+      <v-divider class="my-2" />
+
+      <v-list-item
+        @click="authStore.logout"
+        prepend-icon="mdi-logout"
+        title="Logout"
+        value="logout"
+      />
+    </v-list>
+  </v-navigation-drawer>
+
+  <!-- App Bar -->
   <v-app-bar elevation="0" class="luxury-header" height="64">
     <div class="d-flex align-center ml-4">
-      <!-- Menu Button -->
-      <v-menu>
-        <template v-slot:activator="{ props }">
-          <v-btn icon variant="text" size="small" class="mr-2" v-bind="props">
-            <v-icon>mdi-menu</v-icon>
-          </v-btn>
-        </template>
-        
-        <v-list>
-          <v-list-item :to="{ name: 'dashboard' }">
-            <template v-slot:prepend>
-              <v-icon>mdi-view-dashboard</v-icon>
-            </template>
-            <v-list-item-title>Dashboard</v-list-item-title>
-          </v-list-item>
-          
-          <v-list-item :to="{ name: 'all-logs' }">
-            <template v-slot:prepend>
-              <v-icon>mdi-shield-alert</v-icon>
-            </template>
-            <v-list-item-title>Threat Feed</v-list-item-title>
-          </v-list-item>
-          
-          <v-divider />
-          
-          <v-list-item @click="authStore.logout">
-            <template v-slot:prepend>
-              <v-icon>mdi-logout</v-icon>
-            </template>
-            <v-list-item-title>Logout</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
+      <!-- Menu Button - Opens Sidebar -->
+      <v-btn 
+        icon 
+        variant="text" 
+        size="small" 
+        class="mr-2" 
+        @click="drawer = !drawer"
+      >
+        <v-icon>mdi-menu</v-icon>
+      </v-btn>
       
       <v-icon icon="mdi-shield-check" class="logo-icon mr-3" size="36" />
       <div class="header-branding">
@@ -72,11 +95,13 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
 
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
+const drawer = ref(false)
 </script>
 
 <style scoped>
