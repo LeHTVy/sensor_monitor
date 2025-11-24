@@ -112,27 +112,6 @@ const getThreatColor = (threats: Record<string, number>): string => {
   if (threats.medium > 0) return '#FCD34D'
   return '#10B981'
 }
-
-const fetchHeatmap = async () => {
-  try {
-    loading.value = true
-    error.value = ''
-    
-    const response = await fetch(
-      `${API_BASE}/logs/heatmap?hours=24&limit=10`,
-      { headers: { 'X-API-Key': API_KEY } }
-    )
-    
-    if (!response.ok) throw new Error('Failed to fetch heatmap data')
-    
-    const data = await response.json()
-    heatmapData.value = data.heatmap || []
-  } catch (err: any) {
-    error.value = err.message || 'Error loading heatmap'
-    console.error('Heatmap fetch error:', err)
-  } finally {
-    loading.value = false
-  }
 }
 
 onMounted(() => {

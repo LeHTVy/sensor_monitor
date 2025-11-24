@@ -75,27 +75,6 @@ const getInterval = () => {
   if (hours <= 6) return '30m'
   return '1h'
 }
-
-const fetchTimeline = async () => {
-  try {
-    loading.value = true
-    error.value = ''
-    
-    const response = await fetch(
-      `${API_BASE}/logs/timeline?hours=${timeRange.value}&interval=${getInterval()}`,
-      { headers: { 'X-API-Key': API_KEY } }
-    )
-    
-    if (!response.ok) throw new Error('Failed to fetch timeline data')
-    
-    const data = await response.json()
-    timelineData.value = data.timeline || []
-    
-    await nextTick()
-    updateChart()
-  } catch (err: any) {
-    error.value = err.message || 'Error loading timeline'
-    console.error('Timeline fetch error:', err)
   } finally {
     loading.value = false
   }
