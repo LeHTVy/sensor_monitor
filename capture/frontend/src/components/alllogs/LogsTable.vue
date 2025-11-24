@@ -79,6 +79,19 @@
         <span v-else class="text-medium-emphasis">-</span>
       </template>
 
+      <template v-slot:item.threat_level="{ item }">
+        <v-chip
+          v-if="item.threat_level"
+          :color="getThreatColor(item.threat_level)"
+          size="small"
+          variant="flat"
+        >
+          <v-icon start :icon="getThreatIcon(item.threat_level)" size="14" />
+          {{ item.threat_level }}
+        </v-chip>
+        <span v-else class="text-medium-emphasis">-</span>
+      </template>
+
       <template v-slot:item.actions="{ item }">
         <v-btn
           icon="mdi-eye"
@@ -121,9 +134,40 @@
               <v-list-item-title class="text-caption text-medium-emphasis">Attack Tool</v-list-item-title>
               <v-list-item-subtitle class="text-error font-weight-bold">{{ selectedLog.attack_tool }}</v-list-item-subtitle>
             </v-col>
+            <v-col cols="12" v-if="selectedLog.threat_level">
+              <v-list-item-title class="text-caption text-medium-emphasis">Threat Level</v-list-item-title>
+              <v-chip :color="getThreatColor(selectedLog.threat_level)" size="small" class="mt-1">
+                {{ selectedLog.threat_level }} (Score: {{ selectedLog.threat_score || 0 }}/100)
+              </v-chip>
+            </v-col>
+            <v-col cols="12" v-if="selectedLog.attack_techniques">
+              <v-list-item-title class="text-caption text-medium-emphasis">Attack Techniques</v-list-item-title>
+              <div class="d-flex flex-wrap ga-1 mt-1">
+                <v-chip v-for="technique in selectedLog.attack_techniques" :key="technique" size="x-small" color="error" variant="outlined">
+                  {{ technique }}
+                </v-chip>
+              </div>
+            </v-col>
             <v-col cols="12" v-if="selectedLog.geoip">
-              <v-list-item-title class="text-caption text-medium-emphasis">GeoIP</v-list-item-title>
-              <v-list-item-subtitle>{{ selectedLog.geoip.country }}, {{ selectedLog.geoip.city }}</v-list-item-subtitle>
+              <v-list-item-title class="text-caption text-medium-emphasis">GeoIP Information</v-list-item-title>
+              <v-list-item-subtitle>
+                <div><v-icon size="14" class="mr-1">mdi-earth</v-icon>{{ selectedLog.geoip.country }}, {{ selectedLog.geoip.city }}</div>
+                <div v-if="selectedLog.geoip.isp" class="text-caption"><v-icon size="14" class="mr-1">mdi-server-network</v-icon>{{ selectedLog.geoip.isp }}</div>
+              </v-list-item-subtitle>
+            </v-col>
+            <v-col cols="12" v-if="selectedLog.osint && Object.keys(selectedLog.osint).length > 0">
+              <v-list-item-title class="text-caption text-medium-emphasis">Threat Intelligence (OSINT)</v-list-item-title>
+              <v-card variant="outlined" class="mt-1 pa-2">
+                <div v-if="selectedLog.osint.abuseipdb" class="text-caption">
+                  <strong>AbuseIPDB:</strong> {{ selectedLog.osint.abuseipdb.abuseConfidenceScore }}% abuse score
+                </div>
+                <div v-if="selectedLog.osint.shodan" class="text-caption">
+                  <strong>Shodan:</strong> {{ selectedLog.osint.shodan.ports?.length || 0 }} open ports
+                </div>
+                <div v-if="selectedLog.osint.virustotal" class="text-caption">
+                  <strong>VirusTotal:</strong> {{ selectedLog.osint.virustotal.malicious || 0 }} malicious detections
+                </div>
+              </v-card>
             </v-col>
             <v-col cols="12" v-if="selectedLog.message">
               <v-list-item-title class="text-caption text-medium-emphasis">Message</v-list-item-title>
@@ -154,9 +198,9 @@ const selectedLog = ref<ExtendedLog | null>(null)
 const headers = [
   { title: 'Timestamp', key: 'timestamp', sortable: true, width: '180px' },
   { title: 'Source IP', key: 'src_ip', sortable: true, width: '150px' },
-  { title: 'Type', key: 'type', sortable: true, width: '120px' },
-  { title: 'Attack Tool', key: 'attack_tool', sortable: true, width: '150px' },
-  { title: 'Location', key: 'geoip', sortable: false, width: '200px' },
+  { title: 'Threat', key: 'threat_level', sortable: true, width: '120px' },
+  { title: 'Tool', key: 'attack_tool', sortable: true, width: '140px' },
+  { title: 'Location', key: 'geoip', sortable: false, width: '180px' },
   { title: 'Actions', key: 'actions', sortable: false, width: '80px' }
 ]
 
@@ -197,6 +241,26 @@ function getTypeIcon(type: string): string {
     error: 'mdi-alert-circle'
   }
   return icons[type] || 'mdi-information'
+}
+
+function getThreatColor(level: string): string {
+  const colors: Record<string, string> = {
+    critical: 'error',
+    high: 'warning',
+    medium: 'info',
+    low: 'success'
+  }
+  return colors[level] || 'default'
+}
+
+function getThreatIcon(level: string): string {
+  const icons: Record<string, string> = {
+    critical: 'mdi-alert-octagon',
+    high: 'mdi-alert',
+    medium: 'mdi-alert-circle-outline',
+    low: 'mdi-information-outline'
+  }
+  return icons[level] || 'mdi-shield'
 }
 
 function onRowClick(event: unknown, { item }: { item: Log | ExtendedLog }) {

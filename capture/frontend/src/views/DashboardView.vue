@@ -10,8 +10,20 @@
         <!-- Stats Cards -->
         <StatsCards />
 
+        <!-- Charts Section -->
+        <v-row class="mt-4">
+          <v-col cols="12" lg="8">
+            <AttackTimeline />
+          </v-col>
+          <v-col cols="12" lg="4">
+            <EndpointHeatmap />
+          </v-col>
+        </v-row>
+
         <!-- Kibana Dashboard -->
-        <KibanaDashboard />
+        <div class="mt-4">
+          <KibanaDashboard />
+        </div>
       </v-container>
     </v-main>
   </v-app>
@@ -26,6 +38,8 @@ import Navbar from '@/components/Navbar.vue'
 import HeroSection from '@/components/dashboard/HeroSection.vue'
 import KibanaDashboard from '@/components/dashboard/KibanaDashboard.vue'
 import StatsCards from '@/components/StatsCards.vue'
+import AttackTimeline from '@/components/dashboard/AttackTimeline.vue'
+import EndpointHeatmap from '@/components/dashboard/EndpointHeatmap.vue'
 
 const authStore = useAuthStore()
 const dashboardStore = useDashboardStore()
