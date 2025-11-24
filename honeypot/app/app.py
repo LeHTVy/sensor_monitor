@@ -109,32 +109,18 @@ def kafka_worker():
             time.sleep(0.1)
 
 kafka_thread = None
-cleanup_thread = None
-
-def ids_cleanup_worker():
-    """Background worker to cleanup IDS engine expired blocks and old contexts"""
-    print("🧹 IDS cleanup worker started")
-    while True:
-        try:
-            time.sleep(300)  # Run every 5 minutes
-            logger.ids_engine.cleanup_expired_blocks()
-            logger.ids_engine.cleanup_old_contexts(max_age_hours=24)
-        except Exception as e:
-            print(f"❌ IDS cleanup worker error: {e}")
-
+# IDS Engine removed - now handled by capture server
+# Cleanup worker no longer needed
 def ensure_kafka_worker_started():
     """Ensure Kafka worker thread is started (thread-safe, called from request handler)"""
-    global kafka_thread, cleanup_thread, _worker_started_flag
+    global kafka_thread, _worker_started_flag
     if not _worker_started_flag:
         with _worker_started:
             if not _worker_started_flag:
                 kafka_thread = threading.Thread(target=kafka_worker, daemon=True)
                 kafka_thread.start()
-                cleanup_thread = threading.Thread(target=ids_cleanup_worker, daemon=True)
-                cleanup_thread.start()
                 _worker_started_flag = True
                 print(f"✅ Kafka background worker started in process {os.getpid()}")
-                print(f"✅ IDS cleanup worker started in process {os.getpid()}")
 
 try:
     ensure_kafka_worker_started()
@@ -254,70 +240,15 @@ SKIP_LOG_ROUTES = ['/favicon.ico', '/health']
 @app.route('/health')
 def health():
     """Health check endpoint"""
-    ids_stats = logger.ids_engine.get_statistics()
+    # IDS removed - stats only for honeypot activity
     return jsonify({
-        'status': 'healthy',
-        'kafka': 'connected' if kafka_producer and kafka_producer.producer else 'disconnected',
-        'queue_size': kafka_queue.qsize(),
-        'ids': ids_stats,
-        'timestamp': datetime.now().isoformat()
+        'honeypot_version': '2.0',
+        'uptime': '...',
+        'total_requests': 'N/A'
     }), 200
 
-@app.route('/api/ids/stats')
-@login_required
-def ids_stats():
-    """IDS statistics endpoint"""
-    stats = logger.ids_engine.get_statistics()
-    return jsonify(stats), 200
+# IDS API endpoints removed - IDS functionality moved to capture server
 
-@app.route('/api/ids/ip/<ip>')
-@login_required
-def ids_ip_info(ip):
-    """Get IDS information for specific IP"""
-    ip_stats = logger.ids_engine.get_ip_stats(ip)
-    return jsonify(ip_stats), 200
-
-@app.route('/api/ids/blocked')
-@login_required
-def ids_blocked_ips():
-    """Get list of blocked IPs"""
-    blocked = []
-    for ip, block_info in logger.ids_engine.blocked_ips.items():
-        if not block_info.is_expired():
-            blocked.append({
-                'ip': ip,
-                'reason': block_info.reason.value,
-                'blocked_at': block_info.blocked_at.isoformat(),
-                'blocked_until': block_info.blocked_until.isoformat(),
-                'block_count': block_info.block_count
-            })
-    return jsonify({'blocked_ips': blocked, 'count': len(blocked)}), 200
-
-@app.route('/api/ids/whitelist', methods=['GET', 'POST'])
-@login_required
-def ids_whitelist():
-    """Manage whitelist"""
-    if request.method == 'POST':
-        ip = request.json.get('ip')
-        if ip:
-            logger.ids_engine.add_to_whitelist(ip)
-            return jsonify({'status': 'success', 'message': f'IP {ip} added to whitelist'}), 200
-        return jsonify({'status': 'error', 'message': 'IP required'}), 400
-    else:
-        return jsonify({'whitelist': list(logger.ids_engine.whitelist)}), 200
-
-@app.route('/api/ids/blacklist', methods=['GET', 'POST'])
-@login_required
-def ids_blacklist():
-    """Manage blacklist"""
-    if request.method == 'POST':
-        ip = request.json.get('ip')
-        if ip:
-            logger.ids_engine.add_to_blacklist(ip)
-            return jsonify({'status': 'success', 'message': f'IP {ip} added to blacklist'}), 200
-        return jsonify({'status': 'error', 'message': 'IP required'}), 400
-    else:
-        return jsonify({'blacklist': list(logger.ids_engine.blacklist)}), 200
 
 @app.route('/favicon.ico')
 def favicon():
