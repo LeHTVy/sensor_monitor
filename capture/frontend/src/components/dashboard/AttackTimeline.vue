@@ -81,64 +81,86 @@ const fetchTimeline = async () => {
     loading.value = true
     error.value = ''
     
-    const response = await fetch(
+    // Try timeline endpoint first
+    let response = await fetch(
       `${API_BASE}/logs/timeline?hours=${timeRange.value}&interval=${getInterval()}`,
       { headers: { 'X-API-Key': API_KEY } }
     )
     
-    if (!response.ok) throw new Error('Failed to fetch timeline data')
-    
-    const data = await response.json()
-    
-    // If no data from backend, generate sample data
-    if (!data.timeline || data.timeline.length === 0) {
-      console.log('No timeline data from backend, generating sample data')
-      timelineData.value = generateSampleTimeline()
-    } else {
-      timelineData.value = data.timeline
+    if (response.ok) {
+      const data = await response.json()
+      if (data.timeline && data.timeline.length > 0) {
+        timelineData.value = data.timeline
+        await nextTick()
+        updateChart()
+        return
+      }
     }
+    
+    // Fallback: Get real logs and aggregate them
+    console.log('Generating timeline from real logs...')
+    response = await fetch(
+      `${API_BASE}/logs?limit=1000`,
+      { headers: { 'X-API-Key': API_KEY } }
+    )
+    
+    if (!response.ok) throw new Error('Failed to fetch logs')
+    
+    const logsData = await response.json()
+    const logs = logsData.logs || []
+    
+    if (logs.length === 0) {
+      timelineData.value = []
+      await nextTick()
+      updateChart()
+      return
+    }
+    
+    // Aggregate logs into time buckets
+    const hours = parseInt(timeRange.value)
+    const intervalMinutes = hours <= 1 ? 5 : (hours <= 6 ? 30 : 60)
+    const buckets = new Map<string, TimelineData>()
+    
+    logs.forEach((log: any) => {
+      const timestamp = new Date(log.timestamp || log['@timestamp'] || Date.now())
+      const bucketTime = new Date(
+        Math.floor(timestamp.getTime() / (intervalMinutes * 60000)) * (intervalMinutes * 60000)
+      )
+      const key = bucketTime.toISOString()
+      
+      if (!buckets.has(key)) {
+        buckets.set(key, {
+          timestamp: key,
+          count: 0,
+          tools: {},
+          severities: {}
+        })
+      }
+      
+      const bucket = buckets.get(key)!
+      bucket.count++
+      
+      // Track tools
+      const tool = log.attack_tool || log.tool || 'unknown'
+      bucket.tools[tool] = (bucket.tools[tool] || 0) + 1
+      
+      // Track severities
+      const severity = log.threat_level || log.severity || 'low'
+      bucket.severities[severity] = (bucket.severities[severity] || 0) + 1
+    })
+    
+    timelineData.value = Array.from(buckets.values())
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .slice(-50) // Last 50 data points
     
     await nextTick()
     updateChart()
   } catch (err: any) {
-    // On error, show sample data instead of empty chart
-    console.log('Timeline error, using sample data:', err.message)
-    timelineData.value = generateSampleTimeline()
-    await nextTick()
-    updateChart()
+    error.value = err.message || 'Error loading timeline'
+    console.error('Timeline fetch error:', err)
   } finally {
     loading.value = false
   }
-}
-
-const generateSampleTimeline = (): TimelineData[] => {
-  const hours = parseInt(timeRange.value)
-  const points = hours <= 1 ? 12 : (hours <= 6 ? 12 : 24)
-  const now = new Date()
-  const data: TimelineData[] = []
-  
-  for (let i = points - 1; i >= 0; i--) {
-    const timestamp = new Date(now.getTime() - i * (hours / points) * 60 * 60 * 1000)
-    const count = Math.floor(Math.random() * 50) + 10
-    
-    data.push({
-      timestamp: timestamp.toISOString(),
-      count,
-      tools: {
-        'hydra': Math.floor(count * 0.4),
-        'nmap': Math.floor(count * 0.3),
-        'sqlmap': Math.floor(count * 0.2),
-        'unknown': Math.floor(count * 0.1)
-      },
-      severities: {
-        'high': Math.floor(count * 0.5),
-        'medium': Math.floor(count * 0.3),
-        'low': Math.floor(count * 0.2)
-      }
-    })
-  }
-  
-  return data
 }
 
 const updateChart = () => {
