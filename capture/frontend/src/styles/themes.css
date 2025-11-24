@@ -1,0 +1,97 @@
+/* Luxury Dashboard Theme System */
+
+:root {
+  /* Light Mode - Modern Clarity */
+  --bg-primary: #F5F5F5;
+  --bg-secondary: #FFFFFF;
+  --bg-card: #FEFEFE;
+  --accent-primary: #C9A961;
+  --accent-secondary: #E8D7B8;
+  --text-primary: #2C2C2C;
+  --text-secondary: #6B6B6B;
+  --border-color: #E0E0E0;
+  --shadow-color: rgba(0, 0, 0, 0.08);
+  --chart-primary: #C9A961;
+  --chart-secondary: #E8D7B8;
+  --chart-gradient-start: rgba(201, 169, 97, 0.3);
+  --chart-gradient-end: rgba(201, 169, 97, 0.05);
+}
+
+[data-theme="dark"] {
+  /* Dark Mode - Stealth Luxury */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #1a1a1a;
+  --bg-card: #141414;
+  --accent-primary: #D4AF37;
+  --accent-secondary: #F4E4C1;
+  --text-primary: #FFFFFF;
+  --text-secondary: #B8B8B8;
+  --border-color: #2a2a2a;
+  --shadow-color: rgba(255, 255, 255, 0.05);
+  --chart-primary: #D4AF37;
+  --chart-secondary: #F4E4C1;
+  --chart-gradient-start: rgba(212, 175, 55, 0.3);
+  --chart-gradient-end: rgba(212, 175, 55, 0.05);
+}
+
+/* Global Styles */
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Card Styles */
+.v-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 2px 8px var(--shadow-color) !important;
+}
+
+/* App Bar */
+.v-app-bar {
+  background: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+/* Text Colors */
+.text-primary {
+  color: var(--text-primary) !important;
+}
+
+.text-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* Accent Colors */
+.accent-text {
+  color: var(--accent-primary) !important;
+}
+
+.accent-bg {
+  background: var(--accent-primary) !important;
+}
+
+/* Smooth Transitions */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-primary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-secondary);
+}

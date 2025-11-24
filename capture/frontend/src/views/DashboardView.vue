@@ -2,28 +2,39 @@
   <v-app>
     <Navbar />
 
-    <v-main>
-      <v-container fluid class="pa-4">
-        <!-- Hero Section -->
-        <HeroSection />
+    <v-main class="dashboard-main">
+      <v-container fluid class="pa-6">
+        <!-- Hero Stats -->
+        <v-row class="mb-4">
+          <v-col cols="12">
+            <HeroSection />
+          </v-col>
+        </v-row>
 
-        <!-- Stats Cards -->
-        <StatsCards />
+        <!-- Main Content Area -->
+        <v-row>
+          <!-- World Map -->
+          <v-col cols="12">
+            <WorldMap />
+          </v-col>
+        </v-row>
 
-        <!-- Charts Section -->
+        <!-- Charts Row -->
         <v-row class="mt-4">
-          <v-col cols="12" lg="8">
+          <v-col cols="12" md="8">
             <AttackTimeline />
           </v-col>
-          <v-col cols="12" lg="4">
+          <v-col cols="12" md="4">
             <EndpointHeatmap />
           </v-col>
         </v-row>
 
         <!-- Kibana Dashboard -->
-        <div class="mt-4">
-          <KibanaDashboard />
-        </div>
+        <v-row class="mt-4">
+          <v-col cols="12">
+            <KibanaDashboard />
+          </v-col>
+        </v-row>
       </v-container>
     </v-main>
   </v-app>
@@ -37,9 +48,9 @@ import { useRefreshStore } from '@/stores/refreshData'
 import Navbar from '@/components/Navbar.vue'
 import HeroSection from '@/components/dashboard/HeroSection.vue'
 import KibanaDashboard from '@/components/dashboard/KibanaDashboard.vue'
-import StatsCards from '@/components/StatsCards.vue'
 import AttackTimeline from '@/components/dashboard/AttackTimeline.vue'
 import EndpointHeatmap from '@/components/dashboard/EndpointHeatmap.vue'
+import WorldMap from '@/components/dashboard/WorldMap.vue'
 
 const authStore = useAuthStore()
 const dashboardStore = useDashboardStore()
@@ -58,9 +69,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Dashboard main container styling */
-:deep(.v-main) {
-  background: linear-gradient(135deg, rgba(var(--v-theme-background), 0.95) 0%, rgba(var(--v-theme-surface), 0.9) 100%);
+.dashboard-main {
+  background: var(--bg-primary);
   min-height: 100vh;
 }
 </style>

@@ -113,35 +113,6 @@ const updateChart = () => {
 
   const labels = timelineData.value.map(d => {
     const date = new Date(d.timestamp)
-    const hours = parseInt(timeRange.value)
-    if (hours <= 1) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    if (hours <= 6) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    return date.toLocaleTimeString([], { month: 'short', day: 'numeric', hour: '2-digit' })
-  })
-
-  const config: ChartConfiguration = {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Attack Count',
-        data: timelineData.value.map(d => d.count),
-        borderColor: '#EF4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        fill: true,
-        tension: 0.4,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        pointBackgroundColor: '#EF4444',
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        intersect: false,
         mode: 'index'
       },
       plugins: {

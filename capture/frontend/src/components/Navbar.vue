@@ -1,79 +1,114 @@
 <template>
-  <v-app-bar color="primary" dark class="floating-app-bar" :elevation="8">
-    <v-app-bar-title>
-      <v-icon icon="mdi-shield-account" class="mr-2" />
-      Capture Server Dashboard
-    </v-app-bar-title>
+  <v-app-bar elevation="0" class="luxury-header" height="64">
+    <div class="d-flex align-center ml-4">
+      <v-icon icon="mdi-shield-check" class="logo-icon mr-3" size="36" />
+      <div class="header-branding">
+        <div class="header-title">WEB CAPTURE INTELLIGENCE</div>
+        <div class="header-subtitle">Threat Detection Dashboard</div>
+      </div>
+    </div>
 
     <v-spacer />
 
-    <!-- Navigation Buttons -->
-    <v-btn
-      :to="{ name: 'dashboard' }"
-      :color="isActiveRoute('dashboard') ? 'secondary' : 'default'"
-      class="mr-2"
-      variant="text"
-    >
-      <v-icon left>mdi-view-dashboard</v-icon>
-      Dashboard
-    </v-btn>
+    <div class="header-actions mr-4">
+      <v-btn icon variant="text" size="small" class="header-btn">
+        <v-icon>mdi-bell-outline</v-icon>
+        <v-badge color="error" content="3" floating />
+      </v-btn>
 
-    <v-btn
-      :to="{ name: 'all-logs' }"
-      :color="isActiveRoute('all-logs') ? 'secondary' : 'default'"
-      class="mr-2"
-      variant="text"
-    >
-      <v-icon left>mdi-format-list-bulleted</v-icon>
-      All Logs
-    </v-btn>
+      <v-btn icon variant="text" size="small" class="header-btn">
+        <v-icon>mdi-cog-outline</v-icon>
+      </v-btn>
 
-    <v-spacer />
+      <v-btn 
+        icon 
+        variant="text" 
+        size="small" 
+        class="header-btn theme-toggle"
+        @click="themeStore.toggleTheme()"
+      >
+        <v-icon>{{ themeStore.isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+      </v-btn>
 
-    <!-- Theme Toggle -->
-    <v-btn @click="toggleTheme" color="secondary" class="mr-2">
-      <v-icon left>{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
-      {{ isDark ? 'Light' : 'Dark' }}
-    </v-btn>
-
-    <!-- Logout -->
-    <v-btn @click="authStore.logout" color="error">
-      <v-icon left>mdi-logout</v-icon>
-      Logout
-    </v-btn>
+      <v-btn icon variant="text" size="small" class="header-btn" @click="authStore.logout">
+        <v-icon>mdi-logout</v-icon>
+      </v-btn>
+    </div>
   </v-app-bar>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useTheme } from 'vuetify'
+import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
 
+const themeStore = useThemeStore()
 const authStore = useAuthStore()
-const route = useRoute()
-const router = useRouter()
-const theme = useTheme()
-
-const isDark = computed(() => theme.global.current.value.dark)
-
-function toggleTheme() {
-  theme.global.name.value = isDark.value ? 'light' : 'dark'
-}
-
-function isActiveRoute(routeName: string): boolean {
-  return route.name === routeName
-}
 </script>
 
 <style scoped>
-.floating-app-bar {
-  position: sticky;
-  top: 12px;
-  margin: 12px;
-  border-radius: 16px;
+.luxury-header {
+  background: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border-color) !important;
   backdrop-filter: blur(10px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.logo-icon {
+  color: var(--accent-primary) !important;
+  filter: drop-shadow(0 0 8px var(--accent-primary));
+}
+
+.header-branding {
+  display: flex;
+  flex-direction: column;
+}
+
+.header-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.header-subtitle {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.header-btn {
+  color: var(--text-secondary) !important;
+  transition: all 0.2s ease;
+}
+
+.header-btn:hover {
+  color: var(--accent-primary) !important;
+  transform: translateY(-2px);
+}
+
+.theme-toggle {
+  position: relative;
+}
+
+.theme-toggle::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.theme-toggle:hover::before {
+  opacity: 0.1;
 }
 </style>
-
