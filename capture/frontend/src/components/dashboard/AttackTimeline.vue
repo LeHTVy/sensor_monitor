@@ -75,6 +75,27 @@ const getInterval = () => {
   if (hours <= 6) return '30m'
   return '1h'
 }
+
+const fetchTimeline = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    
+    const response = await fetch(
+      `${API_BASE}/logs/timeline?hours=${timeRange.value}&interval=${getInterval()}`,
+      { headers: { 'X-API-Key': API_KEY } }
+    )
+    
+    if (!response.ok) throw new Error('Failed to fetch timeline data')
+    
+    const data = await response.json()
+    timelineData.value = data.timeline || []
+    
+    await nextTick()
+    updateChart()
+  } catch (err: any) {
+    error.value = err.message || 'Error loading timeline'
+    console.error('Timeline fetch error:', err)
   } finally {
     loading.value = false
   }
@@ -104,14 +125,14 @@ const updateChart = () => {
       datasets: [{
         label: 'Attacks',
         data,
-        borderColor: '#EF4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderColor: '#d5ba76',
+        backgroundColor: 'rgba(213, 186, 118, 0.1)',
         borderWidth: 2,
         fill: true,
         tension: 0.4,
         pointRadius: 4,
         pointHoverRadius: 6,
-        pointBackgroundColor: '#EF4444',
+        pointBackgroundColor: '#d5ba76',
         pointBorderColor: '#fff',
         pointBorderWidth: 2
       }]
@@ -132,7 +153,7 @@ const updateChart = () => {
           padding: 12,
           titleColor: '#fff',
           bodyColor: '#fff',
-          borderColor: '#EF4444',
+          borderColor: '#d5ba76',
           borderWidth: 1,
           displayColors: false,
           callbacks: {
