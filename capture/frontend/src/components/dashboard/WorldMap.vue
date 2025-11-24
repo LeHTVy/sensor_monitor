@@ -138,12 +138,23 @@ function renderMap() {
     .attr('height', height)
     .attr('viewBox', `0 0 ${width} ${height}`)
 
+  // Get current theme colors
+  const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--v-theme-surface').trim()
+  const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--v-theme-primary').trim()
+  
+  // Convert RGB color values to hex if needed
+  const getSvgColor = (rgbString: string) => {
+    // If it's already a color name or hex, return it
+    if (!rgbString.includes(',')) return `rgb(${rgbString})`
+    return `rgb(${rgbString})`
+  }
+
   // Add world map background with grid
   svg.append('rect')
     .attr('width', width)
     .attr('height', height)
-    .attr('fill', 'var(--v-theme-surface)')
-    .attr('stroke', 'var(--v-theme-primary)')
+    .attr('fill', getSvgColor(surfaceColor))
+    .attr('stroke', getSvgColor(primaryColor))
     .attr('stroke-width', 1)
     .attr('opacity', 0.1)
 
@@ -158,7 +169,7 @@ function renderMap() {
       .attr('y1', y)
       .attr('x2', width)
       .attr('y2', y)
-      .attr('stroke', 'var(--v-theme-primary)')
+      .attr('stroke', getSvgColor(primaryColor))
       .attr('stroke-width', 0.5)
       .attr('opacity', 0.2)
   }
@@ -171,7 +182,7 @@ function renderMap() {
       .attr('y1', 0)
       .attr('x2', x)
       .attr('y2', height)
-      .attr('stroke', 'var(--v-theme-primary)')
+      .attr('stroke', getSvgColor(primaryColor))
       .attr('stroke-width', 0.5)
       .attr('opacity', 0.2)
   }
@@ -194,7 +205,7 @@ function renderMap() {
       .attr('cx', x)
       .attr('cy', y)
       .attr('r', 8)
-      .attr('fill', 'var(--v-theme-primary)')
+      .attr('fill', getSvgColor(primaryColor))
       .attr('opacity', 0.3)
       .append('animate')
       .attr('attributeName', 'r')
@@ -208,7 +219,7 @@ function renderMap() {
       .attr('cy', y)
       .attr('r', 8 + (attack.count * 2))
       .attr('fill', 'none')
-      .attr('stroke', 'var(--v-theme-primary)')
+      .attr('stroke', getSvgColor(primaryColor))
       .attr('stroke-width', 2)
       .attr('opacity', 0.6)
 
@@ -217,7 +228,7 @@ function renderMap() {
       .attr('cx', x)
       .attr('cy', y)
       .attr('r', 6)
-      .attr('fill', 'var(--v-theme-primary)')
+      .attr('fill', getSvgColor(primaryColor))
       .attr('opacity', 0.9)
       .style('cursor', 'pointer')
       .on('mouseover', function() {
