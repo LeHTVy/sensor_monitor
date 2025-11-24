@@ -43,6 +43,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as d3 from 'd3'
+import * as topojson from 'topojson-client'
 
 const API_KEY = 'capture_secure_key_2024'
 const API_BASE = '/api'
@@ -160,7 +161,7 @@ async function renderMap() {
     const world = await response.json()
     
     // Convert TopoJSON to GeoJSON
-    const countries = (window as any).topojson.feature(world, world.objects.countries)
+    const countries = (topojson as any).feature(world, world.objects.countries)
     
     // Create projection
     const projection = d3.geoMercator()
