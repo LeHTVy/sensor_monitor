@@ -1,6 +1,40 @@
 <template>
   <v-app-bar elevation="0" class="luxury-header" height="64">
     <div class="d-flex align-center ml-4">
+      <!-- Menu Button -->
+      <v-menu>
+        <template v-slot:activator="{ props }">
+          <v-btn icon variant="text" size="small" class="mr-2" v-bind="props">
+            <v-icon>mdi-menu</v-icon>
+          </v-btn>
+        </template>
+        
+        <v-list>
+          <v-list-item :to="{ name: 'dashboard' }">
+            <template v-slot:prepend>
+              <v-icon>mdi-view-dashboard</v-icon>
+            </template>
+            <v-list-item-title>Dashboard</v-list-item-title>
+          </v-list-item>
+          
+          <v-list-item :to="{ name: 'all-logs' }">
+            <template v-slot:prepend>
+              <v-icon>mdi-shield-alert</v-icon>
+            </template>
+            <v-list-item-title>Threat Feed</v-list-item-title>
+          </v-list-item>
+          
+          <v-divider />
+          
+          <v-list-item @click="authStore.logout">
+            <template v-slot:prepend>
+              <v-icon>mdi-logout</v-icon>
+            </template>
+            <v-list-item-title>Logout</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
+      
       <v-icon icon="mdi-shield-check" class="logo-icon mr-3" size="36" />
       <div class="header-branding">
         <div class="header-title">WEB CAPTURE INTELLIGENCE</div>

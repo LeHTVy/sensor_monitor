@@ -5,5 +5,16 @@
 </template>
 
 <script setup lang="ts">
-// App component
+import { RouterView } from 'vue-router'
+import { onMounted } from 'vue'
+import { useTheme } from 'vuetify'
+import { useThemeStore } from '@/stores/theme'
+
+const vuetifyTheme = useTheme()
+const themeStore = useThemeStore()
+
+onMounted(() => {
+  themeStore.setVuetifyTheme(vuetifyTheme)
+  themeStore.initTheme()
+})
 </script>
