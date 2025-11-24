@@ -61,6 +61,7 @@ const loading = ref(true)
 const attackCount = ref(0)
 const attacks = ref<Attack[]>([])
 let refreshInterval: number | null = null
+let currentProjection: d3.GeoProjection | null = null
 
 // Country to coordinates mapping
 const countryCoords: Record<string, { lat: number; lon: number }> = {
@@ -77,8 +78,18 @@ const countryCoords: Record<string, { lat: number; lon: number }> = {
   'Canada': { lat: 60.0, lon: -95.0 },
   'Australia': { lat: -25.0, lon: 133.0 },
   'South Korea': { lat: 37.0, lon: 127.5 },
-  'Netherlands': { lat: 52.0, lon: 5.0 },
+  'Netherlands': { lat: 52.3, lon: 5.7 },
   'Singapore': { lat: 1.3, lon: 103.8 },
+  'Andorra': { lat: 42.5, lon: 1.5 },
+  'Spain': { lat: 40.0, lon: -4.0 },
+  'Italy': { lat: 42.8, lon: 12.8 },
+  'Poland': { lat: 52.0, lon: 20.0 },
+  'Ukraine': { lat: 49.0, lon: 32.0 },
+  'Turkey': { lat: 39.0, lon: 35.0 },
+  'Thailand': { lat: 15.0, lon: 101.0 },
+  'Indonesia': { lat: -2.5, lon: 118.0 },
+  'Mexico': { lat: 23.0, lon: -102.0 },
+  'Argentina': { lat: -34.0, lon: -64.0 },
 }
 
 async function fetchAttackData() {
@@ -167,6 +178,9 @@ async function renderMap() {
     const projection = d3.geoMercator()
       .fitSize([width, height], countries)
     
+    // Store projection for marker positioning
+    currentProjection = projection
+    
     const path = d3.geoPath().projection(projection)
     
     // Draw countries
@@ -201,20 +215,22 @@ async function renderMap() {
         .attr('stroke', getSvgColor(primaryColor))
         .attr('stroke-width', 0.5).attr('opacity', 0.2)
     }
-  }
-
-  // Convert lat/lon to x/y
-  function latLonToXY(lat: number, lon: number) {
-    const x = ((lon + 180) / 360) * width
-    const y = ((90 - lat) / 180) * height
-    return { x, y }
+    
+    // Use simple projection as fallback
+    currentProjection = d3.geoEquirectangular().fitSize([width, height], {
+      type: 'Sphere'
+    } as any)
   }
 
   // Draw attack markers
   const markersGroup = svg.append('g').attr('class', 'markers')
 
   attacks.value.forEach((attack) => {
-    const { x, y } = latLonToXY(attack.lat, attack.lon)
+    // Use the same projection as the map for accurate positioning
+    const coords = currentProjection ? currentProjection([attack.lon, attack.lat]) : null
+    if (!coords) return
+    
+    const [x, y] = coords
     
     // Outer pulsing circle
     markersGroup.append('circle')
