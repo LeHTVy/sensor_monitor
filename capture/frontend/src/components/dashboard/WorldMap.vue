@@ -1,7 +1,7 @@
 <template>
   <v-card class="world-map-card" elevation="2">
     <v-card-title class="d-flex align-center">
-      <v-icon icon="mdi-earth" color="accent-primary" class="mr-2" />
+      <v-icon icon="mdi-earth" color="primary" class="mr-2" />
       <span>ACTIVE CAPTURES</span>
       <v-chip size="small" variant="outlined" class="ml-3">
         {{ attackCount }} attacks
@@ -14,11 +14,28 @@
 
     <v-card-text>
       <div v-if="loading" class="map-loading">
-        <v-progress-circular indeterminate color="accent-primary" />
+        <v-progress-circular indeterminate color="primary" />
         <p>Loading attack data...</p>
       </div>
 
-      <svg v-else ref="mapSvg" class="world-map-svg"></svg>
+      <div v-else class="attack-map-container">
+        <svg ref="mapSvg" class="attack-map-svg"></svg>
+      </div>
+      
+      <!-- Attack Legend -->
+      <div v-if="!loading && attacks.length > 0" class="mt-4">
+        <div class="text-caption mb-2">Top Attack Origins:</div>
+        <v-chip
+          v-for="attack in attacks.slice(0, 5)"
+          :key="attack.country"
+          size="small"
+          variant="outlined"
+          color="primary"
+          class="mr-2 mb-2"
+        >
+          {{ attack.country }}: {{ attack.count }}
+        </v-chip>
+      </div>
     </v-card-text>
   </v-card>
 </template>
@@ -26,7 +43,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as d3 from 'd3'
-import { geoMercator, geoPath } from 'd3-geo'
 
 const API_KEY = 'capture_secure_key_2024'
 const API_BASE = '/api'
@@ -45,9 +61,27 @@ const attackCount = ref(0)
 const attacks = ref<Attack[]>([])
 let refreshInterval: number | null = null
 
+// Country to coordinates mapping
+const countryCoords: Record<string, { lat: number; lon: number }> = {
+  'Vietnam': { lat: 16.0, lon: 106.0 },
+  'United States': { lat: 37.0, lon: -95.0 },
+  'China': { lat: 35.0, lon: 105.0 },
+  'Russia': { lat: 60.0, lon: 100.0 },
+  'India': { lat: 20.0, lon: 77.0 },
+  'Germany': { lat: 51.0, lon: 9.0 },
+  'United Kingdom': { lat: 55.0, lon: -3.0 },
+  'France': { lat: 46.0, lon: 2.0 },
+  'Japan': { lat: 36.0, lon: 138.0 },
+  'Brazil': { lat: -14.0, lon: -51.0 },
+  'Canada': { lat: 60.0, lon: -95.0 },
+  'Australia': { lat: -25.0, lon: 133.0 },
+  'South Korea': { lat: 37.0, lon: 127.5 },
+  'Netherlands': { lat: 52.0, lon: 5.0 },
+  'Singapore': { lat: 1.3, lon: 103.8 },
+}
+
 async function fetchAttackData() {
   try {
-    // Fetch logs with GeoIP data
     const response = await fetch(
       `${API_BASE}/logs?limit=100`,
       { headers: { 'X-API-Key': API_KEY } }
@@ -57,24 +91,23 @@ async function fetchAttackData() {
       const data = await response.json()
       const logs = data.logs || []
 
-      // Aggregate attacks by location
+      // Aggregate attacks by country
       const locationMap = new Map<string, Attack>()
 
       logs.forEach((log: any) => {
-        if (log.geoip && log.geoip.country) {
-          const key = `${log.geoip.country}`
-          const existing = locationMap.get(key)
+        const country = log.geoip?.country || 'Unknown'
+        if (country !== 'Unknown') {
+          const existing = locationMap.get(country)
+          const coords = countryCoords[country] || { lat: 0, lon: 0 }
 
           if (existing) {
             existing.count++
           } else {
-            // Use approximate coordinates (you can enhance with real lat/lon from API)
-            const coords = getCountryCoordinates(log.geoip.country)
-            locationMap.set(key, {
+            locationMap.set(country, {
               ip: log.src_ip || log.ip,
               lat: coords.lat,
               lon: coords.lon,
-              country: log.geoip.country,
+              country: country,
               count: 1
             })
           }
@@ -91,29 +124,11 @@ async function fetchAttackData() {
   }
 }
 
-function getCountryCoordinates(country: string): { lat: number; lon: number } {
-  // Simple country to coordinates mapping (enhance with real GeoIP data)
-  const coords: Record<string, { lat: number; lon: number }> = {
-    'Vietnam': { lat: 16.0, lon: 106.0 },
-    'United States': { lat: 37.0, lon: -95.0 },
-    'China': { lat: 35.0, lon: 105.0 },
-    'Russia': { lat: 60.0, lon: 100.0 },
-    'India': { lat: 20.0, lon: 77.0 },
-    'Germany': { lat: 51.0, lon: 9.0 },
-    'United Kingdom': { lat: 55.0, lon: -3.0 },
-    'France': { lat: 46.0, lon: 2.0 },
-    'Japan': { lat: 36.0, lon: 138.0 },
-    'Brazil': { lat: -14.0, lon: -51.0 },
-  }
-
-  return coords[country] || { lat: 0, lon: 0 }
-}
-
 function renderMap() {
   if (!mapSvg.value) return
 
   const width = 900
-  const height = 450
+  const height = 400
 
   // Clear existing
   d3.select(mapSvg.value).selectAll('*').remove()
@@ -123,59 +138,93 @@ function renderMap() {
     .attr('height', height)
     .attr('viewBox', `0 0 ${width} ${height}`)
 
-  // Projection
-  const projection = geoMercator()
-    .scale(140)
-    .translate([width / 2, height / 1.5])
+  // Add world map background with grid
+  svg.append('rect')
+    .attr('width', width)
+    .attr('height', height)
+    .attr('fill', 'var(--v-theme-surface)')
+    .attr('stroke', 'var(--v-theme-primary)')
+    .attr('stroke-width', 1)
+    .attr('opacity', 0.1)
 
-  const path = geoPath().projection(projection)
+  // Draw latitude/longitude grid lines
+  const gridGroup = svg.append('g').attr('class', 'grid')
+  
+  // Horizontal lines (latitudes)
+  for (let lat = -90; lat <= 90; lat += 30) {
+    const y = ((90 - lat) / 180) * height
+    gridGroup.append('line')
+      .attr('x1', 0)
+      .attr('y1', y)
+      .attr('x2', width)
+      .attr('y2', y)
+      .attr('stroke', 'var(--v-theme-primary)')
+      .attr('stroke-width', 0.5)
+      .attr('opacity', 0.2)
+  }
 
-  // Draw world map (simplified)
-  // You can load actual GeoJSON for world countries
-  const graticule = d3.geoGraticule()
+  // Vertical lines (longitudes)
+  for (let lon = -180; lon <= 180; lon += 30) {
+    const x = ((lon + 180) / 360) * width
+    gridGroup.append('line')
+      .attr('x1', x)
+      .attr('y1', 0)
+      .attr('x2', x)
+      .attr('y2', height)
+      .attr('stroke', 'var(--v-theme-primary)')
+      .attr('stroke-width', 0.5)
+      .attr('opacity', 0.2)
+  }
 
-  svg.append('path')
-    .datum(graticule)
-    .attr('d', path)
-    .attr('fill', 'none')
-    .attr('stroke', 'var(--border-color)')
-    .attr('stroke-width', 0.5)
-    .attr('opacity', 0.3)
+  // Convert lat/lon to x/y
+  function latLonToXY(lat: number, lon: number) {
+    const x = ((lon + 180) / 360) * width
+    const y = ((90 - lat) / 180) * height
+    return { x, y }
+  }
 
-  // Draw attack locations
-  const g = svg.append('g')
+  // Draw attack markers
+  const markersGroup = svg.append('g').attr('class', 'markers')
 
-  // Add pulsing circles for attacks
   attacks.value.forEach((attack) => {
-    const coords = projection([attack.lon, attack.lat])
-    if (!coords) return
-
-    // Outer pulse circle
-    g.append('circle')
-      .attr('cx', coords[0])
-      .attr('cy', coords[1])
-      .attr('r', 5)
-      .attr('fill', 'var(--accent-primary)')
+    const { x, y } = latLonToXY(attack.lat, attack.lon)
+    
+    // Outer pulsing circle
+    markersGroup.append('circle')
+      .attr('cx', x)
+      .attr('cy', y)
+      .attr('r', 8)
+      .attr('fill', 'var(--v-theme-primary)')
       .attr('opacity', 0.3)
       .append('animate')
       .attr('attributeName', 'r')
-      .attr('from', 5)
-      .attr('to', 20)
+      .attr('from', 8)
+      .attr('to', 25)
       .attr('dur', '2s')
       .attr('repeatCount', 'indefinite')
 
-    g.append('circle')
-      .attr('cx', coords[0])
-      .attr('cy', coords[1])
-      .attr('r', 4)
-      .attr('fill', 'var(--accent-primary)')
-      .attr('opacity', 0.8)
+    markersGroup.append('circle')
+      .attr('cx', x)
+      .attr('cy', y)
+      .attr('r', 8 + (attack.count * 2))
+      .attr('fill', 'none')
+      .attr('stroke', 'var(--v-theme-primary)')
+      .attr('stroke-width', 2)
+      .attr('opacity', 0.6)
+
+    // Inner solid circle
+    markersGroup.append('circle')
+      .attr('cx', x)
+      .attr('cy', y)
+      .attr('r', 6)
+      .attr('fill', 'var(--v-theme-primary)')
+      .attr('opacity', 0.9)
       .style('cursor', 'pointer')
       .on('mouseover', function() {
-        d3.select(this).attr('r', 6)
+        d3.select(this).attr('r', 9)
       })
       .on('mouseout', function() {
-        d3.select(this).attr('r', 4)
+        d3.select(this).attr('r', 6)
       })
       .append('title')
       .text(`${attack.country}: ${attack.count} attacks`)
@@ -191,7 +240,7 @@ async function refresh() {
 onMounted(async () => {
   await fetchAttackData()
   renderMap()
-
+  
   // Auto-refresh every 30 seconds
   refreshInterval = window.setInterval(refresh, 30000)
 })
@@ -203,9 +252,8 @@ onUnmounted(() => {
 
 <style scoped>
 .world-map-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  min-height: 500px;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-primary), 0.2);
 }
 
 .map-loading {
@@ -213,18 +261,25 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 450px;
+  height: 400px;
   gap: 16px;
 }
 
-.world-map-svg {
+.attack-map-container {
+  position: relative;
   width: 100%;
-  height: 450px;
-  background: var(--bg-secondary);
+  height: 400px;
+  background: rgb(var(--v-theme-surface));
   border-radius: 8px;
+  overflow: hidden;
 }
 
-:deep(.world-map-svg circle) {
+.attack-map-svg {
+  width: 100%;
+  height: 100%;
+}
+
+:deep(.markers circle) {
   transition: all 0.2s ease;
 }
 </style>
