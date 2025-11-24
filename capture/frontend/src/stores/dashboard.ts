@@ -3,17 +3,38 @@ import { ref, computed } from 'vue'
 import { useAuthStore } from './auth'
 
 export interface Log {
-  id?: string
   timestamp: string
-  type: string
   src_ip: string
   dst_ip?: string
+  type: string
+  protocol?: string
   message?: string
   attack_tool?: string
-  attack_technique?: string[]
   geoip?: {
     country: string
     city: string
+    isp?: string
+  }
+  // Enrichment fields
+  threat_level?: string
+  threat_score?: number
+  attack_techniques?: string[]
+  osint?: {
+    abuseipdb?: {
+      abuseConfidenceScore: number
+      usageType?: string
+      isp?: string
+    }
+    shodan?: {
+      ports?: number[]
+      hostnames?: string[]
+      vulns?: string[]
+    }
+    virustotal?: {
+      malicious?: number
+      suspicious?: number
+      harmless?: number
+    }
   }
 }
 
