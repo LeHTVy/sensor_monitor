@@ -29,12 +29,7 @@
           </v-col>
         </v-row>
 
-        <!-- Kibana Dashboard -->
-        <v-row class="mt-4">
-          <v-col cols="12">
-            <KibanaDashboard />
-          </v-col>
-        </v-row>
+        
       </v-container>
     </v-main>
   </v-app>
@@ -47,7 +42,6 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useRefreshStore } from '@/stores/refreshData'
 import Navbar from '@/components/Navbar.vue'
 import HeroSection from '@/components/dashboard/HeroSection.vue'
-import KibanaDashboard from '@/components/dashboard/KibanaDashboard.vue'
 import AttackTimeline from '@/components/dashboard/AttackTimeline.vue'
 import EndpointHeatmap from '@/components/dashboard/EndpointHeatmap.vue'
 import WorldMap from '@/components/dashboard/WorldMap.vue'
