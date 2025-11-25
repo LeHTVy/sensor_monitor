@@ -193,10 +193,10 @@ Be concise, technical, and actionable. Focus on practical defense strategies.
             LLM response text or None if error
         """
         try:
-            url = f"{self.ollama_url}/api/generate"
+            url = f"{self.ollama_url}/api/chat"
             payload = {
                 'model': self.model,
-                'prompt': prompt,
+                'messages': [{'role': 'user', 'content': prompt}],
                 'stream': False,
                 'options': {
                     'temperature': temperature,
@@ -211,7 +211,7 @@ Be concise, technical, and actionable. Focus on practical defense strategies.
 
             if response.status_code == 200:
                 data = response.json()
-                llm_text = data.get('response', '')
+                llm_text = data.get('message', {}).get('content', '')
                 print(f"✅ LLM analysis complete ({len(llm_text)} chars)")
                 return llm_text
             else:
