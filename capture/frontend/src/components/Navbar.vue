@@ -11,8 +11,8 @@
         <div class="d-flex align-center">
           <v-img :src="logoSrc" width="32" height="32" class="mr-3" contain />
           <div>
-            <div class="text-subtitle-1 font-weight-bold">Capture</div>
-            <div class="text-caption">Intelligence</div>
+            <div class="text-subtitle-1 font-weight-bold">SHADOWTRAP</div>
+            <div class="text-caption">Hunt in Silence, Strike in Darkness</div>
           </div>
         </div>
       </v-list-item>
