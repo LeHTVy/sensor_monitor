@@ -95,6 +95,8 @@ services:
       - "10.8.0.1:9200:9200"
     networks:
       - sensor-network
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.15.3
@@ -187,3 +189,4 @@ networks:
 
 volumes:
   ollama-models:
+  es_data:
