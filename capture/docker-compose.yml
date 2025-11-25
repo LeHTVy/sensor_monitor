@@ -179,6 +179,7 @@ services:
     volumes:
       - ./llm_analyzer.py:/app/llm_analyzer.py
       - ./llm_consumer.py:/app/llm_consumer.py
+      - ./collector:/app/collector
       - ./logs:/app/logs
     working_dir: /app
     command: [ "bash", "-c", "pip install requests kafka-python elasticsearch && python -u llm_consumer.py" ]

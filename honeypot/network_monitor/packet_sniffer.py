@@ -316,11 +316,26 @@ class PacketSniffer:
         elif packet.haslayer(ICMP):
             protocol = 'ICMP'
 
+        # Check cooldown to prevent flooding
+        current_time = time.time()
+        last_reported = context.get('last_reported', {})
+        tool_name = detection['tool']
+        
+        # Cooldown of 60 seconds per tool per IP
+        if current_time - last_reported.get(tool_name, 0) < 60:
+            return
+
+        # Update last reported time
+        if 'last_reported' not in context:
+            context['last_reported'] = {}
+        context['last_reported'][tool_name] = current_time
+
         # Create log entry
         log_entry = {
             'type': 'network_scan',
             'timestamp': datetime.now().isoformat(),
             'source': 'network_monitor',
+            'ip': src_ip,  # Add 'ip' field for compatibility
             'src_ip': src_ip,
             'dst_ip': dst_ip,
             'dst_port': dst_port,
