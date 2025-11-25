@@ -54,12 +54,21 @@ class EnrichmentEngine:
         
         # 1. Detect attack tool
         print("🛠️  Detecting attack tool...")
-        detected_tool = self.tool_detector.detect(raw_log)
-        tool_info = {
-            'tool': detected_tool,
-            'confidence': 95 if detected_tool != 'unknown' else 0,
-            'method': 'signature_based'
-        }
+        # Check if tool is already detected (e.g. from network monitor)
+        if raw_log.get('attack_tool') and raw_log.get('attack_tool') != 'unknown':
+            tool_info = raw_log.get('attack_tool_info', {
+                'tool': raw_log['attack_tool'],
+                'confidence': 100,
+                'method': 'network_detection'
+            })
+            print(f"   Using existing detection: {tool_info['tool']}")
+        else:
+            detected_tool = self.tool_detector.detect(raw_log)
+            tool_info = {
+                'tool': detected_tool,
+                'confidence': 95 if detected_tool != 'unknown' else 0,
+                'method': 'signature_based'
+            }
         
         # 2. GeoIP lookup
         print(f"🌍 Looking up GeoIP for {ip}...")

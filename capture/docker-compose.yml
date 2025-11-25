@@ -182,7 +182,7 @@ services:
       - ./collector:/app/collector
       - ./logs:/app/logs
     working_dir: /app
-    command: [ "bash", "-c", "pip install requests kafka-python elasticsearch && python -u llm_consumer.py" ]
+    command: [ "bash", "-c", "pip install requests kafka-python elasticsearch==8.15.1 && python -u llm_consumer.py" ]
 
 networks:
   sensor-network:
