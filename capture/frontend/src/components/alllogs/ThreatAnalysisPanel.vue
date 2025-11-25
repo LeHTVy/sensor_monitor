@@ -150,9 +150,12 @@ const llmAnalysis = ref<any>(null)
 
 watch(() => props.log, async (newLog) => {
   if (newLog) {
-    // TODO: Fetch LLM analysis for this log from Elasticsearch
-    // For now, show placeholder
-    llmAnalysis.value = null
+    // Check if LLM analysis exists in the log
+    if (newLog.llm_analysis) {
+      llmAnalysis.value = newLog.llm_analysis
+    } else {
+      llmAnalysis.value = null
+    }
   }
 })
 
@@ -165,6 +168,20 @@ function getScoreColor(score?: number) {
 }
 
 function formatPayload(log: any) {
+  // Check if this is a network log (has protocol/flags)
+  if (log.protocol || log.flags !== undefined) {
+    return JSON.stringify({
+      protocol: log.protocol,
+      src_port: log.src_port,
+      dst_port: log.dst_port,
+      flags: log.flags,
+      size: log.size,
+      payload: log.payload,
+      type: log.type
+    }, null, 2)
+  }
+  
+  // Default to HTTP log
   return JSON.stringify({
     method: log.method,
     path: log.path,

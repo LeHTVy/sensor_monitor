@@ -173,7 +173,7 @@ services:
       - KAFKA_GROUP=llm-analyzer-group
       - ES_HOST=http://elasticsearch:9200
       - OLLAMA_URL=http://ollama:11434
-      - OLLAMA_MODEL=llama3.2
+      - OLLAMA_MODEL=deepseek-r1:latest
     networks:
       - sensor-network
     volumes:

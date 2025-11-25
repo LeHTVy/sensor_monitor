@@ -244,7 +244,9 @@ def es_search_logs(log_type: str, limit: int, date_from: str = None, date_to: st
                 "message": source.get("payload", source.get("message", "")),
                 "port": source.get("dst_port", source.get("port", 0)),
                 "kafka_topic": source.get("kafka_topic", ""),
-                "@ingested_at": source.get("@ingested_at", "")
+                "@ingested_at": source.get("@ingested_at", ""),
+                "llm_analysis": source.get("llm_analysis", None),
+                "defense_playbook": source.get("defense_playbook", None)
             }
             logs.append(log)
         

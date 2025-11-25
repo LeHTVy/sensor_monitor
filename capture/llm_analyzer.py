@@ -163,6 +163,8 @@ Based on this comprehensive intelligence, please provide:
 7. **IOCs (Indicators of Compromise)** (3-5 items)
    What should we monitor/block to detect similar attacks?
 
+IMPORTANT: You must return ONLY valid JSON. Do not include any introductory text, markdown formatting, or explanations outside the JSON object.
+
 Format your response as JSON with these exact keys:
 {{
   "intent": "...",

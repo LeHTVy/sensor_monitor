@@ -86,6 +86,11 @@ class EnrichmentEngine:
         print("🎯 Detecting attack techniques...")
         # If log already has techniques (e.g. from packet_sniffer), use them
         existing_techniques = raw_log.get('attack_technique', [])
+        
+        # Map 'type' from network monitor to attack_technique
+        if not existing_techniques and raw_log.get('type'):
+            existing_techniques = [raw_log.get('type')]
+
         if isinstance(existing_techniques, str):
             existing_techniques = [existing_techniques]
             
