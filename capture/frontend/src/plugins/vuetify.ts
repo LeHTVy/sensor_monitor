@@ -32,7 +32,7 @@ const lightTheme = {
     surface: '#F5F5F5',
     'surface-variant': '#FEFEFE',
     primary: '#021273',           // Royal blue text color
-    'primary-darken-1': '#021273',
+    'primary-darken-1': '#020b48ff',
     secondary: '#E8D7B8',
     accent: '#021273',
     error: '#EF4444',
