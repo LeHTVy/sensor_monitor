@@ -8,8 +8,8 @@ services:
       - ./logs:/app/logs
     environment:
       - FLASK_ENV=production
-      - CAPTURE_SERVER_URL=http://10.8.0.1:8082  # Gửi log qua VPN
-      - KAFKA_BOOTSTRAP_SERVERS=10.8.0.1:9093   # Kafka qua VPN
+      - CAPTURE_SERVER_URL=http://10.8.0.1:8082 # Gửi log qua VPN
+      - KAFKA_BOOTSTRAP_SERVERS=10.8.0.1:9093 # Kafka qua VPN
     env_file:
       - .env
     restart: unless-stopped
@@ -17,5 +17,18 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
-    # Note: host network mode ignores 'ports' mapping
     # Container directly uses host's network, so port 80/443 will be accessible
+
+  network-monitor:
+    build: ./network_monitor
+    container_name: network-monitor
+    network_mode: host
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ./network_monitor:/app
+      - ./app:/app/app
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=10.8.0.1:9093
