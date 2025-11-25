@@ -6,6 +6,7 @@ Provides geographic and network information for IP addresses
 
 import os
 import requests
+import geoip2.database
 from typing import Dict, Optional
 
 
@@ -16,10 +17,32 @@ class GeoIPEnricher:
         self.api_key = os.getenv('GEOIP_API_KEY', '')
         self.use_premium = bool(self.api_key)
         
-        if self.use_premium:
-            print("✅ GeoIP: Using MaxMind premium API")
-        else:
-            print("ℹ️  GeoIP: Using free ip-api.com (no API key)")
+        # Local DB paths
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.city_db_path = os.path.join(base_dir, 'geoip', 'GeoLite2-City.mmdb')
+        self.asn_db_path = os.path.join(base_dir, 'geoip', 'GeoLite2-ASN.mmdb')
+        
+        self.city_reader = None
+        self.asn_reader = None
+        
+        # Initialize local readers
+        try:
+            if os.path.exists(self.city_db_path):
+                self.city_reader = geoip2.database.Reader(self.city_db_path)
+                print(f"✅ GeoIP: Using local City database: {self.city_db_path}")
+            
+            if os.path.exists(self.asn_db_path):
+                self.asn_reader = geoip2.database.Reader(self.asn_db_path)
+                print(f"✅ GeoIP: Using local ASN database: {self.asn_db_path}")
+                
+        except Exception as e:
+            print(f"⚠️  GeoIP: Failed to load local databases: {e}")
+
+        if not self.city_reader:
+            if self.use_premium:
+                print("ℹ️  GeoIP: Local DB missing, using MaxMind premium API")
+            else:
+                print("ℹ️  GeoIP: Local DB missing, using free ip-api.com")
     
     def enrich(self, ip: str) -> Dict:
         """
@@ -45,6 +68,10 @@ class GeoIPEnricher:
                 'timezone': 'Local',
                 'postal': 'N/A'
             }
+        
+        # Try local DB first
+        if self.city_reader:
+            return self._query_local(ip)
         
         # Try premium API first if available
         if self.use_premium:
@@ -76,6 +103,52 @@ class GeoIPEnricher:
                 ip.startswith('172.29.') or
                 ip.startswith('172.30.') or
                 ip.startswith('172.31.'))
+
+    def _query_local(self, ip: str) -> Dict:
+        """Query local MaxMind database"""
+        result = {
+            'country': 'Unknown',
+            'city': 'Unknown',
+            'region': 'Unknown',
+            'isp': 'Unknown',
+            'org': 'Unknown',
+            'asn': 'Unknown',
+            'lat': 0.0,
+            'lon': 0.0,
+            'timezone': 'Unknown',
+            'postal': 'Unknown'
+        }
+        
+        try:
+            # City lookup
+            if self.city_reader:
+                response = self.city_reader.city(ip)
+                result.update({
+                    'country': response.country.name or 'Unknown',
+                    'city': response.city.name or 'Unknown',
+                    'region': response.subdivisions.most_specific.name or 'Unknown',
+                    'lat': response.location.latitude or 0.0,
+                    'lon': response.location.longitude or 0.0,
+                    'timezone': response.location.time_zone or 'Unknown',
+                    'postal': response.postal.code or 'Unknown'
+                })
+            
+            # ASN lookup
+            if self.asn_reader:
+                try:
+                    response = self.asn_reader.asn(ip)
+                    result.update({
+                        'asn': f"AS{response.autonomous_system_number}" if response.autonomous_system_number else 'Unknown',
+                        'org': response.autonomous_system_organization or 'Unknown',
+                        'isp': response.autonomous_system_organization or 'Unknown' # ASN DB often has ISP as Org
+                    })
+                except geoip2.errors.AddressNotFoundError:
+                    pass
+                    
+        except Exception as e:
+            print(f"⚠️  Local GeoIP error for {ip}: {e}")
+            
+        return result
     
     def _query_maxmind(self, ip: str) -> Optional[Dict]:
         """Query MaxMind GeoIP2 Precision API"""
