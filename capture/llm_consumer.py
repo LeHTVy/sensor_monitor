@@ -66,8 +66,7 @@ class LLMAttackConsumer:
                 group_id=self.kafka_group,
                 auto_offset_reset='earliest',  # Process all historical attacks
                 enable_auto_commit=True,
-                value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-                consumer_timeout_ms=1000  # 1 second timeout for poll
+                value_deserializer=lambda m: json.loads(m.decode('utf-8'))
             )
             print(f"✅ Kafka consumer connected to {self.kafka_servers}")
         except Exception as e:
