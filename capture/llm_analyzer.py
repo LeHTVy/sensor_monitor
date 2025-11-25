@@ -101,11 +101,11 @@ class LLMAttackAnalyzer:
 - ISP/Organization: {attacker['location'].get('isp', 'Unknown')} / {attacker['location'].get('organization', 'Unknown')}
 
 # INFRASTRUCTURE
-- Known Scanner: {attacker['infrastructure']['is_known_scanner']}
-- VPN/Proxy: {attacker['infrastructure']['is_vpn_proxy']}
-- Tor Exit Node: {attacker['infrastructure']['is_tor_exit']}
-- Cloud Infrastructure: {attacker['infrastructure']['is_cloud']}
-- ASN: {attacker['infrastructure']['asn']}
+- Known Scanner: {attacker['infrastructure'].get('is_known_scanner', 'Unknown')}
+- VPN/Proxy: {attacker['infrastructure'].get('is_vpn_proxy', 'Unknown')}
+- Tor Exit Node: {attacker['infrastructure'].get('is_tor_exit', 'Unknown')}
+- Cloud Infrastructure: {attacker['infrastructure'].get('is_cloud', 'Unknown')}
+- ASN: {attacker['infrastructure'].get('asn', 'Unknown')}
 
 # ATTACK HISTORY
 - Abuse Reports: {attacker['attack_history']['abuse_reports']}
