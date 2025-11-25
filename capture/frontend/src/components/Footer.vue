@@ -2,7 +2,7 @@
   <v-footer app class="footer-container d-flex flex-column py-4">
     <div class="d-flex align-center w-100 px-4">
       <div class="d-flex align-center">
-        <v-icon icon="mdi-shield-check" color="primary" class="mr-2" size="24" />
+        <v-img :src="logoSrc" class="mr-2" width="24" height="24" contain />
         <span class="text-subtitle-1 font-weight-bold text-primary">SHADOWTRAP</span>
         <v-divider vertical class="mx-3" />
         <span class="text-caption text-medium-emphasis font-italic">Hunt in Silence, Strike in Darkness</span>
@@ -18,7 +18,14 @@
 </template>
 
 <script setup lang="ts">
-// Footer component
+import { computed } from 'vue'
+import { useThemeStore } from '@/stores/theme'
+
+const themeStore = useThemeStore()
+
+const logoSrc = computed(() => {
+  return themeStore.isDark ? '/Logo-Golden.png' : '/Logo-Blue.png'
+})
 </script>
 
 <style scoped>

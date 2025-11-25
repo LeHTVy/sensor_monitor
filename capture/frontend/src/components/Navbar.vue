@@ -9,7 +9,7 @@
     <v-list nav>
       <v-list-item class="py-4 px-4">
         <div class="d-flex align-center">
-          <v-icon icon="mdi-shield-check" color="primary" size="32" class="mr-3" />
+          <v-img :src="logoSrc" width="32" height="32" class="mr-3" contain />
           <div>
             <div class="text-subtitle-1 font-weight-bold">Capture</div>
             <div class="text-caption">Intelligence</div>
@@ -58,7 +58,7 @@
         <v-icon>mdi-menu</v-icon>
       </v-btn>
       
-      <v-icon icon="mdi-shield-check" class="logo-icon mr-3" size="36" />
+      <v-img :src="logoSrc" class="logo-icon mr-3" width="36" height="36" contain />
       <div class="header-branding">
         <div class="header-title">SHADOWTRAP</div>
         <div class="header-subtitle">Hunt in Silence, Strike in Darkness</div>
@@ -95,13 +95,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
 
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
 const drawer = ref(false)
+
+const logoSrc = computed(() => {
+  return themeStore.isDark ? '/Logo-Golden.png' : '/Logo-Blue.png'
+})
 </script>
 
 <style scoped>
