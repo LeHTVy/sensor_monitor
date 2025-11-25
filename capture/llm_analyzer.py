@@ -97,8 +97,8 @@ class LLMAttackAnalyzer:
 - IP Address: {attacker['ip_address']}
 - Reputation Score: {attacker['reputation_score']}/100 (higher = more malicious)
 - Threat Level: {attacker['threat_level']}
-- Location: {attacker['location']['city']}, {attacker['location']['country']}
-- ISP/Organization: {attacker['location']['isp']} / {attacker['location']['organization']}
+- Location: {attacker['location'].get('city', 'Unknown')}, {attacker['location'].get('country', 'Unknown')}
+- ISP/Organization: {attacker['location'].get('isp', 'Unknown')} / {attacker['location'].get('organization', 'Unknown')}
 
 # INFRASTRUCTURE
 - Known Scanner: {attacker['infrastructure']['is_known_scanner']}
