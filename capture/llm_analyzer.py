@@ -108,28 +108,28 @@ class LLMAttackAnalyzer:
 - ASN: {attacker['infrastructure'].get('asn', 'Unknown')}
 
 # ATTACK HISTORY
-- Abuse Reports: {attacker['attack_history']['abuse_reports']}
-- Last Reported: {attacker['attack_history']['last_reported'] or 'Never'}
-- Confidence Score: {attacker['attack_history']['confidence_score']}/100
+- Abuse Reports: {attacker['attack_history'].get('abuse_reports', 0)}
+- Last Reported: {attacker['attack_history'].get('last_reported', 'Never')}
+- Confidence Score: {attacker['attack_history'].get('confidence_score', 0)}/100
 
 # CURRENT ATTACK
-- Timestamp: {attack['timestamp']}
-- Attack Tool: {attack['attack_tool']}
-- Attack Techniques: {', '.join(attack['attack_technique'])}
-- Target Path: {attack['target_path']}
-- HTTP Method: {attack['http_method']}
-- User Agent: {attack['user_agent'][:100]}...
+- Timestamp: {attack.get('timestamp', 'Unknown')}
+- Attack Tool: {attack.get('attack_tool', 'Unknown')}
+- Attack Techniques: {', '.join(attack.get('attack_technique', []))}
+- Target Path: {attack.get('target_path', 'Unknown')}
+- HTTP Method: {attack.get('http_method', 'Unknown')}
+- User Agent: {attack.get('user_agent', 'Unknown')[:100]}...
 
 # PAYLOAD ANALYSIS
-- Query String: {json.dumps(attack['payload']['query_string']) if attack['payload']['query_string'] else 'None'}
-- Form Data: {json.dumps(attack['payload']['form_data']) if attack['payload']['form_data'] else 'None'}
-- Files Uploaded: {', '.join(attack['payload']['files']) if attack['payload']['files'] else 'None'}
+- Query String: {json.dumps(attack['payload'].get('query_string', {})) if attack['payload'].get('query_string') else 'None'}
+- Form Data: {json.dumps(attack['payload'].get('form_data', {})) if attack['payload'].get('form_data') else 'None'}
+- Files Uploaded: {', '.join(attack['payload'].get('files', [])) if attack['payload'].get('files') else 'None'}
 
 # TECHNICAL INTELLIGENCE (from Shodan)
-- Open Ports: {', '.join(map(str, tech_intel['open_ports'][:10])) if tech_intel['open_ports'] else 'Unknown'}
-- Operating System: {tech_intel['operating_system']}
-- Vulnerabilities (CVEs): {', '.join(tech_intel['vulnerabilities'][:5]) if tech_intel['vulnerabilities'] else 'None'}
-- Shodan Tags: {', '.join(tech_intel['tags'][:5]) if tech_intel['tags'] else 'None'}
+- Open Ports: {', '.join(map(str, tech_intel.get('open_ports', [])[:10])) if tech_intel.get('open_ports') else 'Unknown'}
+- Operating System: {tech_intel.get('operating_system', 'Unknown')}
+- Vulnerabilities (CVEs): {', '.join(tech_intel.get('vulnerabilities', [])[:5]) if tech_intel.get('vulnerabilities') else 'None'}
+- Shodan Tags: {', '.join(tech_intel.get('tags', [])[:5]) if tech_intel.get('tags') else 'None'}
 
 # BEHAVIORAL INDICATORS
 - Request Rate: {behavior['request_rate']} req/sec
