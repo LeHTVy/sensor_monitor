@@ -52,12 +52,15 @@
         </v-row>
       </v-container>
     </v-main>
+
+    <Footer />
   </v-app>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import Navbar from '@/components/Navbar.vue'
+import Footer from '@/components/Footer.vue'
 import ThreatCapsule from '@/components/alllogs/ThreatCapsule.vue'
 import ThreatAnalysisPanel from '@/components/alllogs/ThreatAnalysisPanel.vue'
 

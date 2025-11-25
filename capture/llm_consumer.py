@@ -11,6 +11,7 @@ from datetime import datetime
 from kafka import KafkaConsumer
 from elasticsearch import Elasticsearch, helpers
 from llm_analyzer import LLMAttackAnalyzer
+from collector.osint_enricher import OSINTEnricher
 
 
 class LLMAttackConsumer:
@@ -36,6 +37,7 @@ class LLMAttackConsumer:
         self.consumer = None
         self.es_client = None
         self.llm_analyzer = None
+        self.osint_enricher = None
 
         # Statistics
         self.stats = {
@@ -115,6 +117,14 @@ class LLMAttackConsumer:
             print(f"❌ Failed to initialize LLM analyzer: {e}")
             raise
 
+        # Initialize OSINT Enricher
+        print("\n🔎 Initializing OSINT enricher...")
+        try:
+            self.osint_enricher = OSINTEnricher()
+        except Exception as e:
+            print(f"⚠️  Failed to initialize OSINT enricher: {e}")
+            print("   Continuing without OSINT enrichment")
+
         print("\n✅ All components initialized successfully!")
 
     def process_message(self, message):
@@ -143,14 +153,27 @@ class LLMAttackConsumer:
             llm_context = log_data.get('llm_context')
             if not llm_context:
                 print(f"⚠️  LLM context missing, building from raw log...")
+                
+                # Perform OSINT enrichment here (async from main collector)
+                osint_data = {}
+                if self.osint_enricher:
+                    print(f"🔎 Gathering OSINT data for {ip}...")
+                    try:
+                        osint_data = self.osint_enricher.enrich(ip)
+                    except Exception as e:
+                        print(f"⚠️  OSINT enrichment failed: {e}")
+
                 llm_context = {
                     'attacker_profile': {
                         'ip_address': ip,
-                        'reputation_score': 50, # Default
+                        'reputation_score': self.osint_enricher.calculate_threat_score(osint_data) if self.osint_enricher else 50,
                         'threat_level': 'unknown',
                         'location': log_data.get('geoip', {}),
-                        'infrastructure': {'asn': 'unknown'},
-                        'attack_history': {'abuse_reports': 0}
+                        'infrastructure': {
+                            'asn': log_data.get('geoip', {}).get('asn', 'unknown'),
+                            'osint': osint_data
+                        },
+                        'attack_history': {'abuse_reports': osint_data.get('abuseipdb', {}).get('total_reports', 0)}
                     },
                     'attack_details': {
                         'timestamp': log_data.get('timestamp'),
@@ -166,10 +189,10 @@ class LLMAttackConsumer:
                         }
                     },
                     'technical_intelligence': {
-                        'open_ports': [],
-                        'operating_system': 'unknown',
-                        'vulnerabilities': [],
-                        'tags': []
+                        'open_ports': osint_data.get('shodan', {}).get('open_ports', []),
+                        'operating_system': osint_data.get('shodan', {}).get('os', 'unknown'),
+                        'vulnerabilities': osint_data.get('shodan', {}).get('vulns', []),
+                        'tags': osint_data.get('shodan', {}).get('tags', [])
                     },
                     'behavioral_indicators': {
                         'request_rate': 0,

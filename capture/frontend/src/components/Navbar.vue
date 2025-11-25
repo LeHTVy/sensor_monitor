@@ -60,8 +60,8 @@
       
       <v-icon icon="mdi-shield-check" class="logo-icon mr-3" size="36" />
       <div class="header-branding">
-        <div class="header-title">WEB CAPTURE INTELLIGENCE</div>
-        <div class="header-subtitle">Threat Detection Dashboard</div>
+        <div class="header-title">SHADOWTRAP</div>
+        <div class="header-subtitle">Hunt in Silence, Strike in Darkness</div>
       </div>
     </div>
 

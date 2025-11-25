@@ -31,16 +31,16 @@ const lightTheme = {
     background: '#FFFFFF',        // White background
     surface: '#F5F5F5',
     'surface-variant': '#FEFEFE',
-    primary: '#9e8662',           // Brown/beige text color
-    'primary-darken-1': '#8B7456',
+    primary: '#021273',           // Royal blue text color
+    'primary-darken-1': '#021273',
     secondary: '#E8D7B8',
-    accent: '#9e8662',
+    accent: '#021273',
     error: '#EF4444',
     info: '#3B82F6',
     success: '#10B981',
     warning: '#F59E0B',
-    'on-background': '#9e8662',   // Brown text
-    'on-surface': '#9e8662',       // Brown text
+    'on-background': '#021273',   // Royal blue text
+    'on-surface': '#021273',       // Royal blue text
     'on-primary': '#FFFFFF',
   }
 }

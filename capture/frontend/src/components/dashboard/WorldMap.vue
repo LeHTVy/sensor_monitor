@@ -139,8 +139,8 @@ async function fetchAttackData() {
 async function renderMap() {
   if (!mapSvg.value) return
 
-  const width = 900
-  const height = 400
+  const width = 1200
+  const height = 600
 
   // Clear existing
   d3.select(mapSvg.value).selectAll('*').remove()
@@ -292,14 +292,14 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 400px;
+  height: 600px;
   gap: 16px;
 }
 
 .attack-map-container {
   position: relative;
   width: 100%;
-  height: 400px;
+  height: 600px;
   background: rgb(var(--v-theme-surface));
   border-radius: 8px;
   overflow: hidden;

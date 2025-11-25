@@ -34,6 +34,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useDashboardStore } from '@/stores/dashboard'
 import {
   Chart,
   CategoryScale,
@@ -49,8 +50,7 @@ import {
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
-const API_KEY = 'capture_secure_key_2024'
-const API_BASE = '/api'
+const dashboardStore = useDashboardStore()
 
 interface TimelineData {
   timestamp: string
@@ -61,111 +61,91 @@ interface TimelineData {
 
 const timeRange = ref('24')
 const timelineData = ref<TimelineData[]>([])
-const loading = ref(false)
-const error = ref('')
 const chartCanvas = ref<HTMLCanvasElement>()
 let chartInstance: Chart | null = null
-let refreshInterval: number | null = null
 
+const loading = computed(() => dashboardStore.loading)
+const error = ref('') // Store doesn't expose error, but we can assume no error if logs are loaded
 const hasData = computed(() => timelineData.value.length > 0)
 
-const getInterval = () => {
-  const hours = parseInt(timeRange.value)
-  if (hours <= 1) return '5m'
-  if (hours <= 6) return '30m'
-  return '1h'
-}
-
-const fetchTimeline = async () => {
-  try {
-    loading.value = true
-    error.value = ''
-    
-    // Try timeline endpoint first
-    let response = await fetch(
-      `${API_BASE}/logs/timeline?hours=${timeRange.value}&interval=${getInterval()}`,
-      { headers: { 'X-API-Key': API_KEY } }
-    )
-    
-    if (response.ok) {
-      const data = await response.json()
-      if (data.timeline && data.timeline.length > 0) {
-        timelineData.value = data.timeline
-        await nextTick()
-        updateChart()
-        return
-      }
-    }
-    
-    // Fallback: Get real logs and aggregate them
-    console.log('Generating timeline from real logs...')
-    response = await fetch(
-      `${API_BASE}/logs?limit=1000`,
-      { headers: { 'X-API-Key': API_KEY } }
-    )
-    
-    if (!response.ok) throw new Error('Failed to fetch logs')
-    
-    const logsData = await response.json()
-    const logs = logsData.logs || []
-    
-    if (logs.length === 0) {
-      timelineData.value = []
-      await nextTick()
-      updateChart()
-      return
-    }
-    
-    // Aggregate logs into time buckets
-    const hours = parseInt(timeRange.value)
-    const intervalMinutes = hours <= 1 ? 5 : (hours <= 6 ? 30 : 60)
-    const buckets = new Map<string, TimelineData>()
-    
-    logs.forEach((log: any) => {
-      const timestamp = new Date(log.timestamp || log['@timestamp'] || Date.now())
-      const bucketTime = new Date(
-        Math.floor(timestamp.getTime() / (intervalMinutes * 60000)) * (intervalMinutes * 60000)
-      )
-      const key = bucketTime.toISOString()
-      
-      if (!buckets.has(key)) {
-        buckets.set(key, {
-          timestamp: key,
-          count: 0,
-          tools: {},
-          severities: {}
-        })
-      }
-      
-      const bucket = buckets.get(key)!
-      bucket.count++
-      
-      // Track tools
-      const tool = log.attack_tool || log.tool || 'unknown'
-      bucket.tools[tool] = (bucket.tools[tool] || 0) + 1
-      
-      // Track severities
-      const severity = log.threat_level || log.severity || 'low'
-      bucket.severities[severity] = (bucket.severities[severity] || 0) + 1
-    })
-    
-    timelineData.value = Array.from(buckets.values())
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-      .slice(-50) // Last 50 data points
-    
-    await nextTick()
+const generateTimelineData = () => {
+  const logs = dashboardStore.logs
+  
+  if (logs.length === 0) {
+    timelineData.value = []
     updateChart()
-  } catch (err: any) {
-    error.value = err.message || 'Error loading timeline'
-    console.error('Timeline fetch error:', err)
-  } finally {
-    loading.value = false
+    return
   }
+  
+  const hours = parseInt(timeRange.value)
+  const now = new Date()
+  const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000)
+  
+  // Filter logs by time range
+  const filteredLogs = logs.filter(log => {
+    const logTime = new Date(log.timestamp || (log as any)['@timestamp'] || Date.now())
+    return logTime >= startTime && logTime <= now
+  })
+
+  if (filteredLogs.length === 0) {
+    timelineData.value = []
+    updateChart()
+    return
+  }
+
+  // Aggregate logs into time buckets
+  const intervalMinutes = hours <= 1 ? 5 : (hours <= 6 ? 30 : 60)
+  const buckets = new Map<string, TimelineData>()
+  
+  // Initialize buckets to ensure continuous line (optional, but looks better)
+  // For now, let's just map the existing logs to avoid sparse array issues if not needed
+  
+  filteredLogs.forEach((log: any) => {
+    const timestamp = new Date(log.timestamp || log['@timestamp'] || Date.now())
+    // Round down to nearest interval
+    const bucketTime = new Date(
+      Math.floor(timestamp.getTime() / (intervalMinutes * 60000)) * (intervalMinutes * 60000)
+    )
+    const key = bucketTime.toISOString()
+    
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        timestamp: key,
+        count: 0,
+        tools: {},
+        severities: {}
+      })
+    }
+    
+    const bucket = buckets.get(key)!
+    bucket.count++
+    
+    // Track tools
+    const tool = log.attack_tool || log.tool || 'unknown'
+    bucket.tools[tool] = (bucket.tools[tool] || 0) + 1
+    
+    // Track severities
+    const severity = log.threat_level || log.severity || 'low'
+    bucket.severities[severity] = (bucket.severities[severity] || 0) + 1
+  })
+  
+  timelineData.value = Array.from(buckets.values())
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+  
+  updateChart()
 }
 
 const updateChart = () => {
-  if (!chartCanvas.value || !hasData.value) return
-
+  if (!chartCanvas.value) return
+  
+  // If no data, we might want to clear the chart or show empty state
+  // The template handles !hasData, but if we have the canvas we can draw an empty chart or just return
+  if (!hasData.value && chartInstance) {
+     chartInstance.destroy()
+     chartInstance = null
+     return
+  }
+  
   const ctx = chartCanvas.value.getContext('2d')
   if (!ctx) return
 
@@ -259,16 +239,17 @@ const updateChart = () => {
 }
 
 onMounted(() => {
-  fetchTimeline()
-  refreshInterval = window.setInterval(fetchTimeline, 30000) // Refresh every 30s
+  generateTimelineData()
 })
 
 onUnmounted(() => {
-  if (refreshInterval) clearInterval(refreshInterval)
   if (chartInstance) chartInstance.destroy()
 })
 
-watch(timeRange, fetchTimeline)
+// Watch for changes in logs or timeRange
+watch([() => dashboardStore.logs, timeRange], () => {
+  generateTimelineData()
+})
 </script>
 
 <style scoped>

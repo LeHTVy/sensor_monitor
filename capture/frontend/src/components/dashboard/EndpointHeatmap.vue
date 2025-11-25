@@ -81,10 +81,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useDashboardStore } from '@/stores/dashboard'
 
-const API_KEY = 'capture_secure_key_2024'
-const API_BASE = '/api'
+const dashboardStore = useDashboardStore()
 
 interface HeatmapItem {
   endpoint: string
@@ -95,10 +95,9 @@ interface HeatmapItem {
 }
 
 const heatmapData = ref<HeatmapItem[]>([])
-const loading = ref(false)
-const error = ref('')
-let refreshInterval: number | null = null
 
+const loading = computed(() => dashboardStore.loading)
+const error = ref('') // Store doesn't expose error, but we can assume no error if logs are loaded
 const hasData = computed(() => heatmapData.value.length > 0)
 
 const maxCount = computed(() =>
@@ -113,92 +112,57 @@ const getThreatColor = (threats: Record<string, number>): string => {
   return '#10B981'
 }
 
-const fetchHeatmap = async () => {
-  try {
-    loading.value = true
-    error.value = ''
-    
-    // Try heatmap endpoint first
-    let response = await fetch(
-      `${API_BASE}/logs/heatmap?hours=24&limit=10`,
-      { headers: { 'X-API-Key': API_KEY } }
-    )
-    
-    if (response.ok) {
-      const data = await response.json()
-      if (data.heatmap && data.heatmap.length > 0) {
-        heatmapData.value = data.heatmap
-        return
-      }
-    }
-    
-    // Fallback: Get real logs and aggregate them
-    console.log('Generating heatmap from real logs...')
-    response = await fetch(
-      `${API_BASE}/logs?limit=1000`,
-      { headers: { 'X-API-Key': API_KEY } }
-    )
-    
-    if (!response.ok) throw new Error('Failed to fetch logs')
-    
-    const logsData = await response.json()
-    const logs = logsData.logs || []
-    
-    if (logs.length === 0) {
-      heatmapData.value = []
-      return
-    }
-    
-    // Aggregate by endpoint
-    const endpointMap = new Map<string, HeatmapItem>()
-    const ipSets = new Map<string, Set<string>>()
-    
-    logs.forEach((log: any) => {
-      const endpoint = log.path || log.url || log.request_path || '/'
-      const ip = log.src_ip || log.ip || 'unknown'
-      const method = log.method || 'GET'
-      const threat = log.threat_level || 'low'
-      
-      if (!endpointMap.has(endpoint)) {
-        endpointMap.set(endpoint, {
-          endpoint,
-          count: 0,
-          unique_ips: 0,
-          methods: {},
-          threat_levels: {}
-        })
-        ipSets.set(endpoint, new Set())
-      }
-      
-      const item = endpointMap.get(endpoint)!
-      const ips = ipSets.get(endpoint)!
-      
-      item.count++
-      ips.add(ip)
-      item.unique_ips = ips.size
-      item.methods[method] = (item.methods[method] || 0) + 1
-      item.threat_levels[threat] = (item.threat_levels[threat] || 0) + 1
-    })
-    
-    heatmapData.value = Array.from(endpointMap.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10)
-      
-  } catch (err: any) {
-    error.value = err.message || 'Error loading heatmap'
-    console.error('Heatmap fetch error:', err)
-  } finally {
-    loading.value = false
+const generateHeatmapData = () => {
+  const logs = dashboardStore.logs
+  
+  if (logs.length === 0) {
+    heatmapData.value = []
+    return
   }
+  
+  // Aggregate by endpoint
+  const endpointMap = new Map<string, HeatmapItem>()
+  const ipSets = new Map<string, Set<string>>()
+  
+  logs.forEach((log: any) => {
+    const endpoint = log.path || log.url || log.request_path || '/'
+    const ip = log.src_ip || log.ip || 'unknown'
+    const method = log.method || 'GET'
+    const threat = log.threat_level || 'low'
+    
+    if (!endpointMap.has(endpoint)) {
+      endpointMap.set(endpoint, {
+        endpoint,
+        count: 0,
+        unique_ips: 0,
+        methods: {},
+        threat_levels: {}
+      })
+      ipSets.set(endpoint, new Set())
+    }
+    
+    const item = endpointMap.get(endpoint)!
+    const ips = ipSets.get(endpoint)!
+    
+    item.count++
+    ips.add(ip)
+    item.unique_ips = ips.size
+    item.methods[method] = (item.methods[method] || 0) + 1
+    item.threat_levels[threat] = (item.threat_levels[threat] || 0) + 1
+  })
+  
+  heatmapData.value = Array.from(endpointMap.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
 }
 
 onMounted(() => {
-  fetchHeatmap()
-  refreshInterval = window.setInterval(fetchHeatmap, 60000) // Refresh every 60s
+  generateHeatmapData()
 })
 
-onUnmounted(() => {
-  if (refreshInterval) clearInterval(refreshInterval)
+// Watch for changes in logs
+watch(() => dashboardStore.logs, () => {
+  generateHeatmapData()
 })
 </script>
 

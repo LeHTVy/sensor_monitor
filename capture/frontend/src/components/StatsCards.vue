@@ -28,7 +28,27 @@ import { useDashboardStore } from '@/stores/dashboard'
 
 const dashboardStore = useDashboardStore()
 
-const statCards = computed(() => dashboardStore.statCards)
+const statCards = computed(() => {
+  const logs = dashboardStore.logs
+  return [
+    { 
+      title: 'Total Logs', 
+      value: logs.length 
+    },
+    { 
+      title: 'Attacks', 
+      value: logs.filter(l => l.type === 'attack').length 
+    },
+    { 
+      title: 'Honeypot', 
+      value: logs.filter(l => l.type === 'honeypot').length 
+    },
+    { 
+      title: 'Traffic', 
+      value: logs.filter(l => l.type === 'traffic').length 
+    }
+  ]
+})
 
 function getCardColor(index: number) {
   const colors = ['primary', 'error', 'warning', 'info']

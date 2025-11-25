@@ -32,6 +32,8 @@
         
       </v-container>
     </v-main>
+
+    <Footer />
   </v-app>
 </template>
 
@@ -45,6 +47,7 @@ import HeroSection from '@/components/dashboard/HeroSection.vue'
 import AttackTimeline from '@/components/dashboard/AttackTimeline.vue'
 import EndpointHeatmap from '@/components/dashboard/EndpointHeatmap.vue'
 import WorldMap from '@/components/dashboard/WorldMap.vue'
+import Footer from '@/components/Footer.vue'
 
 const authStore = useAuthStore()
 const dashboardStore = useDashboardStore()
