@@ -34,13 +34,14 @@ except ImportError:
     sys.exit(1)
 
 # Import Kafka producer - try multiple import paths
+# Import Kafka producer - try multiple import paths
 try:
-    from app.utils.kafka_producer import KafkaProducer
+    from app.utils.kafka_producer import HoneypotKafkaProducer as KafkaProducer
 except ImportError:
     try:
-        from utils.kafka_producer import KafkaProducer
+        from utils.kafka_producer import HoneypotKafkaProducer as KafkaProducer
     except ImportError:
-        print("ERROR: Cannot import KafkaProducer")
+        print("ERROR: Cannot import HoneypotKafkaProducer")
         print(f"sys.path: {sys.path}")
         print(f"Looking for: {os.path.join(parent_dir, 'app', 'utils', 'kafka_producer.py')}")
         sys.exit(1)

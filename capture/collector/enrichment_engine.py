@@ -75,9 +75,23 @@ class EnrichmentEngine:
         
         # 4. Detect attack techniques
         print("🎯 Detecting attack techniques...")
-        attack_techniques = self._detect_techniques(raw_log)
+        # If log already has techniques (e.g. from packet_sniffer), use them
+        existing_techniques = raw_log.get('attack_technique', [])
+        if isinstance(existing_techniques, str):
+            existing_techniques = [existing_techniques]
+            
+        web_techniques = self._detect_techniques(raw_log)
+        
+        # Merge techniques
+        attack_techniques = list(set(existing_techniques + web_techniques))
+        if 'unknown' in attack_techniques and len(attack_techniques) > 1:
+            attack_techniques.remove('unknown')
         
         # 5. Determine threat level
+        # If OSINT is disabled, use tool confidence as base for threat score
+        if not self.enable_osint and threat_score == 0:
+            threat_score = tool_info.get('confidence', 0)
+
         threat_level = self._calculate_threat_level(tool_info, attack_techniques, threat_score)
         
         # 6. Combine everything
@@ -98,8 +112,7 @@ class EnrichmentEngine:
         print(f"   Tool: {tool_info.get('tool', 'unknown')} ({tool_info.get('confidence', 0)}% confidence)")
         print(f"   Country: {geoip_data.get('country', 'Unknown')}")
         print(f"   Threat Level: {threat_level}")
-        if self.enable_osint:
-            print(f"   Threat Score: {threat_score}/100")
+        print(f"   Threat Score: {threat_score}/100")
         print(f"{'='*70}\n")
         
         return enriched_log

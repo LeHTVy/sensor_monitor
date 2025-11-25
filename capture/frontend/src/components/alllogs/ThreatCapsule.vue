@@ -71,8 +71,11 @@ function getCategoryLabel(category?: string) {
 
 function formatTime(timestamp?: string) {
   if (!timestamp) return 'Unknown'
-  const date = new Date(timestamp)
-  return date.toLocaleString('en-US', {
+  // Ensure timestamp is treated as UTC if it lacks timezone info
+  const timeStr = timestamp.endsWith('Z') || timestamp.includes('+') ? timestamp : timestamp + 'Z'
+  const date = new Date(timeStr)
+  return date.toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
