@@ -169,7 +169,7 @@ services:
       - ollama
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - KAFKA_TOPICS=honeypot-attacks
+      - KAFKA_TOPICS=honeypot-attacks,honeypot-browser,honeypot-traffic
       - KAFKA_GROUP=llm-analyzer-group
       - ES_HOST=http://elasticsearch:9200
       - OLLAMA_URL=http://ollama:11434

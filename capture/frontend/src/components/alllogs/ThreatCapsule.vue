@@ -34,7 +34,7 @@
       <div class="text-caption mb-2">
         <span class="text-medium-emphasis">
           {{ log.geoip?.country || 'Unknown' }} | 
-          {{ getCategoryLabel(log.category) }} | 
+          {{ log.geoip?.city || 'Unknown' }} | 
           Tool: {{ log.attack_tool || 'Unknown' }}
         </span>
       </div>
