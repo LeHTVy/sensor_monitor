@@ -13,9 +13,9 @@
         <v-col cols="12" sm="6" md="3">
           <v-card class="stat-card" elevation="2" rounded="lg">
             <v-card-text class="text-center">
-              <v-icon icon="mdi-shield-alert" size="32" color="error" class="mb-2" />
-              <div class="text-h5 font-weight-bold">{{ stats.totalAttacks }}</div>
-              <div class="text-caption text-medium-emphasis">Total Attacks</div>
+              <v-icon icon="mdi-radar" size="32" color="error" class="mb-2" />
+              <div class="text-h5 font-weight-bold">{{ stats.toolScans }}</div>
+              <div class="text-caption text-medium-emphasis">Security Tool Scans</div>
             </v-card-text>
           </v-card>
         </v-col>
@@ -23,9 +23,9 @@
         <v-col cols="12" sm="6" md="3">
           <v-card class="stat-card" elevation="2" rounded="lg">
             <v-card-text class="text-center">
-              <v-icon icon="mdi-bee" size="32" color="warning" class="mb-2" />
-              <div class="text-h5 font-weight-bold">{{ stats.honeypotInteractions }}</div>
-              <div class="text-caption text-medium-emphasis">Honeypot Interactions</div>
+              <v-icon icon="mdi-console" size="32" color="warning" class="mb-2" />
+              <div class="text-h5 font-weight-bold">{{ stats.interactiveAttacks }}</div>
+              <div class="text-caption text-medium-emphasis">Interactive Attacks</div>
             </v-card-text>
           </v-card>
         </v-col>
@@ -33,9 +33,9 @@
         <v-col cols="12" sm="6" md="3">
           <v-card class="stat-card" elevation="2" rounded="lg">
             <v-card-text class="text-center">
-              <v-icon icon="mdi-traffic-light" size="32" color="info" class="mb-2" />
-              <div class="text-h5 font-weight-bold">{{ stats.totalTraffic }}</div>
-              <div class="text-caption text-medium-emphasis">Total Traffic</div>
+              <v-icon icon="mdi-web" size="32" color="info" class="mb-2" />
+              <div class="text-h5 font-weight-bold">{{ stats.normalBrowsing }}</div>
+              <div class="text-caption text-medium-emphasis">Normal Browsing</div>
             </v-card-text>
           </v-card>
         </v-col>
@@ -43,7 +43,7 @@
         <v-col cols="12" sm="6" md="3">
           <v-card class="stat-card" elevation="2" rounded="lg">
             <v-card-text class="text-center">
-              <v-icon icon="mdi-eye" size="32" color="success" class="mb-2" />
+              <v-icon icon="mdi-database" size="32" color="success" class="mb-2" />
               <div class="text-h5 font-weight-bold">{{ stats.totalLogs }}</div>
               <div class="text-caption text-medium-emphasis">Total Logs</div>
             </v-card-text>
@@ -53,8 +53,8 @@
 
       <div class="hero-description mt-8">
         <p class="text-body-1 text-medium-emphasis">
-          Monitor and analyze security events in real-time. Track attacks, honeypot interactions,
-          and network traffic patterns with comprehensive analytics and visualization tools.
+          Monitor and analyze security events in real-time. Track security tool scans (nmap, masscan, bbot, amass),
+          interactive attacks (POST requests, shells), and normal browsing activity with comprehensive analytics and visualization tools.
         </p>
       </div>
     </v-card-text>
@@ -68,9 +68,9 @@ import { useDashboardStore } from '@/stores/dashboard'
 const dashboardStore = useDashboardStore()
 
 const stats = computed(() => ({
-  totalAttacks: dashboardStore.stats.attack_logs || 0,
-  honeypotInteractions: dashboardStore.stats.honeypot_logs || 0,
-  totalTraffic: dashboardStore.stats.traffic_logs || 0,
+  toolScans: dashboardStore.stats.tool_scan_logs || 0,
+  interactiveAttacks: dashboardStore.stats.interactive_attack_logs || 0,
+  normalBrowsing: dashboardStore.stats.normal_browsing_logs || 0,
   totalLogs: dashboardStore.stats.total_logs_received || 0
 }))
 </script>

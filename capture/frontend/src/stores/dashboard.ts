@@ -43,6 +43,9 @@ export interface Stats {
   attack_logs: number
   honeypot_logs: number
   traffic_logs: number
+  tool_scan_logs: number
+  interactive_attack_logs: number
+  normal_browsing_logs: number
 }
 
 export interface Pattern {
@@ -60,7 +63,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
     total_logs_received: 0,
     attack_logs: 0,
     honeypot_logs: 0,
-    traffic_logs: 0
+    traffic_logs: 0,
+    tool_scan_logs: 0,
+    interactive_attack_logs: 0,
+    normal_browsing_logs: 0
   })
   const patterns = ref<Pattern[]>([])
   const currentFilter = ref<'all' | 'attack' | 'honeypot' | 'traffic'>('all')

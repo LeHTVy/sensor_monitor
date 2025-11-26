@@ -21,11 +21,8 @@
 
         <!-- Charts Row -->
         <v-row class="mt-4">
-          <v-col cols="12" md="6">
-            <AttackTimeline />
-          </v-col>
-          <v-col cols="12" md="6">
-            <EndpointHeatmap />
+          <v-col cols="12">
+            <LineChart />
           </v-col>
         </v-row>
 
@@ -44,8 +41,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useRefreshStore } from '@/stores/refreshData'
 import Navbar from '@/components/Navbar.vue'
 import HeroSection from '@/components/dashboard/HeroSection.vue'
-import AttackTimeline from '@/components/dashboard/AttackTimeline.vue'
-import EndpointHeatmap from '@/components/dashboard/EndpointHeatmap.vue'
+import LineChart from '@/components/dashboard/LineChart.vue'
 import WorldMap from '@/components/dashboard/WorldMap.vue'
 import Footer from '@/components/Footer.vue'
 

@@ -10,8 +10,9 @@ class ToolDetector:
                 r'information_schema'
             ],
             'nmap': [
-                r'nmap',
-                r'Nmap Scripting Engine'
+                r'\bnmap\b',  # Word boundary - must be standalone word
+                r'Nmap Scripting Engine',
+                r'nmap/\d'  # nmap with version number
             ],
             'nikto': [
                 r'Nikto',
@@ -41,6 +42,17 @@ class ToolDetector:
             'masscan': [
                 r'masscan'
             ],
+            'web browser': [
+                r'Mozilla/.*Chrome/',
+                r'Mozilla/.*Firefox/',
+                r'Mozilla/.*Safari/',
+                r'Mozilla/.*Edge/',
+                r'Mozilla/.*Edg/',
+                r'Opera/',
+                r'Chrome/',
+                r'Safari/',
+                r'Firefox/'
+            ],
             'curl': [
                 r'curl/'
             ],
@@ -63,10 +75,24 @@ class ToolDetector:
         Detect tool from log data
         Returns: tool_name (str) or 'unknown'
         """
-        # Check User-Agent
         user_agent = log_data.get('user_agent', '')
+        
+        # First, check if it's a legitimate browser (before checking attack tools)
+        # This prevents browsers from being misidentified as attack tools
+        if user_agent:
+            # Check for web browsers specifically
+            if 'web browser' in self.compiled_signatures:
+                for pattern in self.compiled_signatures['web browser']:
+                    if pattern.search(user_agent):
+                        # Make sure it's not also curl/wget/python disguised as browser
+                        if not any(x in user_agent.lower() for x in ['curl', 'wget', 'python-requests', 'scanner', 'bot']):
+                            return 'web browser'
+        
+        # Check User-Agent for attack tools
         if user_agent:
             for tool, patterns in self.compiled_signatures.items():
+                if tool == 'web browser':  # Skip browser check, already done
+                    continue
                 for pattern in patterns:
                     if pattern.search(user_agent):
                         return tool
@@ -78,6 +104,8 @@ class ToolDetector:
             
         if payload:
             for tool, patterns in self.compiled_signatures.items():
+                if tool == 'web browser':  # Don't check payload for browsers
+                    continue
                 for pattern in patterns:
                     if pattern.search(payload):
                         return tool
@@ -86,6 +114,8 @@ class ToolDetector:
         path = log_data.get('path', '') or log_data.get('url', '')
         if path:
             for tool, patterns in self.compiled_signatures.items():
+                if tool == 'web browser':  # Don't check path for browsers
+                    continue
                 for pattern in patterns:
                     if pattern.search(path):
                         return tool

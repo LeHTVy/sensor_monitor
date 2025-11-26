@@ -384,7 +384,7 @@ def es_get_stats():
         total_res = es_client.count(index=query_index)
         total_logs = total_res['count']
         
-        # Get counts by log_category
+        # Build comprehensive aggregation query for all stat categories
         body = {
             "size": 0,
             "aggs": {
@@ -392,6 +392,69 @@ def es_get_stats():
                     "terms": {
                         "field": "log_category.keyword",
                         "size": 10
+                    }
+                },
+                # Count logs with security tools (nmap, masscan, bbot, amass, etc.)
+                "tool_scans": {
+                    "filter": {
+                        "bool": {
+                            "must": [
+                                {"exists": {"field": "attack_tool"}},
+                                {
+                                    "bool": {
+                                        "must_not": [
+                                            {"term": {"attack_tool.keyword": "unknown"}},
+                                            {"term": {"attack_tool.keyword": ""}}
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                # Count interactive attacks (POST, file uploads, command shells)
+                "interactive_attacks": {
+                    "filter": {
+                        "bool": {
+                            "should": [
+                                {"term": {"method.keyword": "POST"}},
+                                {"term": {"method.keyword": "PUT"}},
+                                {"exists": {"field": "form_data"}},
+                                {"wildcard": {"path.keyword": "*upload*"}},
+                                {"wildcard": {"path.keyword": "*shell*"}},
+                                {"wildcard": {"path.keyword": "*cmd*"}},
+                                {"wildcard": {"user_agent.keyword": "*curl*"}},
+                                {"wildcard": {"user_agent.keyword": "*wget*"}},
+                                {"wildcard": {"user_agent.keyword": "*python*"}}
+                            ],
+                            "minimum_should_match": 1
+                        }
+                    }
+                },
+                # Count normal browsing (GET requests from regular browsers)
+                "normal_browsing": {
+                    "filter": {
+                        "bool": {
+                            "must": [
+                                {"term": {"method.keyword": "GET"}}
+                            ],
+                            "must_not": [
+                                {"exists": {"field": "attack_tool"}},
+                                {"wildcard": {"user_agent.keyword": "*curl*"}},
+                                {"wildcard": {"user_agent.keyword": "*wget*"}},
+                                {"wildcard": {"user_agent.keyword": "*python*"}},
+                                {"wildcard": {"user_agent.keyword": "*scanner*"}},
+                                {"wildcard": {"user_agent.keyword": "*bot*"}}
+                            ],
+                            "should": [
+                                {"wildcard": {"user_agent.keyword": "*Mozilla*"}},
+                                {"wildcard": {"user_agent.keyword": "*Chrome*"}},
+                                {"wildcard": {"user_agent.keyword": "*Safari*"}},
+                                {"wildcard": {"user_agent.keyword": "*Firefox*"}},
+                                {"wildcard": {"user_agent.keyword": "*Edge*"}}
+                            ],
+                            "minimum_should_match": 0
+                        }
                     }
                 }
             }
@@ -418,6 +481,21 @@ def es_get_stats():
                 elif category == 'traffic':
                     traffic_logs = count
         
+        # Get new stat categories
+        tool_scan_logs = 0
+        interactive_attack_logs = 0
+        normal_browsing_logs = 0
+        
+        if 'aggregations' in res:
+            if 'tool_scans' in res['aggregations']:
+                tool_scan_logs = res['aggregations']['tool_scans'].get('doc_count', 0)
+            
+            if 'interactive_attacks' in res['aggregations']:
+                interactive_attack_logs = res['aggregations']['interactive_attacks'].get('doc_count', 0)
+            
+            if 'normal_browsing' in res['aggregations']:
+                normal_browsing_logs = res['aggregations']['normal_browsing'].get('doc_count', 0)
+        
         # Get latest timestamp
         latest_res = es_client.search(
             index=query_index,
@@ -431,17 +509,24 @@ def es_get_stats():
         if latest_res['hits']['hits']:
             last_received = latest_res['hits']['hits'][0]['_source']['timestamp']
         
+        print(f"📊 Stats calculated - Tool scans: {tool_scan_logs}, Interactive: {interactive_attack_logs}, Normal browsing: {normal_browsing_logs}, Total: {total_logs}")
+        
         return {
             'total_logs_received': total_logs,
             'attack_logs': attack_logs,
             'honeypot_logs': honeypot_logs,
             'traffic_logs': traffic_logs,
+            'tool_scan_logs': tool_scan_logs,
+            'interactive_attack_logs': interactive_attack_logs,
+            'normal_browsing_logs': normal_browsing_logs,
             'last_received': last_received,
             'start_time': stats['start_time'],
             'uptime': (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()
         }
     except Exception as e:
         logging.error(f"Elasticsearch stats error: {e}")
+        import traceback
+        print(f"❌ Stats error traceback: {traceback.format_exc()}")
         return stats
 
 @app.route('/api/stats')
