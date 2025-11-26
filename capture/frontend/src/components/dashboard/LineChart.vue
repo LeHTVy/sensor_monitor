@@ -12,12 +12,7 @@
     </v-card-title>
 
     <v-card-text>
-      <div v-if="loading" class="text-center py-12">
-        <v-progress-circular indeterminate color="primary" />
-        <p class="text-caption mt-4">Loading timeline data...</p>
-      </div>
-
-      <div v-else-if="!hasData" class="text-center py-12">
+      <div v-if="!hasData" class="text-center py-12">
         <v-icon icon="mdi-chart-line-variant" size="64" color="grey-lighten-1" />
         <p class="text-body-2 text-medium-emphasis mt-4">No activity data available</p>
       </div>
@@ -77,7 +72,6 @@ const timelineData = ref<TimelineDataPoint[]>([])
 const chartCanvas = ref<HTMLCanvasElement>()
 let chartInstance: Chart | null = null
 
-const loading = computed(() => dashboardStore.loading)
 const hasData = computed(() => timelineData.value.length > 0)
 
 // Helper function to categorize logs
