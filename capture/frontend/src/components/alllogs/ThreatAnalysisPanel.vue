@@ -6,7 +6,7 @@
         <v-icon>mdi-refresh</v-icon>
       </v-btn>
     </div>
-    
+
     <!-- GeoIP Map Placeholder -->
     <v-card class="mb-4" elevation="2">
       <v-card-title class="text-subtitle-1">
@@ -22,7 +22,7 @@
               {{ log.geoip?.city || '' }}
               {{ log.geoip?.lat && log.geoip?.lon ? `(${log.geoip.lat}, ${log.geoip.lon})` : '' }}
             </p>
-            
+
             <!-- ISP Information -->
             <div v-if="log.geoip?.isp || log.geoip?.org" class="mt-4">
               <v-divider class="my-3" />
@@ -39,7 +39,7 @@
         </div>
       </v-card-text>
     </v-card>
-    
+
     <!-- MITRE ATT&CK -->
     <v-card class="mb-4" elevation="2">
       <v-card-title class="text-subtitle-1">
@@ -64,7 +64,7 @@
         </div>
       </v-card-text>
     </v-card>
-    
+
     <!-- Reputation Score -->
     <v-card class="mb-4" elevation="2">
       <v-card-title class="text-subtitle-1">
@@ -82,48 +82,48 @@
             <strong>{{ log.threat_score || 0 }}/100</strong>
           </template>
         </v-progress-linear>
-        
+
         <!-- Debug info -->
         <div v-if="!log.threat_score && !log.osint" class="text-caption text-medium-emphasis mt-2">
           <v-icon size="small" class="mr-1">mdi-information-outline</v-icon>
           OSINT enrichment data not available for this log
         </div>
-        
+
         <!-- OSINT Data -->
         <div v-if="log.osint" class="mt-4">
           <h4 class="text-subtitle-2 mb-2">OSINT Intelligence:</h4>
-          
+
           <div v-if="log.osint.abuseipdb" class="mb-2">
             <v-chip size="small" variant="outlined" class="mr-2">AbuseIPDB</v-chip>
             <span class="text-caption">Reports: {{ log.osint.abuseipdb.abuse_confidence_score || log.osint.abuseipdb.abuseConfidenceScore }}%</span>
           </div>
-          
+
           <div v-if="log.osint.shodan" class="mb-2">
             <v-chip size="small" variant="outlined" class="mr-2">Shodan</v-chip>
             <span class="text-caption">
               {{ log.osint.shodan.org || log.osint.shodan.isp || 'Unknown Org' }}
             </span>
           </div>
-          
+
           <div v-if="log.osint.virustotal">
             <v-chip size="small" variant="outlined" class="mr-2">VirusTotal</v-chip>
             <span class="text-caption">Malicious: {{ log.osint.virustotal.malicious || 0 }}</span>
           </div>
-          
+
           <!-- Show if OSINT object exists but has no data -->
           <div v-if="!log.osint.abuseipdb && !log.osint.shodan && !log.osint.virustotal" class="text-caption text-medium-emphasis">
             <v-icon size="small" class="mr-1">mdi-information-outline</v-icon>
             OSINT data collected but no threat intelligence found
           </div>
         </div>
-        
+
         <!-- Add console log to debug -->
         <div v-if="false">
           Debug: {{ JSON.stringify({ hasOsint: !!log.osint, hasThreatScore: !!log.threat_score }) }}
         </div>
       </v-card-text>
     </v-card>
-    
+
     <!-- Raw Payload -->
     <v-card class="mb-4" elevation="2">
       <v-card-title class="text-subtitle-1">
@@ -136,7 +136,7 @@
         </div>
       </v-card-text>
     </v-card>
-    
+
     <!-- LLM Analysis -->
     <v-card v-if="llmAnalysis" elevation="2">
       <v-card-title class="text-subtitle-1">
@@ -148,7 +148,7 @@
           <strong>Intent:</strong>
           <p class="text-body-2">{{ llmAnalysis.intent }}</p>
         </div>
-        
+
         <div>
           <strong>Recommendations:</strong>
           <ul class="mt-2">
@@ -159,10 +159,10 @@
         </div>
       </v-card-text>
     </v-card>
-    
+
 
   </div>
-  
+
   <div v-else class="pa-6 text-center text-medium-emphasis">
     <v-icon size="64" class="mb-4">mdi-file-document-outline</v-icon>
     <p class="text-h6">Select a threat capsule to view details</p>
@@ -217,7 +217,7 @@ function formatPayload(log: Log) {
       type: log.type
     }, null, 2)
   }
-  
+
   // Default to HTTP log
   return JSON.stringify({
     method: log.method,

@@ -33,6 +33,13 @@
         value="threat-feed"
       />
 
+      <v-list-item
+        :to="{ name: 'data-explorer' }"
+        prepend-icon="mdi-chart-box-outline"
+        title="Data Explorer"
+        value="data-explorer"
+      />
+
       <v-divider class="my-2" />
 
       <v-list-item

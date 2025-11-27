@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '@/views/LoginView.vue'
 import DashboardView from '@/views/DashboardView.vue'
 import AllLogsView from '@/views/AllLogsView.vue'
+import DataExplorerView from '@/views/DataExplorerView.vue'
 import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
@@ -22,6 +23,12 @@ const router = createRouter({
       path: '/logs',
       name: 'all-logs',
       component: AllLogsView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/explorer',
+      name: 'data-explorer',
+      component: DataExplorerView,
       meta: { requiresAuth: true }
     }
   ]
