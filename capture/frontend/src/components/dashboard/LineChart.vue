@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useDashboardStore } from '@/stores/dashboard'
+import { useDashboardStore, type Log } from '@/stores/dashboard'
 import {
   Chart,
   CategoryScale,
@@ -67,6 +67,20 @@ interface TimelineDataPoint {
   normalBrowsing: number
 }
 
+interface ExtendedLog extends Log {
+  '@timestamp'?: string
+  method?: string
+  user_agent?: string
+  path?: string
+  form_data?: unknown
+}
+
+interface CategorizedLog extends ExtendedLog {
+  isToolScan: boolean
+  isInteractive: boolean
+  isNormalBrowsing: boolean
+}
+
 const timeRange = ref('24')
 const timelineData = ref<TimelineDataPoint[]>([])
 const chartCanvas = ref<HTMLCanvasElement>()
@@ -75,9 +89,9 @@ let chartInstance: Chart | null = null
 const hasData = computed(() => timelineData.value.length > 0)
 
 // Helper function to categorize logs
-const categorizeLogs = (logs: any[]) => {
-  return logs.map((log: any) => {
-    const attackTool = log.attack_tool || log.tool || ''
+const categorizeLogs = (logs: ExtendedLog[]): CategorizedLog[] => {
+  return logs.map((log: ExtendedLog) => {
+    const attackTool = log.attack_tool || ''
     const method = log.method || ''
     const userAgent = log.user_agent || ''
     const path = log.path || ''
@@ -86,10 +100,10 @@ const categorizeLogs = (logs: any[]) => {
     const isToolScan = attackTool && attackTool !== 'unknown' && attackTool !== ''
     
     // Interactive Attacks
-    const isInteractive = 
-      method === 'POST' || 
+    const isInteractive =
+      method === 'POST' ||
       method === 'PUT' ||
-      log.form_data ||
+      !!log.form_data ||
       path.includes('upload') ||
       path.includes('shell') ||
       path.includes('cmd') ||
@@ -117,21 +131,21 @@ const categorizeLogs = (logs: any[]) => {
 }
 
 const generateTimelineData = () => {
-  const logs = dashboardStore.logs
-  
+  const logs = dashboardStore.logs as ExtendedLog[]
+
   if (logs.length === 0) {
     timelineData.value = []
     updateChart()
     return
   }
-  
+
   const hours = parseInt(timeRange.value)
   const now = new Date()
   const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000)
-  
+
   // Filter logs by time range
   const filteredLogs = logs.filter(log => {
-    const logTime = new Date(log.timestamp || (log as any)['@timestamp'] || Date.now())
+    const logTime = new Date(log.timestamp || log['@timestamp'] || Date.now())
     return logTime >= startTime && logTime <= now
   })
 
@@ -147,8 +161,8 @@ const generateTimelineData = () => {
   // Aggregate logs into time buckets
   const intervalMinutes = hours <= 1 ? 5 : (hours <= 6 ? 30 : 60)
   const buckets = new Map<string, TimelineDataPoint>()
-  
-  categorizedLogs.forEach((log: any) => {
+
+  categorizedLogs.forEach((log: CategorizedLog) => {
     const timestamp = new Date(log.timestamp || log['@timestamp'] || Date.now())
     // Round down to nearest interval
     const bucketTime = new Date(
