@@ -43,7 +43,9 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{ log: any, selected: boolean }>()
+import type { Log } from '@/stores/dashboard'
+
+defineProps<{ log: Log, selected: boolean }>()
 defineEmits(['click'])
 
 function getSeverityColor(level?: string) {
@@ -54,19 +56,6 @@ function getSeverityColor(level?: string) {
     low: 'success'
   }
   return colors[level?.toLowerCase() || ''] || 'grey'
-}
-
-function getCategoryLabel(category?: string) {
-  const labels: Record<string, string> = {
-    reconnaissance: 'Reconnaissance',
-    brute_force: 'Brute Force (SSH)',
-    sql_injection: 'SQL Injection',
-    command_injection: 'Command Injection',
-    file_upload: 'File Upload Attack',
-    path_traversal: 'Path Traversal',
-    xss: 'XSS Attack'
-  }
-  return labels[category || ''] || category || 'Unknown'
 }
 
 function formatTime(timestamp?: string) {

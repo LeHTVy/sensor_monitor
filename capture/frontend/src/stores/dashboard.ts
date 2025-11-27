@@ -4,8 +4,10 @@ import { useAuthStore } from './auth'
 
 export interface Log {
   timestamp: string
+  '@timestamp'?: string // Elasticsearch standard timestamp field
   src_ip: string
   dst_ip?: string
+  ip?: string // Alternative field name used by some logs
   type: string
   protocol?: string
   message?: string
@@ -14,6 +16,12 @@ export interface Log {
     country: string
     city: string
     isp?: string
+    org?: string
+    lat?: number
+    lon?: number
+    timezone?: string
+    region?: string
+    postal?: string
   }
   // Enrichment fields
   threat_level?: string
@@ -21,7 +29,8 @@ export interface Log {
   attack_techniques?: string[]
   osint?: {
     abuseipdb?: {
-      abuseConfidenceScore: number
+      abuseConfidenceScore?: number
+      abuse_confidence_score?: number
       usageType?: string
       isp?: string
     }
@@ -29,13 +38,45 @@ export interface Log {
       ports?: number[]
       hostnames?: string[]
       vulns?: string[]
+      org?: string
+      isp?: string
     }
     virustotal?: {
       malicious?: number
       suspicious?: number
       harmless?: number
     }
+    enriched_at?: string
   }
+  // Additional fields from API
+  id?: string
+  attack_tool_info?: Record<string, unknown>
+  attack_technique?: string[]
+  os_info?: Record<string, unknown>
+  method?: string
+  path?: string
+  url?: string
+  user_agent?: string
+  headers?: Record<string, unknown>
+  args?: Record<string, unknown>
+  form_data?: Record<string, unknown>
+  port?: number
+  kafka_topic?: string
+  '@ingested_at'?: string
+  llm_analysis?: {
+    intent: string
+    recommendations: string[]
+    severity?: string
+    confidence?: number
+  } | null
+  defense_playbook?: Record<string, unknown> | null
+  // Network log fields
+  src_port?: number
+  dst_port?: number
+  flags?: string | number
+  size?: number
+  payload?: string
+  body?: string | Record<string, unknown>
 }
 
 export interface Stats {

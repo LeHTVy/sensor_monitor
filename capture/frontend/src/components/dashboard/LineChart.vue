@@ -67,15 +67,7 @@ interface TimelineDataPoint {
   normalBrowsing: number
 }
 
-interface ExtendedLog extends Log {
-  '@timestamp'?: string
-  method?: string
-  user_agent?: string
-  path?: string
-  form_data?: unknown
-}
-
-interface CategorizedLog extends ExtendedLog {
+interface CategorizedLog extends Log {
   isToolScan: boolean
   isInteractive: boolean
   isNormalBrowsing: boolean
@@ -89,8 +81,8 @@ let chartInstance: Chart | null = null
 const hasData = computed(() => timelineData.value.length > 0)
 
 // Helper function to categorize logs
-const categorizeLogs = (logs: ExtendedLog[]): CategorizedLog[] => {
-  return logs.map((log: ExtendedLog) => {
+const categorizeLogs = (logs: Log[]): CategorizedLog[] => {
+  return logs.map((log: Log) => {
     const attackTool = log.attack_tool || ''
     const method = log.method || ''
     const userAgent = log.user_agent || ''
@@ -131,9 +123,12 @@ const categorizeLogs = (logs: ExtendedLog[]): CategorizedLog[] => {
 }
 
 const generateTimelineData = () => {
-  const logs = dashboardStore.logs as ExtendedLog[]
+  const logs = dashboardStore.logs
+
+  console.log('LineChart: Generating timeline data with', logs.length, 'logs')
 
   if (logs.length === 0) {
+    console.log('LineChart: No logs available')
     timelineData.value = []
     updateChart()
     return
@@ -149,7 +144,10 @@ const generateTimelineData = () => {
     return logTime >= startTime && logTime <= now
   })
 
+  console.log('LineChart: Filtered to', filteredLogs.length, 'logs within', hours, 'hours')
+
   if (filteredLogs.length === 0) {
+    console.log('LineChart: No logs in selected time range')
     timelineData.value = []
     updateChart()
     return
@@ -157,6 +155,7 @@ const generateTimelineData = () => {
 
   // Categorize logs
   const categorizedLogs = categorizeLogs(filteredLogs)
+  console.log('LineChart: Categorized', categorizedLogs.length, 'logs')
 
   // Aggregate logs into time buckets
   const intervalMinutes = hours <= 1 ? 5 : (hours <= 6 ? 30 : 60)
@@ -188,7 +187,9 @@ const generateTimelineData = () => {
   
   timelineData.value = Array.from(buckets.values())
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-  
+
+  console.log('LineChart: Generated', timelineData.value.length, 'data points:', timelineData.value)
+
   updateChart()
 }
 

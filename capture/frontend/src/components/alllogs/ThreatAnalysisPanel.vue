@@ -171,9 +171,10 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import type { Log } from '@/stores/dashboard'
 
-const props = defineProps<{ log: any }>()
-const llmAnalysis = ref<any>(null)
+const props = defineProps<{ log: Log | null }>()
+const llmAnalysis = ref<Log['llm_analysis']>(null)
 
 watch(() => props.log, async (newLog) => {
   if (newLog) {
@@ -185,7 +186,7 @@ watch(() => props.log, async (newLog) => {
       threatScore: newLog.threat_score,
       logKeys: Object.keys(newLog).filter(k => k.includes('threat') || k.includes('osint'))
     })
-    
+
     // Check if LLM analysis exists in the log
     if (newLog.llm_analysis) {
       llmAnalysis.value = newLog.llm_analysis
@@ -203,7 +204,7 @@ function getScoreColor(score?: number) {
   return 'success'
 }
 
-function formatPayload(log: any) {
+function formatPayload(log: Log) {
   // Check if this is a network log (has protocol/flags)
   if (log.protocol || log.flags !== undefined) {
     return JSON.stringify({

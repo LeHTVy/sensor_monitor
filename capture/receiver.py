@@ -246,7 +246,10 @@ def es_search_logs(log_type: str, limit: int, date_from: str = None, date_to: st
                 "kafka_topic": source.get("kafka_topic", ""),
                 "@ingested_at": source.get("@ingested_at", ""),
                 "llm_analysis": source.get("llm_analysis", None),
-                "defense_playbook": source.get("defense_playbook", None)
+                "defense_playbook": source.get("defense_playbook", None),
+                "threat_level": source.get("threat_level", ""),
+                "threat_score": source.get("threat_score", 0),
+                "osint": source.get("osint", {})
             }
             logs.append(log)
         

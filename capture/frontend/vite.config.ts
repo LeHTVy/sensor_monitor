@@ -6,7 +6,14 @@ import vuetify from 'vite-plugin-vuetify'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    vue(),
+    vue({
+      template: {
+        compilerOptions: {
+          // Disable unused class warnings in Vue templates
+          whitespace: 'preserve'
+        }
+      }
+    }),
     vuetify({ autoImport: true })
   ],
   resolve: {
@@ -26,5 +33,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets'
+  },
+  css: {
+    postcss: {
+      plugins: []
+    }
   }
 })

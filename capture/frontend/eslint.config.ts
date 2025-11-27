@@ -28,6 +28,10 @@ export default defineConfigWithVueTs(
     rules: {
       'vue/valid-v-slot': 'off', // Disable v-slot validation
       '@typescript-eslint/no-unused-vars': 'off', // Disable unused vars warning
+      'vue/no-unused-vars': 'off', // Disable unused vars in Vue templates
+      'vue/no-unused-components': 'off', // Disable unused component warning
+      'vue/no-v-html': 'off', // Disable v-html warning
+      'vue/no-css-vars-in-style': 'off', // Disable CSS variable usage warning
     },
   },
   skipFormatting,
