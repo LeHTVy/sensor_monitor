@@ -34,7 +34,6 @@ except ImportError:
     sys.exit(1)
 
 # Import Kafka producer - try multiple import paths
-# Import Kafka producer - try multiple import paths
 try:
     from app.utils.kafka_producer import HoneypotKafkaProducer as KafkaProducer
 except ImportError:
@@ -50,6 +49,8 @@ except ImportError:
 from detectors.nmap_network_detector import NmapNetworkDetector
 from detectors.masscan_network_detector import MasscanNetworkDetector
 from detectors.generic_scan_detector import GenericScanDetector
+from detectors.web_scanner_detector import WebScannerDetector
+from detectors.recon_detector import ReconDetector
 
 
 class PacketSniffer:
@@ -91,7 +92,9 @@ class PacketSniffer:
         self.detectors = [
             NmapNetworkDetector(),
             MasscanNetworkDetector(),
-            GenericScanDetector()
+            GenericScanDetector(),
+            WebScannerDetector(),
+            ReconDetector()
         ]
 
         # Stats
