@@ -190,8 +190,15 @@ const updateChart = () => {
   const ctx = chartCanvas.value.getContext('2d')
   if (!ctx) return
 
+  // Check if there's an existing chart on this canvas using Chart.js registry
+  const existingChart = Chart.getChart(chartCanvas.value)
+  if (existingChart) {
+    existingChart.destroy()
+  }
+
   if (chartInstance) {
     chartInstance.destroy()
+    chartInstance = null
   }
 
   const labels = timelineData.value.map(d => {

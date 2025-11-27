@@ -95,7 +95,7 @@
           
           <div v-if="log.osint.abuseipdb" class="mb-2">
             <v-chip size="small" variant="outlined" class="mr-2">AbuseIPDB</v-chip>
-            <span class="text-caption">Reports: {{ log.osint.abuseipdb.abuseConfidenceScore }}%</span>
+            <span class="text-caption">Reports: {{ log.osint.abuseipdb.abuse_confidence_score || log.osint.abuseipdb.abuseConfidenceScore }}%</span>
           </div>
           
           <div v-if="log.osint.shodan" class="mb-2">
@@ -160,12 +160,7 @@
       </v-card-text>
     </v-card>
     
-    <v-card v-else elevation="2">
-      <v-card-text class="text-center text-medium-emphasis">
-        <v-icon size="48" class="mb-2">mdi-robot-outline</v-icon>
-        <p>LLM analysis pending...</p>
-      </v-card-text>
-    </v-card>
+
   </div>
   
   <div v-else class="pa-6 text-center text-medium-emphasis">
