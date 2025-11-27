@@ -143,58 +143,57 @@ services:
       - ./collector:/app
     working_dir: /app
     command: [ "bash", "-lc", "pip install -r requirements.txt && python -u collector.py" ]
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama-llm
+  #   restart: unless-stopped
+  #   ports:
+  #     - "10.8.0.1:11434:11434"
+  #   volumes:
+  #     - ollama-models:/root/.ollama
+  #   networks:
+  #     - sensor-network
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama-llm
-    restart: unless-stopped
-    ports:
-      - "10.8.0.1:11434:11434"
-    volumes:
-      - ollama-models:/root/.ollama
-    networks:
-      - sensor-network
+  #   environment:
+  #     - OLLAMA_KEEP_ALIVE=24h
+  #     - OLLAMA_NUM_PARALLEL=2
 
-    environment:
-      - OLLAMA_KEEP_ALIVE=24h
-      - OLLAMA_NUM_PARALLEL=2
-
-  llm-analyzer:
-    image: python:3.11-slim
-    container_name: llm-analyzer
-    restart: unless-stopped
-    depends_on:
-      - kafka
-      - elasticsearch
-      - ollama
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - KAFKA_TOPICS=honeypot-attacks,honeypot-browser,honeypot-traffic
-      - KAFKA_GROUP=llm-analyzer-group
-      - ES_HOST=http://elasticsearch:9200
-      - OLLAMA_URL=http://ollama:11434
-      - OLLAMA_MODEL=tinyllama
-      # API keys loaded from .env file
-      - GEOIP_API_KEY=${GEOIP_API_KEY:-}
-      - SHODAN_API_KEY=${SHODAN_API_KEY:-}
-      - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY:-}
-      - VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY:-}
-    env_file:
-      - .env
-    networks:
-      - sensor-network
-    volumes:
-      - ./llm_analyzer.py:/app/llm_analyzer.py
-      - ./llm_consumer.py:/app/llm_consumer.py
-      - ./collector:/app/collector
-      - ./logs:/app/logs
-    working_dir: /app
-    command: [ "bash", "-c", "pip install requests kafka-python elasticsearch==8.15.1 && python -u llm_consumer.py" ]
+  # llm-analyzer:
+  #   image: python:3.11-slim
+  #   container_name: llm-analyzer
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - kafka
+  #     - elasticsearch
+  #     # - ollama
+  #   environment:
+  #     - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+  #     - KAFKA_TOPICS=honeypot-attacks,honeypot-browser,honeypot-traffic
+  #     - KAFKA_GROUP=llm-analyzer-group
+  #     - ES_HOST=http://elasticsearch:9200
+  #     - OLLAMA_URL=http://ollama:11434
+  #     - OLLAMA_MODEL=tinyllama
+  #     # API keys loaded from .env file
+  #     - GEOIP_API_KEY=${GEOIP_API_KEY:-}
+  #     - SHODAN_API_KEY=${SHODAN_API_KEY:-}
+  #     - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY:-}
+  #     - VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY:-}
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - sensor-network
+  #   volumes:
+  #     - ./llm_analyzer.py:/app/llm_analyzer.py
+  #     - ./llm_consumer.py:/app/llm_consumer.py
+  #     - ./collector:/app/collector
+  #     - ./logs:/app/logs
+  #   working_dir: /app
+  #   command: [ "bash", "-c", "pip install requests kafka-python elasticsearch==8.15.1 && python -u llm_consumer.py" ]
 
 networks:
   sensor-network:
     driver: bridge
 
 volumes:
-  ollama-models:
+  # ollama-models:
   es_data:
