@@ -2,6 +2,75 @@
 scripts/
 capture/scripts/
 honeypot/scripts/
+casestudy/
+backup/
+
+# Docker Compose với configs nhạy cảm
+capture/docker-compose-secure*.yml
+honeypot/docker-compose-secure*.yml
+
+# Security configs
+capture/security.conf
+honeypot/security.conf
+
+# Logs và data
+logs/
+capture/logs/
+honeypot/logs/
+*.log
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files với secrets
+.env
+.env.local
+.env.production
+
+# Backup files
+backups/
+# Security Scripts (chứa thông tin nhạy cảm)
+scripts/
+capture/scripts/
+honeypot/scripts/
+
+# Docker Compose với configs nhạy cảm
+capture/docker-compose-secure*.yml
+honeypot/docker-compose-secure*.yml
+
+# Security configs
+capture/security.conf
+honeypot/security.conf
+
+# Logs và data
+logs/
+capture/logs/
+honeypot/logs/
+*.log
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files với secrets
+.env
+.env.local
+.env.production
+
+# Backup files
+backups/
+*.backup
+
+# Systemd services
+capture/systemd/
+# Security Scripts (chứa thông tin nhạy cảm)
+scripts/
+capture/scripts/
+honeypot/scripts/
+casestudy/
 
 # Docker Compose với configs nhạy cảm
 capture/docker-compose-secure*.yml
@@ -73,3 +142,15 @@ temp/
 # GeoIP
 capture/GeoIP.conf
 capture/collector/geoip/
+
+# Malware Analysis - Quarantine & Samples (NEVER commit malware!)
+capture/malware_quarantine/
+malware_quarantine/
+*.malware
+*.infected
+capture/uploads/
+honeypot/uploads/
+honeypot/app/uploads/
+
+# Malware metadata (optional: commit if sanitized)
+# capture/malware_quarantine/metadata/

@@ -3,45 +3,139 @@ import re
 class ToolDetector:
     def __init__(self):
         self.signatures = {
+            # SQL Injection Tools
             'sqlmap': [
                 r'sqlmap',
                 r'union.*select',
                 r'AND 1=1',
                 r'information_schema'
             ],
+            
+            # Network Scanners
             'nmap': [
                 r'\bnmap\b',  # Word boundary - must be standalone word
                 r'Nmap Scripting Engine',
                 r'nmap/\d'  # nmap with version number
             ],
+            'masscan': [
+                r'masscan'
+            ],
+            'shodan': [
+                r'Shodan',
+                r'shodan'
+            ],
+            'censys': [
+                r'Censys',
+                r'censys'
+            ],
+            
+            # Web Vulnerability Scanners
             'nikto': [
                 r'Nikto',
                 r'nikto'
             ],
+            'nuclei': [
+                r'Nuclei',
+                r'nuclei',
+                r'projectdiscovery'
+            ],
+            'acunetix': [
+                r'Acunetix',
+                r'acunetix',
+                r'Acunetix-Aspect',
+                r'acunetix_wvs_security_test'
+            ],
+            'skipfish': [
+                r'skipfish',
+                r'Skipfish'
+            ],
+            'w3af': [
+                r'w3af',
+                r'w3af.org'
+            ],
+            
+            # Directory/File Brute Force
             'gobuster': [
                 r'gobuster'
             ],
             'dirbuster': [
                 r'DirBuster'
             ],
+            'dirb': [
+                r'\bdirb\b',
+                r'DIRB'
+            ],
+            'ffuf': [
+                r'ffuf',
+                r'Fuzz Faster U Fool'
+            ],
+            
+            # Password Cracking
             'hydra': [
-                r'hydra'
+                r'hydra',
+                r'THC-Hydra'
             ],
-            'metasploit': [
-                r'metasploit',
-                r'meterpreter'
-            ],
+            
+            # Web Proxies
             'burpsuite': [
                 r'burp suite',
-                r'BurpSuite'
+                r'BurpSuite',
+                r'Burp'
             ],
             'zaproxy': [
                 r'zaproxy',
-                r'OWASP ZAP'
+                r'OWASP ZAP',
+                r'ZAP/'
             ],
-            'masscan': [
-                r'masscan'
+            
+            # Exploitation Frameworks
+            'metasploit': [
+                r'metasploit',
+                r'meterpreter',
+                r'Metasploit'
             ],
+            'beef': [
+                r'BeEF',
+                r'beef',
+                r'Browser Exploitation Framework'
+            ],
+            'cobaltstrike': [
+                r'Cobalt Strike',
+                r'cobaltstrike',
+                r'beacon'
+            ],
+            
+            # Fuzzing Tools
+            'wfuzz': [
+                r'Wfuzz',
+                r'wfuzz'
+            ],
+            
+            # Command Injection
+            'commix': [
+                r'commix',
+                r'Commix'
+            ],
+            
+            # XSS Tools
+            'xsstrike': [
+                r'XSStrike',
+                r'xsstrike'
+            ],
+            
+            # Command-Line Tools
+            'curl': [
+                r'curl/'
+            ],
+            'wget': [
+                r'wget/'
+            ],
+            'python-requests': [
+                r'python-requests',
+                r'requests/'
+            ],
+            
+            # Web Browsers (for filtering)
             'web browser': [
                 r'Mozilla/.*Chrome/',
                 r'Mozilla/.*Firefox/',
@@ -52,15 +146,6 @@ class ToolDetector:
                 r'Chrome/',
                 r'Safari/',
                 r'Firefox/'
-            ],
-            'curl': [
-                r'curl/'
-            ],
-            'wget': [
-                r'wget/'
-            ],
-            'python-requests': [
-                r'python-requests'
             ]
         }
         

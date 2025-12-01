@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+"""
+Honeypot File Upload Handler
+Integrates with malware_collector to capture uploaded files
+"""
+
+import os
+import json
+import uuid
+from datetime import datetime
+from kafka import KafkaProducer
+from werkzeug.utils import secure_filename
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class HoneypotFileHandler:
+    """
+    Handles file uploads in the honeypot
+    Saves files and sends events to Kafka for malware analysis
+    """
+
+    def __init__(self, upload_dir='uploads', kafka_servers=['kafka:9092']):
+        self.upload_dir = upload_dir
+        os.makedirs(self.upload_dir, exist_ok=True)
+        
+        # Initialize Kafka producer
+        try:
+            self.producer = KafkaProducer(
+                bootstrap_servers=kafka_servers,
+                value_serializer=lambda v: json.dumps(v).encode('utf-8')
+            )
+            logger.info(f"✅ Kafka producer initialized for file uploads")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Kafka producer: {e}")
+            self.producer = None
+
+    def handle_file_upload(self, uploaded_file, request_info: dict) -> dict:
+        """
+        Handle file upload from attacker
+        
+        Args:
+            uploaded_file: Flask FileStorage object
+            request_info: HTTP request metadata (IP, headers, etc.)
+            
+        Returns:
+            Dict with file info and status
+        """
+        try:
+            # Generate unique filename
+            original_filename = secure_filename(uploaded_file.filename)
+            unique_id = str(uuid.uuid4())
+            timestamp = datetime.now().isoformat()
+            
+            # Save file to honeypot uploads directory
+            file_path = os.path.join(self.upload_dir, f"{unique_id}_{original_filename}")
+            uploaded_file.save(file_path)
+            
+            file_size = os.path.getsize(file_path)
+            
+            logger.info(f"📁 File uploaded: {original_filename} ({file_size:,} bytes)")
+            logger.info(f"   Source IP: {request_info.get('source_ip')}")
+            logger.info(f"   Saved to: {file_path}")
+            
+            # Prepare malware sample event for Kafka
+            malware_event = {
+                'event_type': 'file_upload',
+                'timestamp': timestamp,
+                'file_id': unique_id,
+                'file_path': file_path,  # Absolute path for malware collector
+                'original_filename': original_filename,
+                'file_size': file_size,
+                'source_ip': request_info.get('source_ip', 'unknown'),
+                'attack_id': request_info.get('attack_id'),  # Link to attack log
+                'context': {
+                    'user_agent': request_info.get('user_agent'),
+                    'referer': request_info.get('referer'),
+                    'upload_field': request_info.get('upload_field'),
+                    'form_data': request_info.get('form_data', {}),
+                    'honeypot_endpoint': request_info.get('endpoint')
+                }
+            }
+            
+            # Send to Kafka
+            if self.producer:
+                self.producer.send('malware-samples', value=malware_event)
+                self.producer.flush()
+                logger.info(f"✅ Malware sample event sent to Kafka")
+            
+            return {
+                'success': True,
+                'file_id': unique_id,
+                'filename': original_filename,
+                'size': file_size,
+                'path': file_path
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling file upload: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def detect_payload_in_request(self, request_data: dict) -> bool:
+        """
+        Detect suspicious payloads in POST/GET data
+        
+        Args:
+            request_data: Dict with args, form_data, path, etc.
+            
+        Returns:
+            True if suspicious payload detected
+        """
+        suspicious_patterns = [
+            # Code injection
+            'eval(', 'exec(', 'system(', 'shell_exec(',
+            'base64_decode', 'gzinflate', 'str_rot13',
+            
+            # Command injection
+            '&&', '||', ';rm ', ';wget ', ';curl ',
+            
+            # SQL injection
+            "' OR '1'='1", "' OR 1=1--", 'UNION SELECT',
+            
+            # XSS
+            '<script>', 'javascript:', 'onerror=',
+            
+            # Path traversal
+            '../', '..\\', '/etc/passwd', 'C:\\Windows',
+            
+            # Webshell indicators
+            '<?php', '<%', 'WSH', 'WScript.Shell',
+            
+            # Encoding tricks
+            '%00', '\x00', '\\u0000'
+        ]
+        
+        # Combine all request data
+        combined_data = str(request_data.get('args', '')) + \
+                       str(request_data.get('form_data', '')) + \
+                       str(request_data.get('path', ''))
+        
+        # Check for suspicious patterns
+        for pattern in suspicious_patterns:
+            if pattern.lower() in combined_data.lower():
+                logger.warning(f"🚨 Suspicious payload detected: {pattern}")
+                return True
+        
+        return False
+
+    def extract_and_send_payload(self, payload_data: str, request_info: dict):
+        """
+        Extract malicious payload and send to malware analysis
+        
+        Args:
+            payload_data: The suspicious payload string
+            request_info: HTTP request metadata
+        """
+        try:
+            malware_event = {
+                'event_type': 'payload_detected',
+                'timestamp': datetime.now().isoformat(),
+                'payload_data': payload_data,
+                'payload_type': 'injection_attempt',
+                'source_ip': request_info.get('source_ip', 'unknown'),
+                'attack_id': request_info.get('attack_id'),
+                'context': {
+                    'path': request_info.get('path'),
+                    'method': request_info.get('method'),
+                    'user_agent': request_info.get('user_agent'),
+                    'detection_reason': 'suspicious_pattern'
+                }
+            }
+            
+            if self.producer:
+                self.producer.send('malware-samples', value=malware_event)
+                self.producer.flush()
+                logger.info(f"✅ Payload extraction event sent to Kafka")
+            
+        except Exception as e:
+            logger.error(f"❌ Error extracting payload: {e}")
+
+
+# Example usage in Flask honeypot app
+def integrate_with_flask_app(app):
+    """
+    Example integration with Flask honeypot application
+    
+    Add this to your honeypot app.py:
+    
+    from honeypot_file_handler import HoneypotFileHandler, integrate_with_flask_app
+    
+    # Initialize file handler
+    file_handler = HoneypotFileHandler(
+        upload_dir='/app/uploads',
+        kafka_servers=['kafka:9092']
+    )
+    
+    # In your file upload route:
+    @app.route('/upload', methods=['POST'])
+    def upload_file():
+        if 'file' in request.files:
+            uploaded_file = request.files['file']
+            
+            request_info = {
+                'source_ip': request.remote_addr,
+                'user_agent': request.headers.get('User-Agent'),
+                'referer': request.headers.get('Referer'),
+                'upload_field': 'file',
+                'form_data': request.form.to_dict(),
+                'endpoint': request.path,
+                'attack_id': generate_attack_log_id()  # Your attack logging function
+            }
+            
+            result = file_handler.handle_file_upload(uploaded_file, request_info)
+            
+            if result['success']:
+                # Return fake success to attacker
+                return jsonify({'status': 'success', 'message': 'File uploaded'})
+            else:
+                return jsonify({'status': 'error', 'message': 'Upload failed'}), 500
+    
+    # In any route that accepts POST data:
+    @app.route('/api/execute', methods=['POST'])
+    def execute_command():
+        request_info = {
+            'source_ip': request.remote_addr,
+            'user_agent': request.headers.get('User-Agent'),
+            'path': request.path,
+            'method': request.method,
+            'args': request.args.to_dict(),
+            'form_data': request.form.to_dict(),
+            'attack_id': generate_attack_log_id()
+        }
+        
+        # Check for payload injection
+        if file_handler.detect_payload_in_request(request_info):
+            # Extract and analyze the payload
+            payload_str = str(request.form) + str(request.args)
+            file_handler.extract_and_send_payload(payload_str, request_info)
+            
+            # Log the attack...
+            # Still return fake response to attacker
+        
+        return jsonify({'status': 'executed'})
+    """
+    pass
+
+
+if __name__ == "__main__":
+    # Test the file handler
+    handler = HoneypotFileHandler(upload_dir='test_uploads')
+    
+    print("✅ Honeypot File Handler initialized")
+    print(f"   Upload directory: {handler.upload_dir}")
+    print(f"   Kafka producer: {'Connected' if handler.producer else 'Not connected'}")
