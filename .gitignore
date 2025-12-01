@@ -135,6 +135,9 @@ backups/
 capture/systemd/
 honeypot/systemd/
 
+# wireguard config
+wireguard.conf
+
 # Temporary files
 tmp/
 temp/
