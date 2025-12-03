@@ -11,13 +11,15 @@
       </v-btn-toggle>
     </v-card-title>
 
-    <v-card-text>
-      <div v-if="!hasData" class="text-center py-12">
+    <v-card-text class="position-relative" style="min-height: 350px;">
+      <!-- No Data State (Overlay) -->
+      <div v-if="!hasData" class="d-flex flex-column align-center justify-center position-absolute w-100 h-100" style="top: 0; left: 0; z-index: 10; background: rgba(var(--v-theme-surface), 0.8);">
         <v-icon icon="mdi-chart-line-variant" size="64" color="grey-lighten-1" />
         <p class="text-body-2 text-medium-emphasis mt-4">No activity data available</p>
       </div>
 
-      <div v-else>
+      <!-- Chart Content (Always rendered to preserve instance) -->
+      <div v-show="hasData || true" class="h-100">
         <!-- Legend -->
         <div class="chart-legend mb-4">
           <div class="legend-item">
@@ -122,13 +124,10 @@ const categorizeLogs = (logs: Log[]): CategorizedLog[] => {
   })
 }
 
-const generateTimelineData = () => {
+  const generateTimelineData = () => {
   const logs = dashboardStore.logs
 
-  console.log('LineChart: Generating timeline data with', logs.length, 'logs')
-
   if (logs.length === 0) {
-    console.log('LineChart: No logs available')
     timelineData.value = []
     updateChart()
     return
@@ -144,10 +143,7 @@ const generateTimelineData = () => {
     return logTime >= startTime && logTime <= now
   })
 
-  console.log('LineChart: Filtered to', filteredLogs.length, 'logs within', hours, 'hours')
-
   if (filteredLogs.length === 0) {
-    console.log('LineChart: No logs in selected time range')
     timelineData.value = []
     updateChart()
     return
@@ -155,7 +151,6 @@ const generateTimelineData = () => {
 
   // Categorize logs
   const categorizedLogs = categorizeLogs(filteredLogs)
-  console.log('LineChart: Categorized', categorizedLogs.length, 'logs')
 
   // Aggregate logs into time buckets
   const intervalMinutes = hours <= 1 ? 5 : (hours <= 6 ? 30 : 60)
@@ -188,87 +183,79 @@ const generateTimelineData = () => {
   timelineData.value = Array.from(buckets.values())
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
-  console.log('LineChart: Generated', timelineData.value.length, 'data points:', timelineData.value)
-
   updateChart()
 }
 
 const updateChart = () => {
   if (!chartCanvas.value) return
   
-  if (!hasData.value && chartInstance) {
-    chartInstance.destroy()
-    chartInstance = null
-    return
-  }
-  
   const ctx = chartCanvas.value.getContext('2d')
   if (!ctx) return
-
-  // Check if there's an existing chart on this canvas using Chart.js registry
-  const existingChart = Chart.getChart(chartCanvas.value)
-  if (existingChart) {
-    existingChart.destroy()
-  }
-
-  if (chartInstance) {
-    chartInstance.destroy()
-    chartInstance = null
-  }
 
   const labels = timelineData.value.map(d => {
     const date = new Date(d.timestamp)
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   })
 
+  const datasets = [
+    {
+      label: 'Security Tool Scans',
+      data: timelineData.value.map(d => d.toolScans),
+      borderColor: '#EF4444',
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      pointBackgroundColor: '#EF4444',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2
+    },
+    {
+      label: 'Interactive Attacks',
+      data: timelineData.value.map(d => d.interactiveAttacks),
+      borderColor: '#F59E0B',
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      pointBackgroundColor: '#F59E0B',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2
+    },
+    {
+      label: 'Normal Browsing',
+      data: timelineData.value.map(d => d.normalBrowsing),
+      borderColor: '#3B82F6',
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      pointBackgroundColor: '#3B82F6',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2
+    }
+  ]
+
+  // If chart exists, update data only
+  if (chartInstance) {
+    chartInstance.data.labels = labels
+    chartInstance.data.datasets = datasets
+    chartInstance.update('none') // 'none' mode prevents animation on every update for better performance
+    return
+  }
+
+  // Create new chart if it doesn't exist
   const config: ChartConfiguration = {
     type: 'line',
     data: {
       labels,
-      datasets: [
-        {
-          label: 'Security Tool Scans',
-          data: timelineData.value.map(d => d.toolScans),
-          borderColor: '#EF4444',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: '#EF4444',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        },
-        {
-          label: 'Interactive Attacks',
-          data: timelineData.value.map(d => d.interactiveAttacks),
-          borderColor: '#F59E0B',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: '#F59E0B',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        },
-        {
-          label: 'Normal Browsing',
-          data: timelineData.value.map(d => d.normalBrowsing),
-          borderColor: '#3B82F6',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: '#3B82F6',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        }
-      ]
+      datasets
     },
     options: {
       responsive: true,

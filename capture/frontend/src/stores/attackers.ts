@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8082'
+const API_URL = ''
 
 // Interface for fetch params
 interface FetchAttackersParams {
@@ -18,8 +18,8 @@ export const useAttackersStore = defineStore('attackers', () => {
     const total = ref(0)
     const loading = ref(false)
     const error = ref<string | null>(null)
-    const reconJobs = ref({}) // Map of reconId -> recon status
-    const reconResults = ref({}) // Map of reconId -> full results
+    const reconJobs = ref({})
+    const reconResults = ref({})
 
     // Computed
     const activeReconJobs = computed(() => {
@@ -40,7 +40,7 @@ export const useAttackersStore = defineStore('attackers', () => {
         error.value = null
 
         try {
-            const apiKey = 'capture_secure_key_2024'  // Use same hardcoded key as other views
+            const apiKey = 'capture_secure_key_2024'
 
             console.log('Fetching attackers with params:', params)
 
