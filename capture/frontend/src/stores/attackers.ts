@@ -40,11 +40,7 @@ export const useAttackersStore = defineStore('attackers', () => {
         error.value = null
 
         try {
-            const apiKey = localStorage.getItem('api_key')
-
-            if (!apiKey) {
-                throw new Error('No API key found. Please log in again.')
-            }
+            const apiKey = 'capture_secure_key_2024'  // Use same hardcoded key as other views
 
             console.log('Fetching attackers with params:', params)
 
