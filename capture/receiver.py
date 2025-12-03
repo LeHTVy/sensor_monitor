@@ -18,6 +18,7 @@ import hashlib
 from kafka_consumer import CaptureKafkaConsumer
 from security_middleware import CaptureSecurity, admin_required, api_key_required, ip_whitelist_required
 from elasticsearch import Elasticsearch
+from recon_service import create_recon_job, get_recon_status, get_recon_results
 
 app = Flask(__name__)
 
@@ -783,6 +784,272 @@ def get_endpoint_heatmap():
         
     except Exception as e:
         logging.error(f"Heatmap error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/attackers')
+@api_key_required
+def get_attackers():
+    """Get unique attacker IPs aggregated from Elasticsearch with metadata"""
+    try:
+        # Get query parameters
+        limit = int(request.args.get('limit', 50))
+        page = int(request.args.get('page', 1))
+        sort_by = request.args.get('sort_by', 'total_attacks')  # total_attacks, threat_score, last_seen
+        sort_order = request.args.get('order', 'desc')  # asc or desc
+        
+        if not USE_ELASTICSEARCH or not es_client:
+            return jsonify({'error': 'Elasticsearch not configured'}), 503
+        
+        # Query ES with IP aggregation
+        query = {
+            "size": 0,
+            "aggs": {
+                "unique_ips": {
+                    "terms": {
+                        "field": "src_ip.keyword",
+                        "size": 500,  # Get more to allow sorting/filtering
+                        "order": {"_count": "desc"}
+                    },
+                    "aggs": {
+                        "first_seen": {
+                            "min": {
+                                "field": "timestamp"
+                            }
+                        },
+                        "last_seen": {
+                            "max": {
+                                "field": "timestamp"
+                            }
+                        },
+                        "avg_threat_score": {
+                            "avg": {
+                                "field": "threat_score"
+                            }
+                        },
+                        "max_threat_score": {
+                            "max": {
+                                "field": "threat_score"
+                            }
+                        },
+                        "country": {
+                            "terms": {
+                                "field": "geoip.country.keyword",
+                                "size": 1
+                            }
+                        },
+                        "city": {
+                            "terms": {
+                                "field": "geoip.city.keyword",
+                                "size": 1
+                            }
+                        },
+                        "isp": {
+                            "terms": {
+                                "field": "geoip.isp.keyword",
+                                "size": 1
+                            }
+                        },
+                        "attack_tools": {
+                            "terms": {
+                                "field": "attack_tool.keyword",
+                                "size": 5
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+        
+        # Parse aggregations into attacker list
+        attackers = []
+        if 'aggregations' in res and 'unique_ips' in res['aggregations']:
+            buckets = res['aggregations']['unique_ips'].get('buckets', [])
+            
+            for bucket in buckets:
+                ip = bucket['key']
+                total_attacks = bucket['doc_count']
+                
+                # Get metadata from sub-aggregations
+                first_seen = bucket.get('first_seen', {}).get('value_as_string', '')
+                last_seen = bucket.get('last_seen', {}).get('value_as_string', '')
+                avg_threat = bucket.get('avg_threat_score', {}).get('value', 0)
+                max_threat = bucket.get('max_threat_score', {}).get('value', 0)
+                
+                # Get country (top bucket)
+                country_buckets = bucket.get('country', {}).get('buckets', [])
+                country = country_buckets[0]['key'] if country_buckets else 'Unknown'
+                
+                # Get city (top bucket)
+                city_buckets = bucket.get('city', {}).get('buckets', [])
+                city = city_buckets[0]['key'] if city_buckets else 'Unknown'
+                
+                # Get ISP (top bucket)
+                isp_buckets = bucket.get('isp', {}).get('buckets', [])
+                isp = isp_buckets[0]['key'] if isp_buckets else 'Unknown'
+                
+                # Get top attack tools
+                tool_buckets = bucket.get('attack_tools', {}).get('buckets', [])
+                tools = [t['key'] for t in tool_buckets if t['key'] != 'unknown']
+                
+                attackers.append({
+                    'ip': ip,
+                    'total_attacks': total_attacks,
+                    'first_seen': first_seen,
+                    'last_seen': last_seen,
+                    'avg_threat_score': round(avg_threat, 2) if avg_threat else 0,
+                    'max_threat_score': int(max_threat) if max_threat else 0,
+                    'country': country,
+                    'city': city,
+                    'isp': isp,
+                    'attack_tools': tools
+                })
+        
+        # Sort the attackers list
+        if sort_by == 'total_attacks':
+            attackers.sort(key=lambda x: x['total_attacks'], reverse=(sort_order == 'desc'))
+        elif sort_by == 'threat_score':
+            attackers.sort(key=lambda x: x['max_threat_score'], reverse=(sort_order == 'desc'))
+        elif sort_by == 'last_seen':
+            attackers.sort(key=lambda x: x['last_seen'], reverse=(sort_order == 'desc'))
+        elif sort_by == 'first_seen':
+            attackers.sort(key=lambda x: x['first_seen'], reverse=(sort_order == 'desc'))
+        
+        # Pagination
+        total_attackers = len(attackers)
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_attackers = attackers[start_idx:end_idx]
+        
+        print(f"📊 Attackers API: Found {total_attackers} unique IPs, returning page {page} with {len(paginated_attackers)} results")
+        
+        return jsonify({
+            'attackers': paginated_attackers,
+            'total': total_attackers,
+            'page': page,
+            'limit': limit,
+            'total_pages': (total_attackers + limit - 1) // limit,
+            'sort_by': sort_by,
+            'sort_order': sort_order,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logging.error(f"Attackers endpoint error: {e}")
+        import traceback
+        print(f"❌ Attackers error traceback: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/recon/start', methods=['POST'])
+@api_key_required
+def start_reconnaissance():
+    """Start black box reconnaissance on a target IP"""
+    try:
+        data = request.get_json()
+        target_ip = data.get('target_ip')
+        scan_types = data.get('scan_types', ['nmap', 'amass', 'subfinder', 'bbot'])
+        
+        if not target_ip:
+            return jsonify({'error': 'target_ip is required'}), 400
+        
+        # Validate IP format (basic validation)
+        import re
+        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+        if not re.match(ip_pattern, target_ip):
+            return jsonify({'error': 'Invalid IP address format'}), 400
+        
+        # Create and start recon job
+        recon_id = create_recon_job(target_ip, scan_types, es_client)
+        
+        logger.info(f"Started reconnaissance job {recon_id} for {target_ip}")
+        
+        return jsonify({
+            'recon_id': recon_id,
+            'status': 'queued',
+            'target_ip': target_ip,
+            'scan_types': scan_types,
+            'message': 'Reconnaissance job started'
+        })
+    
+    except Exception as e:
+        logging.error(f"Error starting reconnaissance: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/recon/status/<recon_id>')
+@api_key_required
+def get_reconnaissance_status(recon_id):
+    """Get status of a reconnaissance job"""
+    try:
+        status = get_recon_status(recon_id)
+        
+        if not status:
+            return jsonify({'error': 'Reconnaissance job not found'}), 404
+        
+        return jsonify(status)
+    
+    except Exception as e:
+        logging.error(f"Error getting recon status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/recon/results/<recon_id>')
+@api_key_required
+def get_reconnaissance_results(recon_id):
+    """Get full results of a reconnaissance job"""
+    try:
+        results = get_recon_results(recon_id)
+        
+        if not results:
+            return jsonify({'error': 'Reconnaissance job not found'}), 404
+        
+        return jsonify(results)
+    
+    except Exception as e:
+        logging.error(f"Error getting recon results: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/recon/report/<recon_id>/download')
+@api_key_required
+def download_reconnaissance_report(recon_id):
+    """Download reconnaissance report in DOCX or PDF format"""
+    try:
+        from flask import send_file
+        from report_generator import generate_report
+        
+        # Get format from query param (default: docx)
+        report_format = request.args.get('format', 'docx').lower()
+        
+        if report_format not in ['docx', 'pdf']:
+            return jsonify({'error': 'Invalid format. Use docx or pdf'}), 400
+        
+        # Get recon results
+        results = get_recon_results(recon_id)
+        
+        if not results:
+            return jsonify({'error': 'Reconnaissance job not found'}), 404
+        
+        # Check if scan is complete
+        if results.get('status') != 'completed':
+            return jsonify({'error': 'Reconnaissance scan not yet completed'}), 400
+        
+        # Generate report
+        report_path = generate_report(results, report_format)
+        
+        # Determine MIME type
+        mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' if report_format == 'docx' else 'application/pdf'
+        
+        # Send file
+        return send_file(
+            report_path,
+            mimetype=mime_type,
+            as_attachment=True,
+            download_name=os.path.basename(report_path)
+        )
+    
+    except Exception as e:
+        logging.error(f"Error downloading report: {e}")
+        import traceback
+        print(f"❌ Report download error: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/logs/search')

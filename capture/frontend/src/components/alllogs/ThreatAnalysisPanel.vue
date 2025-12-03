@@ -40,18 +40,48 @@
       </v-card-text>
     </v-card>
 
-    <!-- MITRE ATT&CK -->
+    <!-- Attack Tool Detection -->
     <v-card class="mb-4" elevation="2">
       <v-card-title class="text-subtitle-1">
-        <v-icon start color="error">mdi-shield-alert</v-icon>
-        MITRE ATTACK
+        <v-icon start color="error">mdi-tools</v-icon>
+        Attack Tool Detection
       </v-card-title>
       <v-card-text>
-        <div v-if="log.attack_techniques && log.attack_techniques.length > 0">
+        <!-- Primary Tool -->
+        <div v-if="log.attack_tool && log.attack_tool !== 'unknown'" class="mb-3">
           <v-chip
-            v-for="technique in log.attack_techniques"
-            :key="technique"
             color="error"
+            variant="flat"
+            size="large"
+            prepend-icon="mdi-alert-circle"
+            class="mb-2"
+          >
+            {{ log.attack_tool.toUpperCase() }}
+          </v-chip>
+          
+          <!-- Tool Info -->
+          <div v-if="log.attack_tool_info" class="mt-3 ml-2">
+            <div v-if="log.attack_tool_info.version" class="text-caption mb-1">
+              <v-icon size="small" class="mr-1">mdi-tag</v-icon>
+              <strong>Version:</strong> {{ log.attack_tool_info.version }}
+            </div>
+            <div v-if="log.attack_tool_info.capabilities && Array.isArray(log.attack_tool_info.capabilities)" class="text-caption mb-1">
+              <v-icon size="small" class="mr-1">mdi-feature-search</v-icon>
+              <strong>Capabilities:</strong> {{ log.attack_tool_info.capabilities.join(', ') }}
+            </div>
+            <div v-if="log.attack_tool_info.description" class="text-caption mt-2 pa-2" style="background: rgba(var(--v-theme-surface-variant), 0.5); border-radius: 4px;">
+              {{ log.attack_tool_info.description }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Attack Techniques (if available) -->
+        <div v-if="log.attack_technique && log.attack_technique.length > 0" class="mt-3">
+          <div class="text-caption font-weight-bold mb-2">Techniques Used:</div>
+          <v-chip
+            v-for="technique in log.attack_technique"
+            :key="technique"
+            color="warning"
             variant="outlined"
             class="mr-2 mb-2"
             size="small"
@@ -59,8 +89,19 @@
             {{ technique }}
           </v-chip>
         </div>
-        <div v-else class="text-caption text-medium-emphasis">
-          No MITRE techniques detected
+
+        <!-- User Agent Pattern (for web attacks) -->
+        <div v-if="log.user_agent && !log.attack_tool" class="mt-3">
+          <div class="text-caption font-weight-bold mb-2">User Agent Pattern:</div>
+          <div class="text-caption pa-2" style="background: rgba(var(--v-theme-surface-variant), 0.5); border-radius: 4px; font-family: monospace;">
+            {{ log.user_agent }}
+          </div>
+        </div>
+
+        <!-- No tool detected -->
+        <div v-if="!log.attack_tool || log.attack_tool === 'unknown'" class="text-caption text-medium-emphasis">
+          <v-icon size="small" class="mr-1">mdi-information-outline</v-icon>
+          No specific attack tool detected - may be manual reconnaissance or unknown tool
         </div>
       </v-card-text>
     </v-card>

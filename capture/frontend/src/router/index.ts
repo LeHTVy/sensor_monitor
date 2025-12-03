@@ -30,6 +30,12 @@ const router = createRouter({
       name: 'data-explorer',
       component: DataExplorerView,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/attackers',
+      name: 'attackers',
+      component: () => import('@/views/AttackersView.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })

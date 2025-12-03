@@ -1,6 +1,9 @@
 <template>
-  <v-container fluid class="data-explorer fill-height pa-0">
-    <v-row no-gutters class="fill-height">
+  <v-app>
+    <Navbar />
+    <v-main>
+      <v-container fluid class="data-explorer fill-height pa-0">
+        <v-row no-gutters class="fill-height">
       <!-- Sidebar Filters -->
       <v-col cols="12" md="3" lg="2" class="filter-sidebar border-e">
         <div class="pa-4">
@@ -107,7 +110,7 @@
           >
             <!-- Custom Columns -->
             <template v-slot:item.timestamp="{ item }">
-              {{ formatDate(item.timestamp || item['@timestamp']) }}
+              {{ formatDate(item.timestamp) }}
             </template>
             
             <template v-slot:item.type="{ item }">
@@ -153,11 +156,14 @@
       </v-col>
     </v-row>
   </v-container>
+    </v-main>
+  </v-app>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { useDashboardStore } from '@/stores/dashboard'
+import Navbar from '@/components/Navbar.vue'
 import Chart from 'chart.js/auto'
 import 'chartjs-adapter-date-fns'
 
@@ -200,8 +206,19 @@ const headers = [
 
 // Methods
 function formatDate(dateStr: string) {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleString()
+  if (!dateStr) return 'Unknown'
+  // Ensure timestamp is treated as UTC if it lacks timezone info
+  const timeStr = dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z'
+  const date = new Date(timeStr)
+  return date.toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
 }
 
 function getTypeColor(type: string) {

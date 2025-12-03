@@ -7,7 +7,7 @@
     width="280"
   >
     <v-list nav>
-      <v-list-item class="py-4 px-4">
+      <v-list-item class="py-4 px-4" :to="{ name: 'dashboard' }" style="cursor: pointer;">
         <div class="d-flex align-center">
           <v-img :src="logoSrc" width="32" height="32" class="mr-3" contain />
           <div>
@@ -40,6 +40,13 @@
         value="data-explorer"
       />
 
+      <v-list-item
+        :to="{ name: 'attackers' }"
+        prepend-icon="mdi-radar"
+        title="Attackers"
+        value="attackers"
+      />
+
       <v-divider class="my-2" />
 
       <v-list-item
@@ -65,10 +72,12 @@
         <v-icon>mdi-menu</v-icon>
       </v-btn>
       
-      <v-img :src="logoSrc" class="logo-icon mr-3" width="36" height="36" contain />
-      <div class="header-branding">
-        <div class="header-title">SHADOWTRAP</div>
-        <div class="header-subtitle">Hunt in Silence, Strike in Darkness</div>
+      <div class="d-flex align-center clickable-logo" @click="navigateToDashboard" style="cursor: pointer;">
+        <v-img :src="logoSrc" class="logo-icon mr-3" width="36" height="36" contain />
+        <div class="header-branding">
+          <div class="header-title">SHADOWTRAP</div>
+          <div class="header-subtitle">Hunt in Silence, Strike in Darkness</div>
+        </div>
       </div>
     </div>
 
@@ -103,16 +112,22 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
 
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
+const router = useRouter()
 const drawer = ref(false)
 
 const logoSrc = computed(() => {
   return themeStore.isDark ? '/Logo-Golden.png' : '/Logo-Blue.png'
 })
+
+const navigateToDashboard = () => {
+  router.push({ name: 'dashboard' })
+}
 </script>
 
 <style scoped>
