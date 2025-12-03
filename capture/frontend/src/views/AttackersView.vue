@@ -94,6 +94,18 @@
           </v-row>
         </div>
 
+        <!-- Error Alert -->
+        <v-alert
+          v-if="attackersStore.error"
+          type="error"
+          variant="tonal"
+          class="ma-4"
+          closable
+          @click:close="attackersStore.error = null"
+        >
+          <strong>Error loading attackers:</strong> {{ attackersStore.error }}
+        </v-alert>
+
         <!-- Data Table -->
         <div class="flex-grow-1 overflow-auto">
           <v-data-table
@@ -238,7 +250,7 @@ const highThreatCount = computed(() => {
 // Methods
 const fetchAttackers = async () => {
   await attackersStore.fetchAttackers({
-    limit: 100,
+    limit: 500,  // Load all unique attackers
     sort_by: sortBy.value,
     order: sortOrder.value
   })

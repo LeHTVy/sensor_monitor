@@ -83,17 +83,34 @@
         <div class="d-flex align-center pa-4 border-b bg-surface">
           <h1 class="text-h5 font-weight-bold">Data Explorer</h1>
           <v-spacer></v-spacer>
+          
+          <!-- Auto-refresh toggle -->
+          <v-switch
+            v-model="autoRefresh"
+            label="Auto-refresh"
+            color="primary"
+            density="compact"
+            hide-details
+            class="mr-4"
+            @update:model-value="toggleAutoRefresh"
+          ></v-switch>
+          
           <v-btn prepend-icon="mdi-download" variant="outlined" class="mr-2" @click="exportData">
             Export CSV
           </v-btn>
-          <v-btn icon variant="text" @click="refreshData">
+          <v-btn 
+            icon 
+            variant="text" 
+            @click="refreshData"
+            :loading="loading"
+          >
             <v-icon>mdi-refresh</v-icon>
           </v-btn>
         </div>
 
         <!-- Visualization (Histogram) -->
-        <div class="visualization-area pa-4 border-b" style="height: 200px;">
-          <canvas ref="chartCanvas"></canvas>
+        <div class="visualization-area pa-4 border-b" style="min-height: 250px; max-height: 250px;">
+          <canvas ref="chartCanvas" style="max-height: 200px;"></canvas>
         </div>
 
         <!-- Data Grid -->
@@ -161,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import Navbar from '@/components/Navbar.vue'
 import Chart from 'chart.js/auto'
@@ -175,6 +192,8 @@ const logs = ref<any[]>([])
 const chartCanvas = ref<HTMLCanvasElement | null>(null)
 let chartInstance: Chart | null = null
 const itemsPerPage = ref(25)
+const autoRefresh = ref(false)
+let refreshInterval: ReturnType<typeof setInterval> | null = null
 
 // Filters
 const timeRange = ref('24h')
@@ -251,24 +270,15 @@ async function applyFilters() {
     }
   }
 
-  // Use store to fetch data (we might need to extend store or call API directly for advanced filters)
-  // For now, we'll fetch all and filter client-side if API doesn't support it, 
-  // but ideally API should handle this. 
-  // Let's use the existing loadLogs but we might need to pass more params.
-  
-  // Since the store's loadLogs is a bit limited, let's call API directly here for maximum control
   try {
     const params = new URLSearchParams()
-    params.append('limit', '2000') // Fetch more for explorer
+    params.append('limit', '1000') // Reduced to prevent crashes with real-time data 
     
     if (dateFrom) params.append('date_from', dateFrom.toISOString())
     if (filters.value.type !== 'All') params.append('type', filters.value.type.toLowerCase())
     
-    // Note: The current backend might not support 'search', 'country', 'port' params yet.
-    // We will filter client-side for these for now.
-    
     const response = await fetch(`/api/logs?${params.toString()}`, {
-      headers: { 'X-API-Key': 'capture_secure_key_2024' } // Hardcoded for now, should use auth store
+      headers: { 'X-API-Key': 'capture_secure_key_2024' } 
     })
     
     if (response.ok) {
@@ -391,8 +401,33 @@ function refreshData() {
   applyFilters()
 }
 
+function toggleAutoRefresh(enabled: boolean) {
+  if (enabled) {
+    // Start auto-refresh every 30 seconds
+    refreshInterval = setInterval(() => {
+      applyFilters()
+    }, 30000)
+  } else {
+    // Stop auto-refresh
+    if (refreshInterval) {
+      clearInterval(refreshInterval)
+      refreshInterval = null
+    }
+  }
+}
+
 onMounted(() => {
   applyFilters()
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
+  if (chartInstance) {
+    chartInstance.destroy()
+  }
 })
 </script>
 

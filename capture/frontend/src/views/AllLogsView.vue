@@ -76,7 +76,7 @@ async function fetchLogs() {
   try {
     loading.value = true
     const response = await fetch(
-      `${API_BASE}/logs?limit=100`,
+      `${API_BASE}/logs?limit=5000`,
       { headers: { 'X-API-Key': API_KEY } }
     )
     

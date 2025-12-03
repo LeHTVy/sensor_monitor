@@ -17,6 +17,7 @@ export const useAttackersStore = defineStore('attackers', () => {
     const attackers = ref([])
     const total = ref(0)
     const loading = ref(false)
+    const error = ref<string | null>(null)
     const reconJobs = ref({}) // Map of reconId -> recon status
     const reconResults = ref({}) // Map of reconId -> full results
 
@@ -36,13 +37,20 @@ export const useAttackersStore = defineStore('attackers', () => {
     // Actions
     async function fetchAttackers(params: FetchAttackersParams = {}) {
         loading.value = true
+        error.value = null
 
         try {
             const apiKey = localStorage.getItem('api_key')
 
+            if (!apiKey) {
+                throw new Error('No API key found. Please log in again.')
+            }
+
+            console.log('Fetching attackers with params:', params)
+
             const response = await axios.get(`${API_URL}/api/attackers`, {
                 params: {
-                    limit: params.limit || 50,
+                    limit: params.limit || 500,
                     page: params.page || 1,
                     sort_by: params.sort_by || 'total_attacks',
                     order: params.order || 'desc'
@@ -52,13 +60,24 @@ export const useAttackersStore = defineStore('attackers', () => {
                 }
             })
 
+            console.log('Attackers API response:', response.data)
+
             attackers.value = response.data.attackers || []
             total.value = response.data.total || 0
 
-            console.log('Fetched attackers:', attackers.value.length)
-        } catch (error) {
-            console.error('Failed to fetch attackers:', error)
-            throw error
+            console.log(`✅ Fetched ${attackers.value.length} attackers out of ${total.value} total`)
+        } catch (err: any) {
+            console.error('Failed to fetch attackers:', err)
+            error.value = err.response?.data?.error || err.message || 'Failed to load attackers data'
+
+            // Show specific error messages
+            if (err.response?.status === 503) {
+                error.value = 'Elasticsearch not configured on backend'
+            } else if (err.response?.status === 401) {
+                error.value = 'Authentication failed. Please log in again.'
+            }
+
+            throw err
         } finally {
             loading.value = false
         }
@@ -224,18 +243,14 @@ export const useAttackersStore = defineStore('attackers', () => {
     }
 
     return {
-        // State
         attackers,
-        total,
-        loading,
         reconJobs,
         reconResults,
-
-        // Computed
+        total,
+        loading,
+        error,
         activeReconJobs,
         completedScans,
-
-        // Actions
         fetchAttackers,
         startRecon,
         pollReconStatus,
