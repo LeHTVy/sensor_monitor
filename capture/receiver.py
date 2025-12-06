@@ -801,16 +801,14 @@ def get_attackers():
             return jsonify({'error': 'Elasticsearch not configured'}), 503
         
         print(f"🔍 Attackers endpoint called: limit={limit}, page={page}, sort_by={sort_by}")
-        
-        # Try ip.keyword field first (most common in enriched logs)
-        ip_field = "ip.keyword"
-        
+
+        # Base query structure
         query = {
             "size": 0,
             "aggs": {
                 "unique_ips": {
                     "terms": {
-                        "field": ip_field,
+                        "field": "ip.keyword",  # Placeholder, will be replaced in loop
                         "size": 500,
                         "order": {"_count": "desc"}
                     },
@@ -819,33 +817,53 @@ def get_attackers():
                         "last_seen": {"max": {"field": "timestamp"}},
                         "avg_threat_score": {"avg": {"field": "threat_score"}},
                         "max_threat_score": {"max": {"field": "threat_score"}},
-                        "country": {"terms": {"field": "geoip.country.keyword", "size": 1}},
-                        "city": {"terms": {"field": "geoip.city.keyword", "size": 1}},
-                        "isp": {"terms": {"field": "geoip.isp.keyword", "size": 1}},
+                        # Try multiple field paths for GeoIP data
+                        "country": {"terms": {"field": "geoip.country.keyword", "size": 1, "missing": "Unknown"}},
+                        "city": {"terms": {"field": "geoip.city.keyword", "size": 1, "missing": "Unknown"}},
+                        "isp": {"terms": {"field": "geoip.isp.keyword", "size": 1, "missing": "Unknown"}},
                         "attack_tools": {"terms": {"field": "attack_tool.keyword", "size": 5}}
                     }
                 }
             }
         }
-        
+
+        # DEBUG: Check field names in actual data
         try:
-            res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
-        except Exception as es_error:
-            print(f"⚠️ ip.keyword query failed: {es_error}")
-            res = {}
+            debug_res = es_client.search(
+                index=f"{ES_PREFIX}-*", 
+                body={"size": 1, "sort": [{"timestamp": {"order": "desc"}}]}
+            )
+            if debug_res['hits']['hits']:
+                source = debug_res['hits']['hits'][0]['_source']
+                print(f"🕵️ DEBUG: Sample document keys: {list(source.keys())}")
+                if 'ip' in source: print(f"   -> Found 'ip': {source['ip']}")
+                if 'src_ip' in source: print(f"   -> Found 'src_ip': {source['src_ip']}")
+        except Exception as e:
+            print(f"⚠️ Debug query failed: {e}")
 
-        # Check if we got results, if not try src_ip.keyword
-        has_results = False
-        if 'aggregations' in res and 'unique_ips' in res['aggregations']:
-            has_results = len(res['aggregations']['unique_ips'].get('buckets', [])) > 0
-
-        if not has_results:
-            print(f"⚠️ No results with ip.keyword, trying src_ip.keyword")
-            query["aggs"]["unique_ips"]["terms"]["field"] = "src_ip.keyword"
+        # Field candidates to try for aggregation
+        candidates = ["ip.keyword", "src_ip.keyword", "ip", "src_ip"]
+        
+        res = {}
+        for field in candidates:
+            print(f"🔄 Trying aggregation on field: {field}")
+            query["aggs"]["unique_ips"]["terms"]["field"] = field
             try:
                 res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+                
+                # Check if we got buckets
+                if 'aggregations' in res and 'unique_ips' in res['aggregations']:
+                    buckets = res['aggregations']['unique_ips'].get('buckets', [])
+                    if len(buckets) > 0:
+                        print(f"✅ Success with field: {field} - Found {len(buckets)} buckets")
+                        break
+                    else:
+                        print(f"⚠️ No buckets with field: {field}")
+                else:
+                    print(f"⚠️ No 'unique_ips' aggregation in response for {field}")
+                    
             except Exception as e:
-                print(f"❌ src_ip.keyword query failed: {e}")
+                print(f"❌ Query failed for field {field}: {e}")
 
         attackers = []
         if 'aggregations' in res and 'unique_ips' in res['aggregations']:
