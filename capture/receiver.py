@@ -970,7 +970,7 @@ def start_reconnaissance():
         # Create and start recon job
         recon_id = create_recon_job(target_ip, scan_types, es_client)
         
-        logger.info(f"Started reconnaissance job {recon_id} for {target_ip}")
+        logging.info(f"Started reconnaissance job {recon_id} for {target_ip}")
         
         return jsonify({
             'recon_id': recon_id,
