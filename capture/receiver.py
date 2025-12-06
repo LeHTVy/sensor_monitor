@@ -941,8 +941,10 @@ def get_attackers():
 @api_key_required
 def start_reconnaissance():
     """Start black box reconnaissance on a target IP"""
+    print("🔫 Recon endpoint called")
     try:
         data = request.get_json()
+        print(f"🔫 Recon data received: {data}")
         target_ip = data.get('target_ip')
         scan_types = data.get('scan_types', ['nmap', 'amass', 'subfinder', 'bbot'])
         
@@ -969,6 +971,8 @@ def start_reconnaissance():
         })
     
     except Exception as e:
+        import traceback
+        print(f"❌ Recon start error: {traceback.format_exc()}")
         logging.error(f"Error starting reconnaissance: {e}")
         return jsonify({'error': str(e)}), 500
 
