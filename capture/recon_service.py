@@ -26,7 +26,7 @@ class NmapScanner:
         self.target_ip = target_ip
         self.results = {}
     
-    def host_discovery(self, timeout: int = 60) -> Dict:
+    def host_discovery(self, timeout: int = 1800) -> Dict:
         """Perform host discovery (ping scan)"""
         logger.info(f"[Nmap] Starting host discovery for {self.target_ip}")
         
@@ -62,7 +62,7 @@ class NmapScanner:
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
     
-    def port_scan(self, timeout: int = 600) -> Dict:
+    def port_scan(self, timeout: int = 1800) -> Dict:
         """Perform comprehensive port scan"""
         logger.info(f"[Nmap] Starting port scan for {self.target_ip}")
         
@@ -105,7 +105,7 @@ class NmapScanner:
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
     
-    def service_detection(self, ports: List[int] = None, timeout: int = 300) -> Dict:
+    def service_detection(self, ports: List[int] = None, timeout: int = 1800) -> Dict:
         """Perform detailed service version detection on specific ports"""
         logger.info(f"[Nmap] Starting service detection for {self.target_ip}")
         
@@ -142,7 +142,7 @@ class NmapScanner:
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
     
-    def os_fingerprinting(self, timeout: int = 300) -> Dict:
+    def os_fingerprinting(self, timeout: int = 1800) -> Dict:
         """Perform OS fingerprinting"""
         logger.info(f"[Nmap] Starting OS fingerprinting for {self.target_ip}")
         
@@ -232,7 +232,7 @@ class AmassScanner:
     def __init__(self, target: str):
         self.target = target
     
-    def enumerate_subdomains(self, timeout: int = 600) -> Dict:
+    def enumerate_subdomains(self, timeout: int = 1800) -> Dict:
         """Enumerate subdomains using amass"""
         logger.info(f"[Amass] Starting subdomain enumeration for {self.target}")
         
@@ -279,7 +279,7 @@ class SubfinderScanner:
     def __init__(self, target: str):
         self.target = target
     
-    def enumerate_subdomains(self, timeout: int = 300) -> Dict:
+    def enumerate_subdomains(self, timeout: int = 1800) -> Dict:
         """Enumerate subdomains using subfinder"""
         logger.info(f"[Subfinder] Starting subdomain enumeration for {self.target}")
         
@@ -327,7 +327,7 @@ class BbotScanner:
     def __init__(self, target: str):
         self.target = target
     
-    def comprehensive_scan(self, timeout: int = 300) -> Dict:
+    def comprehensive_scan(self, timeout: int = 1800) -> Dict:
         """Run comprehensive OSINT scan with bbot"""
         logger.info(f"[BBOT] Starting comprehensive scan for {self.target}")
         
@@ -407,18 +407,18 @@ class ReconOrchestrator:
                 self.results['tools']['nmap'] = {'host_discovery': host_result}
                 
                 # ALWAYS run port scan regardless of host_up (many firewalls block ICMP)
-                port_result = scanner.port_scan(timeout=600)
+                port_result = scanner.port_scan(timeout=1800)
                 self.results['tools']['nmap']['port_scan'] = port_result
                 
                 # Service detection (on open ports only)
                 if port_result.get('status') == 'completed':
                     open_ports = [p['port'] for p in port_result.get('open_ports', []) if p.get('state') == 'open']
                     if open_ports:
-                        service_result = scanner.service_detection(open_ports[:20], timeout=300)
+                        service_result = scanner.service_detection(open_ports[:20], timeout=1800)
                         self.results['tools']['nmap']['service_detection'] = service_result
                 
                 # OS fingerprinting
-                os_result = scanner.os_fingerprinting(timeout=300)
+                os_result = scanner.os_fingerprinting(timeout=1800)
                 self.results['tools']['nmap']['os_fingerprinting'] = os_result
                 
                 self._update_progress('nmap', 'completed')
@@ -436,7 +436,7 @@ class ReconOrchestrator:
                 self._update_progress('amass', 'running')
                 
                 scanner = AmassScanner(domain)
-                amass_result = scanner.enumerate_subdomains(timeout=300)
+                amass_result = scanner.enumerate_subdomains(timeout=1800)
                 self.results['tools']['amass'] = amass_result
                 
                 self._update_progress('amass', 'completed')
@@ -447,7 +447,7 @@ class ReconOrchestrator:
                 self._update_progress('subfinder', 'running')
                 
                 scanner = SubfinderScanner(domain)
-                subfinder_result = scanner.enumerate_subdomains(timeout=180)
+                subfinder_result = scanner.enumerate_subdomains(timeout=1800)
                 self.results['tools']['subfinder'] = subfinder_result
                 
                 self._update_progress('subfinder', 'completed')
@@ -458,7 +458,7 @@ class ReconOrchestrator:
                 self._update_progress('bbot', 'running')
                 
                 scanner = BbotScanner(domain)
-                bbot_result = scanner.comprehensive_scan(timeout=300)
+                bbot_result = scanner.comprehensive_scan(timeout=1800)
                 self.results['tools']['bbot'] = bbot_result
                 
                 self._update_progress('bbot', 'completed')
