@@ -31,8 +31,8 @@ class NmapScanner:
         logger.info(f"[Nmap] Starting host discovery for {self.target_ip}")
         
         try:
-            # Run nmap ping scan
-            cmd = ['nmap', '-sn', '-oX', '-', self.target_ip]
+            # Run nmap ping scan with -Pn to skip traditional ping (often blocked)
+            cmd = ['nmap', '-Pn', '-sn', '-oX', '-', self.target_ip]
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -67,12 +67,12 @@ class NmapScanner:
         logger.info(f"[Nmap] Starting port scan for {self.target_ip}")
         
         try:
-            # Run nmap with version detection, OS detection, and scripts
+            # Run nmap with version detection
+            # -Pn: Skip host discovery (treat host as up even if ping blocked)
             # -sS: SYN stealth scan
             # -sV: Service version detection
-            # -O: OS detection
-            # -A: Aggressive scan (enables OS, version, script, traceroute)
-            cmd = ['nmap', '-sS', '-sV', '-p-', '-oX', '-', self.target_ip]
+            # --top-ports 1000: Scan top 1000 most common ports (faster than -p-)
+            cmd = ['nmap', '-Pn', '-sS', '-sV', '--top-ports', '1000', '-oX', '-', self.target_ip]
             
             result = subprocess.run(
                 cmd,
@@ -327,13 +327,14 @@ class BbotScanner:
     def __init__(self, target: str):
         self.target = target
     
-    def comprehensive_scan(self, timeout: int = 900) -> Dict:
+    def comprehensive_scan(self, timeout: int = 300) -> Dict:
         """Run comprehensive OSINT scan with bbot"""
         logger.info(f"[BBOT] Starting comprehensive scan for {self.target}")
         
         try:
-            # Run bbot with subdomain enum and tech detection
-            cmd = ['bbot', '-t', self.target, '-f', 'subdomain-enum', 'passive', '-o', '/tmp', '--json']
+            # Run bbot with passive subdomain enumeration only (faster)
+            # Reduced scope for quicker results
+            cmd = ['bbot', '-t', self.target, '-f', 'passive', '-o', '/tmp', '--json', '--silent']
             
             result = subprocess.run(
                 cmd,

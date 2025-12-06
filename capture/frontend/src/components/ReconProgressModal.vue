@@ -239,22 +239,121 @@ const getToolOutput = (toolName: string): string => {
   
   // Format output based on tool
   if (toolName === 'nmap') {
-    const portScan = toolData.port_scan
-    if (portScan?.open_ports) {
-      const openPorts = portScan.open_ports.filter(p => p.state === 'open')
-      return `Found ${openPorts.length} open ports:\n` +
-        openPorts.slice(0, 10).map(p => 
-          `  ${p.port}/${p.protocol} - ${p.service || 'unknown'}`
-        ).join('\n')
+    let output = ''
+    
+    // Check host discovery
+    const hostDiscovery = toolData.host_discovery
+    if (hostDiscovery) {
+      if (hostDiscovery.error) {
+        output += `❌ Host Discovery Error: ${hostDiscovery.error}\n\n`
+      } else if (hostDiscovery.status === 'timeout') {
+        output += `⏱️ Host Discovery: Timed out\n\n`
+      } else {
+        output += `🔍 Host Discovery: ${hostDiscovery.host_up ? '✅ Host is UP' : '❌ Host appears DOWN'}\n\n`
+      }
     }
-  } else if (toolData.subdomains) {
-    return `Found ${toolData.count || toolData.subdomains.length} subdomains:\n` +
-      toolData.subdomains.slice(0, 10).map(s => `  ${s}`).join('\n')
-  } else if (toolData.output) {
-    return toolData.output.slice(0, 500)
+    
+    // Check port scan
+    const portScan = toolData.port_scan
+    if (portScan) {
+      if (portScan.error) {
+        output += `❌ Port Scan Error: ${portScan.error}\n`
+      } else if (portScan.status === 'timeout') {
+        output += `⏱️ Port Scan: Timed out\n`
+      } else if (portScan.open_ports && portScan.open_ports.length > 0) {
+        const openPorts = portScan.open_ports.filter((p: any) => p.state === 'open')
+        output += `🔓 Open Ports Found: ${openPorts.length}\n`
+        output += '─'.repeat(40) + '\n'
+        openPorts.forEach((p: any) => {
+          output += `  ${p.port}/${p.protocol} - ${p.service || 'unknown'}\n`
+        })
+      } else {
+        output += `🔒 No open ports found\n`
+      }
+    }
+    
+    return output || 'No nmap results available'
+    
+  } else if (toolName === 'amass') {
+    if (toolData.error) {
+      return `❌ Error: ${toolData.error}`
+    }
+    if (toolData.status === 'timeout') {
+      return `⏱️ Timed out after scanning`
+    }
+    const subdomains = toolData.subdomains || []
+    if (subdomains.length === 0) {
+      return '🔍 No subdomains found'
+    }
+    let output = `🌐 AMASS Subdomains Found: ${subdomains.length}\n`
+    output += '─'.repeat(40) + '\n'
+    subdomains.forEach((s: string) => {
+      output += `  • ${s}\n`
+    })
+    return output
+    
+  } else if (toolName === 'subfinder') {
+    if (toolData.error) {
+      return `❌ Error: ${toolData.error}`
+    }
+    if (toolData.status === 'timeout') {
+      return `⏱️ Timed out after scanning`
+    }
+    const subdomains = toolData.subdomains || []
+    if (subdomains.length === 0) {
+      return '🔍 No subdomains found'
+    }
+    let output = `🔎 SUBFINDER Subdomains Found: ${subdomains.length}\n`
+    output += '─'.repeat(40) + '\n'
+    subdomains.forEach((s: string) => {
+      output += `  • ${s}\n`
+    })
+    return output
+    
+  } else if (toolName === 'bbot') {
+    if (toolData.error) {
+      return `❌ Error: ${toolData.error}`
+    }
+    if (toolData.status === 'timeout') {
+      return `⏱️ BBOT timed out (this is common for large scans)`
+    }
+    
+    let output = '🤖 BBOT OSINT Results\n'
+    output += '─'.repeat(40) + '\n'
+    
+    // Show subdomains if found
+    if (toolData.subdomains && toolData.subdomains.length > 0) {
+      output += `\n🌐 Subdomains (${toolData.subdomains.length}):\n`
+      toolData.subdomains.forEach((s: string) => {
+        output += `  • ${s}\n`
+      })
+    }
+    
+    // Show emails if found
+    if (toolData.emails && toolData.emails.length > 0) {
+      output += `\n📧 Emails (${toolData.emails.length}):\n`
+      toolData.emails.forEach((e: string) => {
+        output += `  • ${e}\n`
+      })
+    }
+    
+    // Show technologies if found
+    if (toolData.technologies && toolData.technologies.length > 0) {
+      output += `\n🛠️ Technologies (${toolData.technologies.length}):\n`
+      toolData.technologies.forEach((t: string) => {
+        output += `  • ${t}\n`
+      })
+    }
+    
+    if (output === '🤖 BBOT OSINT Results\n' + '─'.repeat(40) + '\n') {
+      return '🔍 No BBOT findings'
+    }
+    
+    return output
   }
   
-  return JSON.stringify(toolData, null, 2).slice(0, 500)
+  // Default: show raw JSON
+  return JSON.stringify(toolData, null, 2)
 }
 
 const getToolIcon = (status: string): string => {
