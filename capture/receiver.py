@@ -268,11 +268,9 @@ def update_attack_patterns(log_data):
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         
-        # Extract attack pattern from payload
         payload = log_data.get('payload', '')
         if payload:
-            # Simple pattern extraction (can be enhanced)
-            pattern = payload[:50]  # First 50 characters as pattern
+            pattern = payload[:50] 
             
             cursor.execute('''
                 SELECT id, count FROM attack_patterns WHERE pattern = ?
@@ -315,8 +313,6 @@ def login():
     username = data.get('username', '')
     password = data.get('password', '')
     
-    # Simple authentication (in production, use proper user management)
-    # NOTE: use fixed API key if provided via env (docker-compose)
     if username == 'admin' and password == 'capture2024':
         api_key = os.getenv('CAPTURE_API_KEY', 'capture_secure_key_2024')
         jwt_token = security.generate_jwt_token('admin')
@@ -817,17 +813,16 @@ def get_attackers():
                         "last_seen": {"max": {"field": "timestamp"}},
                         "avg_threat_score": {"avg": {"field": "threat_score"}},
                         "max_threat_score": {"max": {"field": "threat_score"}},
-                        # Try multiple field paths for GeoIP data
-                        "country": {"terms": {"field": "geoip.country.keyword", "size": 1, "missing": "Unknown"}},
-                        "city": {"terms": {"field": "geoip.city.keyword", "size": 1, "missing": "Unknown"}},
-                        "isp": {"terms": {"field": "geoip.isp.keyword", "size": 1, "missing": "Unknown"}},
+                        # GeoIP data (mapped as keyword type, no .keyword suffix needed)
+                        "country": {"terms": {"field": "geoip.country", "size": 1, "missing": "Unknown"}},
+                        "city": {"terms": {"field": "geoip.city", "size": 1, "missing": "Unknown"}},
+                        "isp": {"terms": {"field": "geoip.isp", "size": 1, "missing": "Unknown"}},
                         "attack_tools": {"terms": {"field": "attack_tool.keyword", "size": 5}}
                     }
                 }
             }
         }
 
-        # DEBUG: Check field names in actual data
         try:
             debug_res = es_client.search(
                 index=f"{ES_PREFIX}-*", 
@@ -841,7 +836,6 @@ def get_attackers():
         except Exception as e:
             print(f"⚠️ Debug query failed: {e}")
 
-        # Field candidates to try for aggregation
         candidates = ["ip.keyword", "src_ip.keyword", "ip", "src_ip"]
         
         res = {}
