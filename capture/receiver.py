@@ -806,55 +806,19 @@ def get_attackers():
             "aggs": {
                 "unique_ips": {
                     "terms": {
-                        "field": "src_ip.keyword",
-                        "size": 500,  # Get more to allow sorting/filtering
+                        "field": "src_ip",
+                        "size": 500,
                         "order": {"_count": "desc"}
                     },
                     "aggs": {
-                        "first_seen": {
-                            "min": {
-                                "field": "timestamp"
-                            }
-                        },
-                        "last_seen": {
-                            "max": {
-                                "field": "timestamp"
-                            }
-                        },
-                        "avg_threat_score": {
-                            "avg": {
-                                "field": "threat_score"
-                            }
-                        },
-                        "max_threat_score": {
-                            "max": {
-                                "field": "threat_score"
-                            }
-                        },
-                        "country": {
-                            "terms": {
-                                "field": "geoip.country.keyword",
-                                "size": 1
-                            }
-                        },
-                        "city": {
-                            "terms": {
-                                "field": "geoip.city.keyword",
-                                "size": 1
-                            }
-                        },
-                        "isp": {
-                            "terms": {
-                                "field": "geoip.isp.keyword",
-                                "size": 1
-                            }
-                        },
-                        "attack_tools": {
-                            "terms": {
-                                "field": "attack_tool.keyword",
-                                "size": 5
-                            }
-                        }
+                        "first_seen": {"min": {"field": "timestamp"}},
+                        "last_seen": {"max": {"field": "timestamp"}},
+                        "avg_threat_score": {"avg": {"field": "threat_score"}},
+                        "max_threat_score": {"max": {"field": "threat_score"}},
+                        "country": {"terms": {"field": "geoip.country.keyword", "size": 1}},
+                        "city": {"terms": {"field": "geoip.city.keyword", "size": 1}},
+                        "isp": {"terms": {"field": "geoip.isp.keyword", "size": 1}},
+                        "attack_tools": {"terms": {"field": "attack_tool.keyword", "size": 5}}
                     }
                 }
             }
@@ -862,7 +826,6 @@ def get_attackers():
         
         res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
         
-        # Parse aggregations into attacker list
         attackers = []
         if 'aggregations' in res and 'unique_ips' in res['aggregations']:
             buckets = res['aggregations']['unique_ips'].get('buckets', [])
@@ -871,25 +834,20 @@ def get_attackers():
                 ip = bucket['key']
                 total_attacks = bucket['doc_count']
                 
-                # Get metadata from sub-aggregations
                 first_seen = bucket.get('first_seen', {}).get('value_as_string', '')
                 last_seen = bucket.get('last_seen', {}).get('value_as_string', '')
                 avg_threat = bucket.get('avg_threat_score', {}).get('value', 0)
                 max_threat = bucket.get('max_threat_score', {}).get('value', 0)
                 
-                # Get country (top bucket)
                 country_buckets = bucket.get('country', {}).get('buckets', [])
                 country = country_buckets[0]['key'] if country_buckets else 'Unknown'
                 
-                # Get city (top bucket)
                 city_buckets = bucket.get('city', {}).get('buckets', [])
                 city = city_buckets[0]['key'] if city_buckets else 'Unknown'
                 
-                # Get ISP (top bucket)
                 isp_buckets = bucket.get('isp', {}).get('buckets', [])
                 isp = isp_buckets[0]['key'] if isp_buckets else 'Unknown'
                 
-                # Get top attack tools
                 tool_buckets = bucket.get('attack_tools', {}).get('buckets', [])
                 tools = [t['key'] for t in tool_buckets if t['key'] != 'unknown']
                 
@@ -906,7 +864,7 @@ def get_attackers():
                     'attack_tools': tools
                 })
         
-        # Sort the attackers list
+        # Sort
         if sort_by == 'total_attacks':
             attackers.sort(key=lambda x: x['total_attacks'], reverse=(sort_order == 'desc'))
         elif sort_by == 'threat_score':
@@ -922,8 +880,6 @@ def get_attackers():
         end_idx = start_idx + limit
         paginated_attackers = attackers[start_idx:end_idx]
         
-        print(f"📊 Attackers API: Found {total_attackers} unique IPs, returning page {page} with {len(paginated_attackers)} results")
-        
         return jsonify({
             'attackers': paginated_attackers,
             'total': total_attackers,
@@ -937,8 +893,6 @@ def get_attackers():
         
     except Exception as e:
         logging.error(f"Attackers endpoint error: {e}")
-        import traceback
-        print(f"❌ Attackers error traceback: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/recon/start', methods=['POST'])

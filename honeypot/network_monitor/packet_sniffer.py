@@ -52,6 +52,11 @@ from detectors.generic_scan_detector import GenericScanDetector
 from detectors.web_scanner_detector import WebScannerDetector
 from detectors.recon_detector import ReconDetector
 
+# Import enhanced analyzers
+from analyzers.pyshark_analyzer import PysharkAnalyzer
+from analyzers.yara_analyzer import YaraAnalyzer
+from analyzers.nmap_scanner import NmapScanner
+
 
 class PacketSniffer:
     """
@@ -59,13 +64,17 @@ class PacketSniffer:
     and analyzes it for attack patterns
     """
 
-    def __init__(self, interface='any', kafka_bootstrap='10.8.0.1:9093'):
+    def __init__(self, interface='any', kafka_bootstrap='10.8.0.1:9093',
+                 enable_pyshark=True, enable_yara=True, enable_nmap_scanner=True):
         """
         Initialize packet sniffer
 
         Args:
             interface: Network interface to sniff on ('any' for all interfaces, 'auto' to detect)
             kafka_bootstrap: Kafka server address for log transmission
+            enable_pyshark: Enable deep packet analysis with Pyshark
+            enable_yara: Enable YARA pattern matching
+            enable_nmap_scanner: Enable active scanning of attackers
         """
         # Auto-detect interface if needed
         if interface == 'auto':
@@ -96,11 +105,29 @@ class PacketSniffer:
             WebScannerDetector(),
             ReconDetector()
         ]
+        
+        # Enhanced analyzers
+        self.pyshark_analyzer = PysharkAnalyzer(
+            interface=self.interface, 
+            enabled=enable_pyshark
+        ) if enable_pyshark else None
+        
+        self.yara_analyzer = YaraAnalyzer(
+            enabled=enable_yara
+        ) if enable_yara else None
+        
+        self.nmap_scanner = NmapScanner(
+            enabled=enable_nmap_scanner,
+            rate_limit=5  # Max 5 scans per minute
+        ) if enable_nmap_scanner else None
 
         # Stats
         self.stats = {
             'packets_captured': 0,
             'attacks_detected': 0,
+            'yara_matches': 0,
+            'deep_analyses': 0,
+            'counter_scans': 0,
             'start_time': None
         }
 
@@ -109,6 +136,9 @@ class PacketSniffer:
         self.kafka_worker = None
 
         print(f"🌐 PacketSniffer initialized on interface: {interface}")
+        print(f"   📊 Pyshark: {'enabled' if enable_pyshark else 'disabled'}")
+        print(f"   🔍 YARA: {'enabled' if enable_yara else 'disabled'}")
+        print(f"   🎯 Nmap Scanner: {'enabled' if enable_nmap_scanner else 'disabled'}")
 
     def initialize_kafka(self):
         """Initialize Kafka producer with retry logic"""
@@ -178,6 +208,22 @@ class PacketSniffer:
             context['last_seen'] = datetime.now()
             context['total_packets'] += 1
             context['packet_times'].append(time.time())
+            
+            # Run YARA pattern matching on payload
+            yara_matches = []
+            if self.yara_analyzer and packet.haslayer('Raw'):
+                yara_matches = self.yara_analyzer.scan_packet(packet)
+                if yara_matches:
+                    self.stats['yara_matches'] += len(yara_matches)
+                    context.setdefault('yara_matches', []).extend(yara_matches)
+            
+            # Deep packet analysis for suspicious traffic
+            deep_analysis = None
+            if self.pyshark_analyzer and context['total_packets'] >= 5:
+                deep_analysis = self.pyshark_analyzer.analyze_packet(packet)
+                if deep_analysis:
+                    self.stats['deep_analyses'] += 1
+                    context['deep_analysis'] = deep_analysis
 
             # Analyze TCP packets
             if packet.haslayer(TCP):
@@ -356,6 +402,26 @@ class PacketSniffer:
             'ports_scanned': list(context['ports_scanned'])[:100],  # Limit to 100
             'total_packets': context['total_packets']
         }
+        
+        # Add YARA matches if present
+        if context.get('yara_matches'):
+            log_entry['yara_matches'] = context['yara_matches'][-10:]  # Last 10 matches
+            
+        # Add deep analysis results if present
+        if context.get('deep_analysis'):
+            log_entry['deep_analysis'] = context['deep_analysis']
+        
+        # Trigger counter-reconnaissance for high-confidence attacks
+        if self.nmap_scanner and detection['confidence'] >= 70:
+            scan_queued = self.nmap_scanner.queue_scan(
+                target_ip=src_ip,
+                trigger_reason=f"{detection['tool']} attack",
+                confidence=detection['confidence'],
+                scan_type='version' if detection['confidence'] >= 85 else 'quick'
+            )
+            if scan_queued:
+                self.stats['counter_scans'] += 1
+                print(f"🎯 Counter-scan queued for {src_ip}")
 
         # Add to Kafka queue (non-blocking)
         try:
@@ -433,6 +499,15 @@ class PacketSniffer:
         if not self.initialize_kafka():
             print("❌ Failed to initialize Kafka. Exiting.")
             sys.exit(1)
+        
+        # Start enhanced analyzers
+        if self.pyshark_analyzer:
+            self.pyshark_analyzer.start()
+            print("✅ Pyshark deep analyzer started")
+            
+        if self.nmap_scanner:
+            self.nmap_scanner.start()
+            print("✅ Nmap counter-scanner started")
 
         self.running = True
         self.stats['start_time'] = datetime.now()
@@ -442,6 +517,9 @@ class PacketSniffer:
 
         print(f"\n✅ Network monitor is running...")
         print(f"🎯 Monitoring for port scans, SYN scans, and network attacks")
+        print(f"🔬 Deep analysis: {'enabled' if self.pyshark_analyzer else 'disabled'}")
+        print(f"🔍 YARA matching: {'enabled' if self.yara_analyzer else 'disabled'}")
+        print(f"🎯 Counter-recon: {'enabled' if self.nmap_scanner else 'disabled'}")
         print(f"⚡ Press Ctrl+C to stop\n")
 
         try:
@@ -467,6 +545,15 @@ class PacketSniffer:
         print(f"{'='*60}")
 
         self.running = False
+        
+        # Stop enhanced analyzers
+        if self.pyshark_analyzer:
+            self.pyshark_analyzer.stop()
+            print("✅ Pyshark analyzer stopped")
+            
+        if self.nmap_scanner:
+            self.nmap_scanner.stop()
+            print("✅ Nmap scanner stopped")
 
         # Print stats
         if self.stats['start_time']:
@@ -475,7 +562,26 @@ class PacketSniffer:
             print(f"   Runtime: {runtime:.1f} seconds")
             print(f"   Packets captured: {self.stats['packets_captured']}")
             print(f"   Attacks detected: {self.stats['attacks_detected']}")
+            print(f"   YARA matches: {self.stats['yara_matches']}")
+            print(f"   Deep analyses: {self.stats['deep_analyses']}")
+            print(f"   Counter-scans: {self.stats['counter_scans']}")
             print(f"   IPs tracked: {len(self.ip_contexts)}")
+            
+            # Print YARA stats if available
+            if self.yara_analyzer:
+                yara_stats = self.yara_analyzer.get_stats()
+                print(f"\n🔍 YARA Stats:")
+                print(f"   Scans: {yara_stats['scans']}")
+                print(f"   Matches: {yara_stats['matches']}")
+                print(f"   Cache hits: {yara_stats['cache_hits']}")
+                
+            # Print Nmap stats if available
+            if self.nmap_scanner:
+                nmap_stats = self.nmap_scanner.get_stats()
+                print(f"\n🎯 Nmap Scanner Stats:")
+                print(f"   Scans completed: {nmap_stats['scans_completed']}")
+                print(f"   Scans queued: {nmap_stats['scans_queued']}")
+                print(f"   Scans skipped: {nmap_stats['scans_skipped']}")
 
         # Stop Kafka worker
         if self.kafka_worker:
@@ -502,6 +608,12 @@ def main():
                         help='Network interface to monitor (default: any)')
     parser.add_argument('--kafka', '-k', default='10.8.0.1:9093',
                         help='Kafka bootstrap server (default: 10.8.0.1:9093)')
+    parser.add_argument('--no-pyshark', action='store_true',
+                        help='Disable Pyshark deep packet analysis')
+    parser.add_argument('--no-yara', action='store_true',
+                        help='Disable YARA pattern matching')
+    parser.add_argument('--no-nmap', action='store_true',
+                        help='Disable Nmap counter-reconnaissance')
 
     args = parser.parse_args()
 
@@ -511,7 +623,13 @@ def main():
         print("   Try: sudo python3 packet_sniffer.py")
 
     # Create and start sniffer
-    sniffer = PacketSniffer(interface=args.interface, kafka_bootstrap=args.kafka)
+    sniffer = PacketSniffer(
+        interface=args.interface, 
+        kafka_bootstrap=args.kafka,
+        enable_pyshark=not args.no_pyshark,
+        enable_yara=not args.no_yara,
+        enable_nmap_scanner=not args.no_nmap
+    )
     sniffer.start()
 
 
