@@ -233,43 +233,61 @@ class AmassScanner:
         self.target = target
     
     def enumerate_subdomains(self, timeout: int = 1800) -> Dict:
-        """Enumerate subdomains using amass"""
-        logger.info(f"[Amass] Starting subdomain enumeration for {self.target}")
+        """Enumerate subdomains using amass in passive mode"""
+        logger.info(f"[Amass] Starting passive subdomain enumeration for {self.target}")
         
         try:
-            # Run amass enum with passive mode
-            cmd = ['amass', 'enum', '-passive', '-d', self.target, '-json', '/dev/stdout']
+            # Run amass enum with passive mode (no direct DNS queries)
+            # -passive: Only use passive data sources (fastest)
+            # -timeout: Limit execution time in minutes
+            # -silent: Suppress informational messages
+            timeout_minutes = max(1, timeout // 60)  # Convert seconds to minutes
+            
+            cmd = [
+                'amass', 'enum',
+                '-passive',                    # Passive only (no active probing)
+                '-d', self.target,
+                '-timeout', str(timeout_minutes),  # Timeout in minutes
+                '-silent'                      # Suppress info messages
+            ]
+            
+            logger.info(f"[Amass] Running command: {' '.join(cmd)}")
             
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=timeout
+                timeout=timeout + 30  # Give extra buffer beyond internal timeout
             )
             
-            # Parse JSON output (one JSON object per line)
+            logger.info(f"[Amass] Completed with return code: {result.returncode}")
+            
+            # Parse text output (one subdomain per line in silent mode)
             subdomains = []
             for line in result.stdout.strip().split('\n'):
-                if line:
-                    try:
-                        data = json.loads(line)
-                        if 'name' in data:
-                            subdomains.append(data['name'])
-                    except json.JSONDecodeError:
-                        continue
+                line = line.strip()
+                if line and '.' in line:
+                    subdomains.append(line)
+            
+            # Deduplicate
+            subdomains = list(set(subdomains))
             
             return {
                 'status': 'completed',
-                'subdomains': list(set(subdomains)),  # Remove duplicates
-                'count': len(set(subdomains)),
-                'output': result.stdout
+                'subdomains': subdomains,
+                'count': len(subdomains),
+                'output': result.stdout[:2000] if result.stdout else '',
+                'stderr': result.stderr[:500] if result.stderr else ''
             }
             
         except subprocess.TimeoutExpired:
+            logger.warning(f"[Amass] Timed out after {timeout}s")
             return {'status': 'timeout', 'error': f'Amass timed out after {timeout}s'}
         except FileNotFoundError:
+            logger.error("[Amass] Not installed")
             return {'status': 'not_installed', 'error': 'Amass not found. Install from https://github.com/owasp-amass/amass'}
         except Exception as e:
+            logger.error(f"[Amass] Error: {str(e)}")
             return {'status': 'error', 'error': str(e)}
 
 
@@ -284,8 +302,18 @@ class SubfinderScanner:
         logger.info(f"[Subfinder] Starting subdomain enumeration for {self.target}")
         
         try:
-            # Run subfinder
-            cmd = ['subfinder', '-d', self.target, '-silent', '-json']
+            # Run subfinder with timeout
+            # -d: Target domain
+            # -silent: Show only subdomains in output
+            # -timeout: Timeout in seconds for each source
+            cmd = [
+                'subfinder',
+                '-d', self.target,
+                '-silent',
+                '-timeout', '30'            # 30 second timeout per source
+            ]
+            
+            logger.info(f"[Subfinder] Running command: {' '.join(cmd)}")
             
             result = subprocess.run(
                 cmd,
@@ -294,30 +322,34 @@ class SubfinderScanner:
                 timeout=timeout
             )
             
-            # Parse JSON output
+            logger.info(f"[Subfinder] Completed with return code: {result.returncode}")
+            
+            # Parse text output (one subdomain per line in silent mode)
             subdomains = []
             for line in result.stdout.strip().split('\n'):
-                if line:
-                    try:
-                        data = json.loads(line)
-                        if 'host' in data:
-                            subdomains.append(data['host'])
-                    except json.JSONDecodeError:
-                        # Subfinder might output plain text
-                        subdomains.append(line.strip())
+                line = line.strip()
+                if line and '.' in line and not line.startswith('['):
+                    subdomains.append(line)
+            
+            # Deduplicate
+            subdomains = list(set(subdomains))
             
             return {
                 'status': 'completed',
-                'subdomains': list(set(subdomains)),
-                'count': len(set(subdomains)),
-                'output': result.stdout
+                'subdomains': subdomains,
+                'count': len(subdomains),
+                'output': result.stdout[:2000] if result.stdout else '',
+                'stderr': result.stderr[:500] if result.stderr else ''
             }
             
         except subprocess.TimeoutExpired:
+            logger.warning(f"[Subfinder] Timed out after {timeout}s")
             return {'status': 'timeout', 'error': f'Subfinder timed out after {timeout}s'}
         except FileNotFoundError:
+            logger.error("[Subfinder] Not installed")
             return {'status': 'not_installed', 'error': 'Subfinder not found. Install from https://github.com/projectdiscovery/subfinder'}
         except Exception as e:
+            logger.error(f"[Subfinder] Error: {str(e)}")
             return {'status': 'error', 'error': str(e)}
 
 
@@ -327,14 +359,26 @@ class BbotScanner:
     def __init__(self, target: str):
         self.target = target
     
-    def comprehensive_scan(self, timeout: int = 1800) -> Dict:
-        """Run comprehensive OSINT scan with bbot"""
-        logger.info(f"[BBOT] Starting comprehensive scan for {self.target}")
+    def comprehensive_scan(self, timeout: int = 300) -> Dict:
+        """Run passive subdomain enumeration with bbot"""
+        logger.info(f"[BBOT] Starting passive subdomain scan for {self.target}")
         
         try:
-            # Run bbot with passive subdomain enumeration only (faster)
-            # Reduced scope for quicker results
-            cmd = ['bbot', '-t', self.target, '-f', 'passive', '-o', '/tmp', '--json', '--silent']
+            # Use subdomain-enum preset with passive-only flag (fastest)
+            # -p subdomain-enum: subdomain enumeration preset
+            # -rf passive: only run passive modules (no active scanning)
+            # --silent: minimal output
+            # --yes: auto-confirm prompts
+            cmd = [
+                'bbot', '-t', self.target,
+                '-p', 'subdomain-enum',    # Subdomain enumeration preset
+                '-rf', 'passive',          # Passive only (fast, no active probing)
+                '-o', '/tmp/bbot',
+                '--silent',
+                '--yes'
+            ]
+            
+            logger.info(f"[BBOT] Running command: {' '.join(cmd)}")
             
             result = subprocess.run(
                 cmd,
@@ -343,18 +387,43 @@ class BbotScanner:
                 timeout=timeout
             )
             
-            # BBOT outputs to files, parse stdout for now
+            logger.info(f"[BBOT] Completed with return code: {result.returncode}")
+            
+            # Parse output for subdomains from [DNS_NAME] lines
+            subdomains = []
+            dns_records = []
+            for line in result.stdout.split('\n'):
+                line = line.strip()
+                # Parse lines like: [DNS_NAME]  www.example.com  crt  (tags...)
+                if line.startswith('[DNS_NAME]'):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        domain = parts[1]  # The domain is second token
+                        if domain not in subdomains:
+                            subdomains.append(domain)
+                            dns_records.append({
+                                'domain': domain,
+                                'source': parts[2] if len(parts) > 2 else 'unknown',
+                                'tags': line.split('(')[-1].rstrip(')') if '(' in line else ''
+                            })
+            
             return {
                 'status': 'completed',
-                'output': result.stdout,
-                'stderr': result.stderr
+                'subdomains': subdomains,
+                'dns_records': dns_records,
+                'count': len(subdomains),
+                'output': result.stdout[:2000] if result.stdout else '',
+                'stderr': result.stderr[:500] if result.stderr else ''
             }
             
         except subprocess.TimeoutExpired:
+            logger.warning(f"[BBOT] Timed out after {timeout}s")
             return {'status': 'timeout', 'error': f'BBOT timed out after {timeout}s'}
         except FileNotFoundError:
+            logger.error("[BBOT] Not installed")
             return {'status': 'not_installed', 'error': 'BBOT not found. Install with: pip install bbot'}
         except Exception as e:
+            logger.error(f"[BBOT] Error: {str(e)}")
             return {'status': 'error', 'error': str(e)}
 
 
