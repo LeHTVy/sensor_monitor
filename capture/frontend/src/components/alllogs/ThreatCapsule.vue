@@ -60,7 +60,6 @@ function getSeverityColor(level?: string) {
 
 function formatTime(timestamp?: string) {
   if (!timestamp) return 'Unknown'
-  // Ensure timestamp is treated as UTC if it lacks timezone info
   const timeStr = timestamp.endsWith('Z') || timestamp.includes('+') ? timestamp : timestamp + 'Z'
   const date = new Date(timeStr)
   return date.toLocaleString('vi-VN', {

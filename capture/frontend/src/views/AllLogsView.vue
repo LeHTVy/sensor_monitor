@@ -32,7 +32,7 @@
                   @click="selectLog(log)"
                 />
                 
-                <div v-if="filteredLogs.length === 0" class="text-center py-8 text-medium-emphasis">
+                <div v-if="!loading && filteredLogs.length === 0" class="text-center py-8 text-medium-emphasis">
                   <v-icon size="48" class="mb-2">mdi-alert-circle-outline</v-icon>
                   <p class="text-body-2">No logs found</p>
                 </div>

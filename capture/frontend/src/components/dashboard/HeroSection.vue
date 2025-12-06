@@ -33,9 +33,9 @@
         <v-col cols="12" sm="6" md="3">
           <v-card class="stat-card" elevation="2" rounded="lg">
             <v-card-text class="text-center">
-              <v-icon icon="mdi-web" size="32" color="info" class="mb-2" />
+              <v-icon icon="mdi-help-circle" size="32" color="info" class="mb-2" />
               <div class="text-h5 font-weight-bold">{{ stats.normalBrowsing }}</div>
-              <div class="text-caption text-medium-emphasis">Normal Browsing</div>
+              <div class="text-caption text-medium-emphasis">Unknown Tools</div>
             </v-card-text>
           </v-card>
         </v-col>
@@ -53,8 +53,8 @@
 
       <div class="hero-description mt-8">
         <p class="text-body-1 text-medium-emphasis">
-          Monitor and analyze security events in real-time. Track security tool scans (nmap, masscan, bbot, amass),
-          interactive attacks (POST requests, shells), and normal browsing activity with comprehensive analytics and visualization tools.
+          Monitor and analyze security events in real-time. Track security tool scans (nmap, masscan, nikto, etc.),
+          interactive attacks (POST requests, shells, browser-based attacks), and logs with unknown detection tools.
         </p>
       </div>
     </v-card-text>

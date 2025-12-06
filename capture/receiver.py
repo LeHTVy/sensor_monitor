@@ -394,66 +394,76 @@ def es_get_stats():
                         "size": 10
                     }
                 },
-                # Count logs with security tools (nmap, masscan, bbot, amass, etc.)
+                # Count logs with security tools (explicit list of known tools)
                 "tool_scans": {
                     "filter": {
                         "bool": {
-                            "must": [
-                                {"exists": {"field": "attack_tool"}},
-                                {
-                                    "bool": {
-                                        "must_not": [
-                                            {"term": {"attack_tool.keyword": "unknown"}},
-                                            {"term": {"attack_tool.keyword": ""}}
-                                        ]
-                                    }
-                                }
-                            ]
+                            "should": [
+                                {"term": {"attack_tool.keyword": "nmap"}},
+                                {"term": {"attack_tool.keyword": "masscan"}},
+                                {"term": {"attack_tool.keyword": "nikto"}},
+                                {"term": {"attack_tool.keyword": "sqlmap"}},
+                                {"term": {"attack_tool.keyword": "gobuster"}},
+                                {"term": {"attack_tool.keyword": "dirbuster"}},
+                                {"term": {"attack_tool.keyword": "wfuzz"}},
+                                {"term": {"attack_tool.keyword": "burpsuite"}},
+                                {"term": {"attack_tool.keyword": "hydra"}},
+                                {"term": {"attack_tool.keyword": "metasploit"}},
+                                {"term": {"attack_tool.keyword": "nuclei"}},
+                                {"term": {"attack_tool.keyword": "bbot"}},
+                                {"term": {"attack_tool.keyword": "amass"}},
+                                {"term": {"attack_tool.keyword": "subfinder"}},
+                                {"term": {"attack_tool.keyword": "httpx"}},
+                                {"term": {"attack_tool.keyword": "ffuf"}},
+                                {"term": {"attack_tool.keyword": "zap"}},
+                                {"term": {"attack_tool.keyword": "acunetix"}},
+                                {"term": {"attack_tool.keyword": "nessus"}},
+                                {"term": {"attack_tool.keyword": "openvas"}},
+                                {"term": {"attack_tool.keyword": "zgrab"}},
+                                {"term": {"attack_tool.keyword": "wpscan"}},
+                                {"term": {"attack_tool.keyword": "joomscan"}}
+                            ],
+                            "minimum_should_match": 1
                         }
                     }
                 },
-                # Count interactive attacks (POST, file uploads, command shells)
+                # Count interactive attacks (POST, file uploads, command shells, browser-based attacks)
                 "interactive_attacks": {
                     "filter": {
                         "bool": {
                             "should": [
                                 {"term": {"method.keyword": "POST"}},
                                 {"term": {"method.keyword": "PUT"}},
+                                {"term": {"method.keyword": "DELETE"}},
                                 {"exists": {"field": "form_data"}},
                                 {"wildcard": {"path.keyword": "*upload*"}},
                                 {"wildcard": {"path.keyword": "*shell*"}},
                                 {"wildcard": {"path.keyword": "*cmd*"}},
+                                {"wildcard": {"path.keyword": "*exec*"}},
+                                {"wildcard": {"path.keyword": "*eval*"}},
                                 {"wildcard": {"user_agent.keyword": "*curl*"}},
                                 {"wildcard": {"user_agent.keyword": "*wget*"}},
-                                {"wildcard": {"user_agent.keyword": "*python*"}}
+                                {"wildcard": {"user_agent.keyword": "*python*"}},
+                                # Browser-based attacks (XSS, SQL injection in URL, etc.)
+                                {"wildcard": {"path.keyword": "*<script*"}},
+                                {"wildcard": {"path.keyword": "*union*select*"}},
+                                {"wildcard": {"path.keyword": "*' OR*"}},
+                                {"wildcard": {"path.keyword": "*../../../*"}}
                             ],
                             "minimum_should_match": 1
                         }
                     }
                 },
-                # Count normal browsing (GET requests from regular browsers)
-                "normal_browsing": {
+                # Count logs where attack tool is unknown
+                "unknown_tools": {
                     "filter": {
                         "bool": {
-                            "must": [
-                                {"term": {"method.keyword": "GET"}}
-                            ],
-                            "must_not": [
-                                {"exists": {"field": "attack_tool"}},
-                                {"wildcard": {"user_agent.keyword": "*curl*"}},
-                                {"wildcard": {"user_agent.keyword": "*wget*"}},
-                                {"wildcard": {"user_agent.keyword": "*python*"}},
-                                {"wildcard": {"user_agent.keyword": "*scanner*"}},
-                                {"wildcard": {"user_agent.keyword": "*bot*"}}
-                            ],
                             "should": [
-                                {"wildcard": {"user_agent.keyword": "*Mozilla*"}},
-                                {"wildcard": {"user_agent.keyword": "*Chrome*"}},
-                                {"wildcard": {"user_agent.keyword": "*Safari*"}},
-                                {"wildcard": {"user_agent.keyword": "*Firefox*"}},
-                                {"wildcard": {"user_agent.keyword": "*Edge*"}}
+                                {"term": {"attack_tool.keyword": "unknown"}},
+                                {"term": {"attack_tool.keyword": ""}},
+                                {"bool": {"must_not": [{"exists": {"field": "attack_tool"}}]}}
                             ],
-                            "minimum_should_match": 0
+                            "minimum_should_match": 1
                         }
                     }
                 }
@@ -484,7 +494,7 @@ def es_get_stats():
         # Get new stat categories
         tool_scan_logs = 0
         interactive_attack_logs = 0
-        normal_browsing_logs = 0
+        unknown_tools_logs = 0
         
         if 'aggregations' in res:
             if 'tool_scans' in res['aggregations']:
@@ -493,8 +503,8 @@ def es_get_stats():
             if 'interactive_attacks' in res['aggregations']:
                 interactive_attack_logs = res['aggregations']['interactive_attacks'].get('doc_count', 0)
             
-            if 'normal_browsing' in res['aggregations']:
-                normal_browsing_logs = res['aggregations']['normal_browsing'].get('doc_count', 0)
+            if 'unknown_tools' in res['aggregations']:
+                unknown_tools_logs = res['aggregations']['unknown_tools'].get('doc_count', 0)
         
         # Get latest timestamp
         latest_res = es_client.search(
@@ -509,7 +519,7 @@ def es_get_stats():
         if latest_res['hits']['hits']:
             last_received = latest_res['hits']['hits'][0]['_source']['timestamp']
         
-        print(f"📊 Stats calculated - Tool scans: {tool_scan_logs}, Interactive: {interactive_attack_logs}, Normal browsing: {normal_browsing_logs}, Total: {total_logs}")
+        print(f"📊 Stats calculated - Tool scans: {tool_scan_logs}, Interactive: {interactive_attack_logs}, Unknown tools: {unknown_tools_logs}, Total: {total_logs}")
         
         return {
             'total_logs_received': total_logs,
@@ -518,7 +528,7 @@ def es_get_stats():
             'traffic_logs': traffic_logs,
             'tool_scan_logs': tool_scan_logs,
             'interactive_attack_logs': interactive_attack_logs,
-            'normal_browsing_logs': normal_browsing_logs,
+            'normal_browsing_logs': unknown_tools_logs,  # Now counts unknown tools
             'last_received': last_received,
             'start_time': stats['start_time'],
             'uptime': (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()

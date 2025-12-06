@@ -226,7 +226,6 @@ const headers = [
 // Methods
 function formatDate(dateStr: string) {
   if (!dateStr) return 'Unknown'
-  // Ensure timestamp is treated as UTC if it lacks timezone info
   const timeStr = dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z'
   const date = new Date(timeStr)
   return date.toLocaleString('vi-VN', {
@@ -258,7 +257,6 @@ function getScoreColor(score: number) {
 async function applyFilters() {
   loading.value = true
   
-  // Calculate date range
   let dateFrom = null
   const now = new Date()
   if (timeRange.value !== 'all') {
@@ -336,12 +334,10 @@ function updateChart() {
     chartInstance.destroy()
   }
   
-  // Aggregate data by time
   const buckets: Record<string, number> = {}
   logs.value.forEach(log => {
     const date = new Date(log.timestamp || log['@timestamp'])
-    // Round to nearest hour/minute depending on range
-    const key = new Date(date.setMinutes(0, 0, 0)).toISOString() // Hourly buckets
+    const key = new Date(date.setMinutes(0, 0, 0)).toISOString() 
     buckets[key] = (buckets[key] || 0) + 1
   })
   
@@ -366,8 +362,22 @@ function updateChart() {
       scales: {
         x: {
           type: 'time',
-          time: { unit: 'hour' },
-          grid: { display: false }
+          time: { 
+            unit: 'hour',
+            displayFormats: {
+              hour: 'HH:mm'
+            },
+            tooltipFormat: 'dd/MM/yyyy HH:mm'
+          },
+          grid: { display: false },
+          ticks: {
+            callback: function(value: any) {
+              const date = new Date(value)
+              // Convert to Vietnam time (UTC+7)
+              const vnTime = new Date(date.getTime() + (7 * 60 * 60 * 1000))
+              return vnTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+            }
+          }
         },
         y: {
           beginAtZero: true,
@@ -375,7 +385,16 @@ function updateChart() {
         }
       },
       plugins: {
-        legend: { display: false }
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: function(context: any) {
+              const date = new Date(context[0].parsed.x)
+              // Format in Vietnam timezone
+              return date.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })
+            }
+          }
+        }
       }
     }
   })
