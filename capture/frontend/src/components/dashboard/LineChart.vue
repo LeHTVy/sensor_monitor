@@ -45,6 +45,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useDashboardStore, type Log } from '@/stores/dashboard'
+import { formatTime } from '@/utils/dateTime'
 import {
   Chart,
   CategoryScale,
@@ -211,10 +212,7 @@ const updateChart = () => {
   const ctx = chartCanvas.value.getContext('2d')
   if (!ctx) return
 
-  const labels = timelineData.value.map(d => {
-    const date = new Date(d.timestamp)
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  })
+  const labels = timelineData.value.map(d => formatTime(d.timestamp))
 
   const datasets = [
     {

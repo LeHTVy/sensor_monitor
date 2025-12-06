@@ -180,6 +180,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useDashboardStore } from '@/stores/dashboard'
+import { formatDateTime } from '@/utils/dateTime'
 import Navbar from '@/components/Navbar.vue'
 import Chart from 'chart.js/auto'
 import 'chartjs-adapter-date-fns'
@@ -225,18 +226,7 @@ const headers = [
 
 // Methods
 function formatDate(dateStr: string) {
-  if (!dateStr) return 'Unknown'
-  const timeStr = dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z'
-  const date = new Date(timeStr)
-  return date.toLocaleString('vi-VN', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
+  return formatDateTime(dateStr)
 }
 
 function getTypeColor(type: string) {
