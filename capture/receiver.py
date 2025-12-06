@@ -384,6 +384,23 @@ def es_get_stats():
         total_res = es_client.count(index=query_index)
         total_logs = total_res['count']
         
+        # Debug: Check what attack_tool values exist
+        debug_body = {
+            "size": 0,
+            "aggs": {
+                "attack_tools": {
+                    "terms": {
+                        "field": "attack_tool.keyword",
+                        "size": 50,
+                        "missing": "NO_FIELD"
+                    }
+                }
+            }
+        }
+        debug_res = es_client.search(index=query_index, body=debug_body)
+        attack_tool_buckets = debug_res.get('aggregations', {}).get('attack_tools', {}).get('buckets', [])
+        print(f"🔍 DEBUG - attack_tool values in ES: {[(b['key'], b['doc_count']) for b in attack_tool_buckets]}")
+        
         # Build comprehensive aggregation query for all stat categories
         body = {
             "size": 0,

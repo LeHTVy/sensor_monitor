@@ -31,8 +31,8 @@
             <span class="text-caption">Interactive Attacks</span>
           </div>
           <div class="legend-item">
-            <v-icon icon="mdi-web" size="small" color="info" class="mr-1" />
-            <span class="text-caption">Normal Browsing</span>
+            <v-icon icon="mdi-help-circle" size="small" color="info" class="mr-1" />
+            <span class="text-caption">Unknown Tools</span>
           </div>
         </div>
 
@@ -66,13 +66,13 @@ interface TimelineDataPoint {
   timestamp: string
   toolScans: number
   interactiveAttacks: number
-  normalBrowsing: number
+  unknownTools: number
 }
 
 interface CategorizedLog extends Log {
   isToolScan: boolean
   isInteractive: boolean
-  isNormalBrowsing: boolean
+  isUnknownTool: boolean
 }
 
 const timeRange = ref('24')
@@ -90,36 +90,41 @@ const categorizeLogs = (logs: Log[]): CategorizedLog[] => {
     const userAgent = log.user_agent || ''
     const path = log.path || ''
     
-    // Security Tool Scans
-    const isToolScan = attackTool && attackTool !== 'unknown' && attackTool !== ''
+    // Security Tool Scans - explicit list of known security tools
+    const knownTools = ['nmap', 'masscan', 'nikto', 'sqlmap', 'gobuster', 'dirbuster', 'wfuzz', 'burpsuite', 'hydra', 'metasploit', 'nuclei', 'bbot', 'amass', 'subfinder', 'httpx', 'ffuf', 'zap', 'acunetix', 'nessus', 'openvas', 'zgrab', 'wpscan', 'joomscan']
+    const isToolScan = attackTool && knownTools.includes(attackTool.toLowerCase())
     
     // Interactive Attacks
     const isInteractive =
       method === 'POST' ||
       method === 'PUT' ||
+      method === 'DELETE' ||
       !!log.form_data ||
       path.includes('upload') ||
       path.includes('shell') ||
       path.includes('cmd') ||
+      path.includes('exec') ||
+      path.includes('eval') ||
       userAgent.toLowerCase().includes('curl') ||
       userAgent.toLowerCase().includes('wget') ||
-      userAgent.toLowerCase().includes('python')
+      userAgent.toLowerCase().includes('python') ||
+      path.includes('<script') ||
+      path.toLowerCase().includes('union') ||
+      path.includes("' OR") ||
+      path.includes('../../../')
     
-    // Normal Browsing
-    const isNormalBrowsing = 
-      method === 'GET' &&
-      !attackTool &&
-      !userAgent.toLowerCase().includes('curl') &&
-      !userAgent.toLowerCase().includes('wget') &&
-      !userAgent.toLowerCase().includes('python') &&
-      !userAgent.toLowerCase().includes('scanner') &&
-      !userAgent.toLowerCase().includes('bot')
+    // Unknown Tools - attack_tool is 'unknown', empty, or doesn't exist
+    const isUnknownTool = 
+      !attackTool ||
+      attackTool === 'unknown' ||
+      attackTool === '' ||
+      (!isToolScan && !isInteractive)
     
     return {
       ...log,
       isToolScan,
       isInteractive,
-      isNormalBrowsing
+      isUnknownTool
     }
   })
 }
@@ -137,11 +142,25 @@ const categorizeLogs = (logs: Log[]): CategorizedLog[] => {
   const now = new Date()
   const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000)
 
+  // Debug: log time range
+  console.log(`📊 Chart filter: ${hours}H range, now=${now.toISOString()}, startTime=${startTime.toISOString()}`)
+  console.log(`📊 Total logs: ${logs.length}`)
+  
   // Filter logs by time range
   const filteredLogs = logs.filter(log => {
     const logTime = new Date(log.timestamp || log['@timestamp'] || Date.now())
     return logTime >= startTime && logTime <= now
   })
+  
+  console.log(`📊 Filtered logs for ${hours}H: ${filteredLogs.length}`)
+  
+  // Debug: if no logs in range, show the log timestamps to understand why
+  if (filteredLogs.length === 0 && logs.length > 0) {
+    const sampleLog = logs[0]
+    const sampleTime = new Date(sampleLog.timestamp || sampleLog['@timestamp'] || Date.now())
+    console.log(`📊 Sample log time: ${sampleTime.toISOString()} (${sampleLog.timestamp || sampleLog['@timestamp']})`)
+    console.log(`📊 Time difference from now: ${Math.round((now.getTime() - sampleTime.getTime()) / 3600000)}h`)
+  }
 
   if (filteredLogs.length === 0) {
     timelineData.value = []
@@ -169,7 +188,7 @@ const categorizeLogs = (logs: Log[]): CategorizedLog[] => {
         timestamp: key,
         toolScans: 0,
         interactiveAttacks: 0,
-        normalBrowsing: 0
+        unknownTools: 0
       })
     }
     
@@ -177,7 +196,7 @@ const categorizeLogs = (logs: Log[]): CategorizedLog[] => {
     
     if (log.isToolScan) bucket.toolScans++
     if (log.isInteractive) bucket.interactiveAttacks++
-    if (log.isNormalBrowsing) bucket.normalBrowsing++
+    if (log.isUnknownTool) bucket.unknownTools++
   })
   
   timelineData.value = Array.from(buckets.values())
@@ -227,8 +246,8 @@ const updateChart = () => {
       pointBorderWidth: 2
     },
     {
-      label: 'Normal Browsing',
-      data: timelineData.value.map(d => d.normalBrowsing),
+      label: 'Unknown Tools',
+      data: timelineData.value.map(d => d.unknownTools),
       borderColor: '#3B82F6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       borderWidth: 2,
