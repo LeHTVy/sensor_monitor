@@ -800,12 +800,17 @@ def get_attackers():
         if not USE_ELASTICSEARCH or not es_client:
             return jsonify({'error': 'Elasticsearch not configured'}), 503
         
+        print(f"🔍 Attackers endpoint called: limit={limit}, page={page}, sort_by={sort_by}")
+        
+        # Try ip.keyword field first (most common in enriched logs)
+        ip_field = "ip.keyword"
+        
         query = {
             "size": 0,
             "aggs": {
                 "unique_ips": {
                     "terms": {
-                        "field": "ip.keyword",  
+                        "field": ip_field,
                         "size": 500,
                         "order": {"_count": "desc"}
                     },
@@ -814,21 +819,38 @@ def get_attackers():
                         "last_seen": {"max": {"field": "timestamp"}},
                         "avg_threat_score": {"avg": {"field": "threat_score"}},
                         "max_threat_score": {"max": {"field": "threat_score"}},
-                        # Try multiple field paths for GeoIP data
-                        "country": {"terms": {"field": "geoip.country.keyword", "size": 1, "missing": "Unknown"}},
-                        "city": {"terms": {"field": "geoip.city.keyword", "size": 1, "missing": "Unknown"}},
-                        "isp": {"terms": {"field": "geoip.isp.keyword", "size": 1, "missing": "Unknown"}},
+                        "country": {"terms": {"field": "geoip.country.keyword", "size": 1}},
+                        "city": {"terms": {"field": "geoip.city.keyword", "size": 1}},
+                        "isp": {"terms": {"field": "geoip.isp.keyword", "size": 1}},
                         "attack_tools": {"terms": {"field": "attack_tool.keyword", "size": 5}}
                     }
                 }
             }
         }
         
-        res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
-        
+        try:
+            res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+        except Exception as es_error:
+            print(f"⚠️ ip.keyword query failed: {es_error}")
+            res = {}
+
+        # Check if we got results, if not try src_ip.keyword
+        has_results = False
+        if 'aggregations' in res and 'unique_ips' in res['aggregations']:
+            has_results = len(res['aggregations']['unique_ips'].get('buckets', [])) > 0
+
+        if not has_results:
+            print(f"⚠️ No results with ip.keyword, trying src_ip.keyword")
+            query["aggs"]["unique_ips"]["terms"]["field"] = "src_ip.keyword"
+            try:
+                res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+            except Exception as e:
+                print(f"❌ src_ip.keyword query failed: {e}")
+
         attackers = []
         if 'aggregations' in res and 'unique_ips' in res['aggregations']:
             buckets = res['aggregations']['unique_ips'].get('buckets', [])
+            print(f"📊 Found {len(buckets)} unique IPs in aggregation")
             
             for bucket in buckets:
                 ip = bucket['key']
@@ -839,14 +861,15 @@ def get_attackers():
                 avg_threat = bucket.get('avg_threat_score', {}).get('value', 0)
                 max_threat = bucket.get('max_threat_score', {}).get('value', 0)
                 
+                # Check for missing values in buckets
                 country_buckets = bucket.get('country', {}).get('buckets', [])
-                country = country_buckets[0]['key'] if country_buckets else 'Unknown'
+                country = country_buckets[0]['key'] if country_buckets and len(country_buckets) > 0 else 'Unknown'
                 
                 city_buckets = bucket.get('city', {}).get('buckets', [])
-                city = city_buckets[0]['key'] if city_buckets else 'Unknown'
+                city = city_buckets[0]['key'] if city_buckets and len(city_buckets) > 0 else 'Unknown'
                 
                 isp_buckets = bucket.get('isp', {}).get('buckets', [])
-                isp = isp_buckets[0]['key'] if isp_buckets else 'Unknown'
+                isp = isp_buckets[0]['key'] if isp_buckets and len(isp_buckets) > 0 else 'Unknown'
                 
                 tool_buckets = bucket.get('attack_tools', {}).get('buckets', [])
                 tools = [t['key'] for t in tool_buckets if t['key'] != 'unknown']
@@ -863,6 +886,8 @@ def get_attackers():
                     'isp': isp,
                     'attack_tools': tools
                 })
+        else:
+            print(f"⚠️ No aggregations found in response: {list(res.keys())}")
         
         # Sort
         if sort_by == 'total_attacks':
@@ -880,6 +905,8 @@ def get_attackers():
         end_idx = start_idx + limit
         paginated_attackers = attackers[start_idx:end_idx]
         
+        print(f"✅ Returning {len(paginated_attackers)} attackers out of {total_attackers} total")
+        
         return jsonify({
             'attackers': paginated_attackers,
             'total': total_attackers,
@@ -893,7 +920,10 @@ def get_attackers():
         
     except Exception as e:
         logging.error(f"Attackers endpoint error: {e}")
+        import traceback
+        print(f"❌ Attackers error: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/recon/start', methods=['POST'])
 @api_key_required
