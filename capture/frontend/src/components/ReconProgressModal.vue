@@ -11,15 +11,22 @@
 
       <v-card-text class="pa-4">
         <!-- Target Info -->
-        <v-alert type="info" variant="tonal" class="mb-4">
+        <v-alert v-if="reconId === 'pending'" type="info" variant="tonal" class="mb-4">
+          <div class="d-flex align-center">
+            <v-progress-circular indeterminate size="24" class="mr-3"></v-progress-circular>
+            <span>Starting reconnaissance on <strong>{{ attacker?.ip }}</strong>...</span>
+          </div>
+        </v-alert>
+
+        <v-alert v-else type="info" variant="tonal" class="mb-4">
           <div><strong>IP:</strong> {{ attacker?.ip }}</div>
           <div><strong>Country:</strong> {{ attacker?.country }}</div>
-          <div><strong>Total Attacks:</strong attribute>{{ attacker?.total_attacks }}</div>
+          <div><strong>Total Attacks:</strong> {{ attacker?.total_attacks }}</div>
           <div><strong>Threat Score:</strong> {{ attacker?.max_threat_score }}</div>
         </v-alert>
 
-        <!-- Overall Progress -->
-        <div class="mb-4">
+        <!-- Overall Progress (hide when pending) -->
+        <div v-if="reconId !== 'pending'" class="mb-4">
           <div class="d-flex justify-space-between mb-2">
             <span class="text-subtitle-2">Overall Progress</span>
             <span class="text-caption">{{ completedTools }}/{{ totalTools }} tools completed</span>
@@ -32,8 +39,8 @@
           ></v-progress-linear>
         </div>
 
-        <!-- Tool Status Timeline -->
-        <div class="tool-timeline mb-4">
+        <!-- Tool Status Timeline (hide when pending) -->
+        <div v-if="reconId !== 'pending'" class="tool-timeline mb-4">
           <div
             v-for="tool in tools"
             :key="tool.name"

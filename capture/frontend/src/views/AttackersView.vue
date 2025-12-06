@@ -258,14 +258,23 @@ const fetchAttackers = async () => {
 
 const startReconnaissance = async (attacker: any) => {
   selectedAttacker.value = attacker
+  showReconModal.value = true  // Show modal immediately
+  currentReconId.value = 'pending'  // Temporary ID
   
   try {
     const reconId = await attackersStore.startRecon(attacker.ip, ['nmap', 'amass', 'subfinder', 'bbot'])
     currentReconId.value = reconId
-    showReconModal.value = true
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to start reconnaissance:', error)
-    alert('Failed to start reconnaissance. Please try again.')
+    // Set error state in the modal
+    currentReconId.value = 'error'
+    // Store error in attackers store for display
+    attackersStore.reconJobs['error'] = {
+      recon_id: 'error',
+      target_ip: attacker.ip,
+      status: 'error',
+      error: error.response?.data?.error || error.message || 'Failed to start reconnaissance. Server returned 500 error.'
+    }
   }
 }
 
