@@ -3,6 +3,12 @@ import { ref, computed } from 'vue'
 import axios from 'axios'
 
 const API_URL = ''
+const DEFAULT_API_KEY = 'capture_secure_key_2024'
+
+// Helper to get API key consistently
+function getApiKey(): string {
+    return localStorage.getItem('api_key') || DEFAULT_API_KEY
+}
 
 // Interface for fetch params
 interface FetchAttackersParams {
@@ -40,7 +46,7 @@ export const useAttackersStore = defineStore('attackers', () => {
         error.value = null
 
         try {
-            const apiKey = 'capture_secure_key_2024'
+            const apiKey = getApiKey()
 
             console.log('Fetching attackers with params:', params)
 
@@ -81,7 +87,7 @@ export const useAttackersStore = defineStore('attackers', () => {
 
     async function startRecon(targetIp: string, scanTypes: string[] = ['nmap', 'amass', 'subfinder', 'bbot']) {
         try {
-            const apiKey = localStorage.getItem('api_key')
+            const apiKey = getApiKey()
 
             const response = await axios.post(
                 `${API_URL}/api/recon/start`,
@@ -118,7 +124,7 @@ export const useAttackersStore = defineStore('attackers', () => {
 
     async function pollReconStatus(reconId: string) {
         try {
-            const apiKey = localStorage.getItem('api_key')
+            const apiKey = getApiKey()
 
             const response = await axios.get(
                 `${API_URL}/api/recon/status/${reconId}`,
@@ -149,7 +155,7 @@ export const useAttackersStore = defineStore('attackers', () => {
 
     async function fetchReconResults(reconId: string) {
         try {
-            const apiKey = localStorage.getItem('api_key')
+            const apiKey = getApiKey()
 
             const response = await axios.get(
                 `${API_URL}/api/recon/results/${reconId}`,
@@ -171,7 +177,7 @@ export const useAttackersStore = defineStore('attackers', () => {
 
     async function downloadReport(reconId: string, format: 'docx' | 'pdf' = 'docx') {
         try {
-            const apiKey = localStorage.getItem('api_key')
+            const apiKey = getApiKey()
 
             const response = await axios.get(
                 `${API_URL}/api/recon/report/${reconId}/download`,

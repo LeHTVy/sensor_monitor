@@ -800,13 +800,12 @@ def get_attackers():
         if not USE_ELASTICSEARCH or not es_client:
             return jsonify({'error': 'Elasticsearch not configured'}), 503
         
-        # Query ES with IP aggregation
         query = {
             "size": 0,
             "aggs": {
                 "unique_ips": {
                     "terms": {
-                        "field": "src_ip",
+                        "field": "ip.keyword",  
                         "size": 500,
                         "order": {"_count": "desc"}
                     },
@@ -815,9 +814,10 @@ def get_attackers():
                         "last_seen": {"max": {"field": "timestamp"}},
                         "avg_threat_score": {"avg": {"field": "threat_score"}},
                         "max_threat_score": {"max": {"field": "threat_score"}},
-                        "country": {"terms": {"field": "geoip.country.keyword", "size": 1}},
-                        "city": {"terms": {"field": "geoip.city.keyword", "size": 1}},
-                        "isp": {"terms": {"field": "geoip.isp.keyword", "size": 1}},
+                        # Try multiple field paths for GeoIP data
+                        "country": {"terms": {"field": "geoip.country.keyword", "size": 1, "missing": "Unknown"}},
+                        "city": {"terms": {"field": "geoip.city.keyword", "size": 1, "missing": "Unknown"}},
+                        "isp": {"terms": {"field": "geoip.isp.keyword", "size": 1, "missing": "Unknown"}},
                         "attack_tools": {"terms": {"field": "attack_tool.keyword", "size": 5}}
                     }
                 }
