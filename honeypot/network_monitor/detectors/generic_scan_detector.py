@@ -5,15 +5,25 @@ Enhanced with fingerprint matching for tool identification
 """
 
 import logging
+import sys
+import os
 from typing import Optional, Dict
 from .base_network_detector import BaseNetworkDetector
 
-# Import fingerprint engine
+# Import fingerprint engine from parent directory
+FINGERPRINT_ENABLED = False
 try:
+    # Add parent directory to path for fingerprint_engine import
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
     from fingerprint_engine import FingerprintEngine, get_fingerprint_engine
     FINGERPRINT_ENABLED = True
-except ImportError:
-    FINGERPRINT_ENABLED = False
+    logging.info("[GenericScanDetector] Fingerprint engine module loaded successfully")
+except ImportError as e:
+    logging.warning(f"[GenericScanDetector] Fingerprint engine not available: {e}")
+except Exception as e:
+    logging.error(f"[GenericScanDetector] Error loading fingerprint engine: {e}")
 
 logger = logging.getLogger(__name__)
 
