@@ -407,29 +407,30 @@ def es_get_stats(hours=24):
                 }
             },
             "aggs": {
-                # High severity events (threat_score >= 70 OR threat_level = high/critical)
+                # High severity events (threat_score >= 40 OR threat_level = high/critical)
+                # Note: threat_level in our data is text field, using .keyword
                 "high_severity": {
                     "filter": {
                         "bool": {
                             "should": [
-                                {"range": {"threat_score": {"gte": 70}}},
-                                {"term": {"threat_level.keyword": "high"}},
-                                {"term": {"threat_level.keyword": "critical"}}
+                                {"range": {"threat_score": {"gte": 40}}},
+                                {"wildcard": {"threat_level": "*critical*"}},
+                                {"wildcard": {"threat_level": "*high*"}}
                             ],
                             "minimum_should_match": 1
                         }
                     }
                 },
-                # Unique attacker IPs (ip.keyword works based on get_attackers)
+                # Unique attacker IPs
                 "unique_attackers": {
                     "cardinality": {
                         "field": "ip.keyword"
                     }
                 },
-                # Top attack tools
+                # Top attack tools (attack_tool is already keyword type, no .keyword needed)
                 "top_attack_types": {
                     "terms": {
-                        "field": "attack_tool.keyword",
+                        "field": "attack_tool",
                         "size": 5,
                         "exclude": ["unknown", ""]
                     }
@@ -522,7 +523,7 @@ def get_stats():
     """Get SOC statistics with optional time window"""
     # Get time window from query params (default 24 hours)
     hours = request.args.get('hours', 24, type=int)
-    hours = max(1, min(hours, 8760))  # Clamp between 1 hour and 365 days
+    hours = max(1, min(hours, 8760))  
     
     if USE_ELASTICSEARCH:
         es_stats = es_get_stats(hours=hours)
