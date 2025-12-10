@@ -67,11 +67,12 @@ import { useDashboardStore } from '@/stores/dashboard'
 
 const dashboardStore = useDashboardStore()
 
+// Use calculatedStats which analyzes actual logs for accurate counts
 const stats = computed(() => ({
-  toolScans: dashboardStore.stats.tool_scan_logs || 0,
-  interactiveAttacks: dashboardStore.stats.interactive_attack_logs || 0,
-  normalBrowsing: dashboardStore.stats.normal_browsing_logs || 0,
-  totalLogs: dashboardStore.stats.total_logs_received || 0
+  toolScans: dashboardStore.calculatedStats.toolScans,
+  interactiveAttacks: dashboardStore.calculatedStats.interactiveAttacks,
+  normalBrowsing: dashboardStore.calculatedStats.unknownTools,
+  totalLogs: dashboardStore.calculatedStats.totalLogs
 }))
 </script>
 

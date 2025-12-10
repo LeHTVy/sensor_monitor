@@ -4,10 +4,10 @@ import { useAuthStore } from './auth'
 
 export interface Log {
   timestamp: string
-  '@timestamp'?: string // Elasticsearch standard timestamp field
+  '@timestamp'?: string
   src_ip: string
   dst_ip?: string
-  ip?: string // Alternative field name used by some logs
+  ip?: string
   type: string
   protocol?: string
   message?: string
@@ -23,7 +23,6 @@ export interface Log {
     region?: string
     postal?: string
   }
-  // Enrichment fields
   threat_level?: string
   threat_score?: number
   attack_techniques?: string[]
@@ -121,6 +120,95 @@ export const useDashboardStore = defineStore('dashboard', () => {
     { title: 'Honeypot', value: stats.value.honeypot_logs },
     { title: 'Traffic', value: stats.value.traffic_logs }
   ])
+
+  // Known security tools for accurate detection
+  const KNOWN_SECURITY_TOOLS = [
+    'nmap', 'masscan', 'nikto', 'sqlmap', 'gobuster', 'dirbuster',
+    'wfuzz', 'burpsuite', 'hydra', 'metasploit', 'nuclei', 'bbot',
+    'amass', 'subfinder', 'httpx', 'ffuf', 'zap', 'acunetix',
+    'nessus', 'openvas', 'zgrab', 'wpscan', 'joomscan', 'dirb',
+    'fierce', 'theharvester', 'whatweb', 'curl', 'wget', 'python-requests'
+  ]
+
+  // Calculate accurate stats from actual logs (based on attack_tool field)
+  const calculatedStats = computed(() => {
+    const allLogs = logs.value
+
+    // Tool Scans: logs with known security tool in attack_tool field
+    const toolScans = allLogs.filter(log => {
+      const tool = (log.attack_tool || '').toLowerCase()
+      return tool && KNOWN_SECURITY_TOOLS.some(knownTool => tool.includes(knownTool))
+    }).length
+
+    // Interactive Attacks: POST/PUT/DELETE, file uploads, shell attempts, injection patterns
+    const interactiveAttacks = allLogs.filter(log => {
+      const method = (log.method || '').toUpperCase()
+      const path = (log.path || '').toLowerCase()
+      const userAgent = (log.user_agent || '').toLowerCase()
+      const tool = (log.attack_tool || '').toLowerCase()
+
+      // Skip if already counted as tool scan
+      if (tool && KNOWN_SECURITY_TOOLS.some(knownTool => tool.includes(knownTool))) {
+        return false
+      }
+
+      return (
+        method === 'POST' ||
+        method === 'PUT' ||
+        method === 'DELETE' ||
+        !!log.form_data ||
+        path.includes('upload') ||
+        path.includes('shell') ||
+        path.includes('cmd') ||
+        path.includes('exec') ||
+        path.includes('eval') ||
+        path.includes('<script') ||
+        path.includes('union') ||
+        path.includes("' or ") ||
+        path.includes('../') ||
+        userAgent.includes('curl') ||
+        userAgent.includes('wget') ||
+        userAgent.includes('python')
+      )
+    }).length
+
+    // Unknown Tools: has attack_tool but not in known list, or no attack_tool
+    const unknownTools = allLogs.filter(log => {
+      const tool = (log.attack_tool || '').toLowerCase()
+      const method = (log.method || '').toUpperCase()
+      const path = (log.path || '').toLowerCase()
+      const userAgent = (log.user_agent || '').toLowerCase()
+
+      // Already counted as tool scan
+      if (tool && KNOWN_SECURITY_TOOLS.some(knownTool => tool.includes(knownTool))) {
+        return false
+      }
+
+      // Already counted as interactive
+      if (
+        method === 'POST' || method === 'PUT' || method === 'DELETE' ||
+        !!log.form_data ||
+        path.includes('upload') || path.includes('shell') ||
+        path.includes('cmd') || path.includes('exec') ||
+        path.includes('eval') || path.includes('<script') ||
+        path.includes('union') || path.includes("' or ") ||
+        path.includes('../') ||
+        userAgent.includes('curl') || userAgent.includes('wget') ||
+        userAgent.includes('python')
+      ) {
+        return false
+      }
+
+      return true
+    }).length
+
+    return {
+      toolScans,
+      interactiveAttacks,
+      unknownTools,
+      totalLogs: allLogs.length
+    }
+  })
 
   async function loadStats() {
     if (!authStore.isLoggedIn || !authStore.apiKey) return
@@ -244,6 +332,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     dateFrom,
     dateTo,
     statCards,
+    calculatedStats,
     loadStats,
     loadLogs,
     loadPatterns,

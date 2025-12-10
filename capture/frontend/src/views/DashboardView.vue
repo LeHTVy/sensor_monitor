@@ -22,7 +22,7 @@
         <!-- Charts Row -->
         <v-row class="mt-4">
           <v-col cols="12">
-            <LineChart />
+            <SankeyChart />
           </v-col>
         </v-row>
 
@@ -41,7 +41,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useRefreshStore } from '@/stores/refreshData'
 import Navbar from '@/components/Navbar.vue'
 import HeroSection from '@/components/dashboard/HeroSection.vue'
-import LineChart from '@/components/dashboard/LineChart.vue'
+import SankeyChart from '@/components/dashboard/SankeyChart.vue'
 import WorldMap from '@/components/dashboard/WorldMap.vue'
 import Footer from '@/components/Footer.vue'
 
