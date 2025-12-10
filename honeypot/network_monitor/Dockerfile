@@ -20,4 +20,4 @@ COPY . .
 USER root
 
 # Command to run the sniffer
-CMD ["python", "-u", "packet_sniffer.py", "--interface", "auto"]
+CMD ["python", "-u", "packet_sniffer.py", "--interface", "eth0"]

@@ -420,10 +420,10 @@ def es_get_stats(hours=24):
                         }
                     }
                 },
-                # Unique attacker IPs (try src_ip first, fallback to ip)
+                # Unique attacker IPs (ip.keyword works based on get_attackers)
                 "unique_attackers": {
                     "cardinality": {
-                        "field": "src_ip.keyword"
+                        "field": "ip.keyword"
                     }
                 },
                 # Top attack tools
