@@ -1,0 +1,17 @@
+name: ffuf
+family: web_fuzzer
+description: Fast web fuzzer written in Go
+repos:
+  - https://github.com/ffuf/ffuf
+patterns:
+  user_agent:
+    contains:
+      - "Fuzz Faster U Fool"
+      - "ffuf/"
+  http:
+    rate_min: 50
+    methods: ["GET", "POST"]
+  behavior:
+    high_request_rate: true
+    sequential_paths: true
+weight: 1.0

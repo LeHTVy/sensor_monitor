@@ -1,0 +1,17 @@
+name: gobuster
+family: web_fuzzer
+description: Directory/file & DNS busting tool written in Go
+repos:
+  - https://github.com/OJ/gobuster
+patterns:
+  user_agent:
+    contains:
+      - "gobuster"
+      - "Go-http-client"
+  http:
+    rate_min: 30
+    methods: ["GET", "HEAD"]
+  behavior:
+    high_request_rate: true
+    directory_bruteforce: true
+weight: 1.0

@@ -121,86 +121,78 @@ export const useDashboardStore = defineStore('dashboard', () => {
     { title: 'Traffic', value: stats.value.traffic_logs }
   ])
 
-  // Known security tools for accurate detection
+  // Known security/recon tools for categorization
   const KNOWN_SECURITY_TOOLS = [
     'nmap', 'masscan', 'nikto', 'sqlmap', 'gobuster', 'dirbuster',
     'wfuzz', 'burpsuite', 'hydra', 'metasploit', 'nuclei', 'bbot',
     'amass', 'subfinder', 'httpx', 'ffuf', 'zap', 'acunetix',
     'nessus', 'openvas', 'zgrab', 'wpscan', 'joomscan', 'dirb',
-    'fierce', 'theharvester', 'whatweb', 'curl', 'wget', 'python-requests'
+    'fierce', 'theharvester', 'whatweb', 'recon_tool', 'scanner',
+    'naabu', 'shodan', 'censys', 'rustscan'
   ]
+
+  // Interactive/browser attack tools
+  const INTERACTIVE_TOOLS = ['web browser', 'browser', 'chrome', 'firefox', 'safari', 'edge']
 
   // Calculate accurate stats from actual logs (based on attack_tool field)
   const calculatedStats = computed(() => {
     const allLogs = logs.value
 
-    // Tool Scans: logs with known security tool in attack_tool field
-    const toolScans = allLogs.filter(log => {
-      const tool = (log.attack_tool || '').toLowerCase()
-      return tool && KNOWN_SECURITY_TOOLS.some(knownTool => tool.includes(knownTool))
-    }).length
+    let toolScans = 0
+    let interactiveAttacks = 0
+    let unknownTools = 0
 
-    // Interactive Attacks: POST/PUT/DELETE, file uploads, shell attempts, injection patterns
-    const interactiveAttacks = allLogs.filter(log => {
+    allLogs.forEach(log => {
+      const tool = (log.attack_tool || '').toLowerCase().trim()
       const method = (log.method || '').toUpperCase()
       const path = (log.path || '').toLowerCase()
-      const userAgent = (log.user_agent || '').toLowerCase()
-      const tool = (log.attack_tool || '').toLowerCase()
 
-      // Skip if already counted as tool scan
+      // Category 1: Security Tool Scans
+      // If attack_tool matches known security tools
       if (tool && KNOWN_SECURITY_TOOLS.some(knownTool => tool.includes(knownTool))) {
-        return false
+        toolScans++
+        return
       }
 
-      return (
+      // Category 2: Interactive Attacks
+      // If attack_tool is web browser OR matches interactive patterns
+      if (tool && INTERACTIVE_TOOLS.some(interactiveTool => tool.includes(interactiveTool))) {
+        interactiveAttacks++
+        return
+      }
+
+      // Also count as interactive if method suggests interaction (POST to login/admin)
+      const isInteractiveMethod = (
         method === 'POST' ||
         method === 'PUT' ||
-        method === 'DELETE' ||
-        !!log.form_data ||
-        path.includes('upload') ||
-        path.includes('shell') ||
-        path.includes('cmd') ||
-        path.includes('exec') ||
-        path.includes('eval') ||
-        path.includes('<script') ||
-        path.includes('union') ||
-        path.includes("' or ") ||
-        path.includes('../') ||
-        userAgent.includes('curl') ||
-        userAgent.includes('wget') ||
-        userAgent.includes('python')
+        method === 'DELETE'
       )
-    }).length
+      const isInteractivePath = (
+        path.includes('/login') ||
+        path.includes('/admin') ||
+        path.includes('/auth') ||
+        path.includes('/upload') ||
+        path.includes('/console') ||
+        path.includes('/shell') ||
+        path.includes('/api')
+      )
 
-    // Unknown Tools: has attack_tool but not in known list, or no attack_tool
-    const unknownTools = allLogs.filter(log => {
-      const tool = (log.attack_tool || '').toLowerCase()
-      const method = (log.method || '').toUpperCase()
-      const path = (log.path || '').toLowerCase()
-      const userAgent = (log.user_agent || '').toLowerCase()
-
-      // Already counted as tool scan
-      if (tool && KNOWN_SECURITY_TOOLS.some(knownTool => tool.includes(knownTool))) {
-        return false
+      // If it's an interactive method to an interactive path, and NOT already a known tool
+      if (isInteractiveMethod && isInteractivePath && !tool) {
+        interactiveAttacks++
+        return
       }
 
-      // Already counted as interactive
-      if (
-        method === 'POST' || method === 'PUT' || method === 'DELETE' ||
-        !!log.form_data ||
-        path.includes('upload') || path.includes('shell') ||
-        path.includes('cmd') || path.includes('exec') ||
-        path.includes('eval') || path.includes('<script') ||
-        path.includes('union') || path.includes("' or ") ||
-        path.includes('../') ||
-        userAgent.includes('curl') || userAgent.includes('wget') ||
-        userAgent.includes('python')
-      ) {
-        return false
+      // If has form data, it's interactive
+      if (log.form_data) {
+        interactiveAttacks++
+        return
       }
 
-      return true
-    }).length
+      // Category 3: Unknown Tools
+      // Everything else - either attack_tool is "unknown", empty, or not recognized
+      unknownTools++
+    })
 
     return {
       toolScans,

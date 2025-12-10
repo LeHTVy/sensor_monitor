@@ -1,0 +1,14 @@
+name: hydra
+family: credential_brute
+description: Network logon cracker
+repos:
+  - https://github.com/vanhauser-thc/thc-hydra
+patterns:
+  network:
+    protocols: ["ssh", "ftp", "http-auth", "smb", "telnet"]
+    rapid_auth_attempts: true
+  behavior:
+    multiple_auth_failures: true
+    same_port_repeated: true
+    high_connection_rate: true
+weight: 1.0

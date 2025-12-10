@@ -1,0 +1,24 @@
+name: nikto
+family: web_scanner
+description: Web server scanner
+repos:
+  - https://github.com/sullo/nikto
+patterns:
+  user_agent:
+    contains:
+      - "Nikto"
+      - "nikto"
+  http:
+    rate_min: 10
+    methods: ["GET", "HEAD", "OPTIONS"]
+  paths:
+    contains:
+      - "/cgi-bin/"
+      - "/admin/"
+      - "/.htaccess"
+      - "/phpinfo.php"
+      - "/server-status"
+  behavior:
+    vulnerability_probing: true
+    banner_grabbing: true
+weight: 1.0

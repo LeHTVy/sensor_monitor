@@ -1003,6 +1003,75 @@ def start_reconnaissance():
         logging.error(f"Error starting reconnaissance: {e}")
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/recon/stats')
+@api_key_required
+def get_recon_stats():
+    """Get recon job statistics from Elasticsearch"""
+    try:
+        # Also count active jobs from memory (not yet saved to ES)
+        active_in_memory = len([
+            job for job in active_recon_jobs.values()
+            if job.results.get('status') in ('running', 'pending', 'queued')
+        ])
+        
+        if not USE_ELASTICSEARCH or not es_client:
+            # Fallback to memory-only stats
+            completed_in_memory = len([
+                job for job in active_recon_jobs.values()
+                if job.results.get('status') == 'completed'
+            ])
+            return jsonify({
+                'active': active_in_memory,
+                'completed': completed_in_memory,
+                'failed': 0,
+                'total': active_in_memory + completed_in_memory
+            })
+        
+        # Query recon-results-* index for persisted stats
+        try:
+            query = {
+                "size": 0,
+                "aggs": {
+                    "by_status": {
+                        "terms": {"field": "status.keyword", "size": 10}
+                    },
+                    "total_recons": {
+                        "value_count": {"field": "recon_id.keyword"}
+                    }
+                }
+            }
+            res = es_client.search(index="recon-results-*", body=query, ignore_unavailable=True)
+            
+            # Parse results
+            stats = {'running': 0, 'pending': 0, 'queued': 0, 'completed': 0, 'error': 0}
+            if 'aggregations' in res and 'by_status' in res['aggregations']:
+                for bucket in res['aggregations']['by_status'].get('buckets', []):
+                    stats[bucket['key']] = bucket['doc_count']
+            
+            total = res['aggregations'].get('total_recons', {}).get('value', 0) if 'aggregations' in res else 0
+            
+            return jsonify({
+                'active': active_in_memory + stats.get('running', 0) + stats.get('pending', 0) + stats.get('queued', 0),
+                'completed': stats.get('completed', 0),
+                'failed': stats.get('error', 0),
+                'total': int(total)
+            })
+            
+        except Exception as es_error:
+            logging.warning(f"Recon stats ES query failed: {es_error}")
+            # Fallback to memory
+            return jsonify({
+                'active': active_in_memory,
+                'completed': 0,
+                'failed': 0,
+                'total': active_in_memory
+            })
+    
+    except Exception as e:
+        logging.error(f"Error getting recon stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/recon/status/<recon_id>')
 @api_key_required
 def get_reconnaissance_status(recon_id):

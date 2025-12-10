@@ -403,6 +403,17 @@ class PacketSniffer:
             'total_packets': context['total_packets']
         }
         
+        # Add fingerprint data if available (from GenericScanDetector)
+        details = detection.get('details', {})
+        if details.get('tool_family'):
+            log_entry['tool_family'] = details['tool_family']
+            log_entry['possible_repos'] = details.get('possible_repos', [])
+            log_entry['similar_tools'] = details.get('similar_tools', [])
+            log_entry['fingerprint_confidence'] = details.get('fingerprint_confidence', 0)
+            log_entry['matched_patterns'] = details.get('matched_patterns', [])
+            if details.get('all_matches'):
+                log_entry['all_tool_matches'] = details['all_matches']
+        
         # Add YARA matches if present
         if context.get('yara_matches'):
             log_entry['yara_matches'] = context['yara_matches'][-10:]  # Last 10 matches

@@ -1,10 +1,21 @@
 """
 Generic Network Scan Detector
 Detects unknown scanning tools based on behavioral patterns
+Enhanced with fingerprint matching for tool identification
 """
 
+import logging
 from typing import Optional, Dict
 from .base_network_detector import BaseNetworkDetector
+
+# Import fingerprint engine
+try:
+    from fingerprint_engine import FingerprintEngine, get_fingerprint_engine
+    FINGERPRINT_ENABLED = True
+except ImportError:
+    FINGERPRINT_ENABLED = False
+
+logger = logging.getLogger(__name__)
 
 
 class GenericScanDetector(BaseNetworkDetector):
@@ -17,13 +28,24 @@ class GenericScanDetector(BaseNetworkDetector):
     - SYN ratios
     - Temporal patterns
     - Traffic anomalies
+    
+    Enhanced with fingerprint matching to identify tool family and repos
     """
 
     def __init__(self):
         super().__init__('unknown_scanner')
+        
+        # Initialize fingerprint engine
+        self.fingerprint_engine = None
+        if FINGERPRINT_ENABLED:
+            try:
+                self.fingerprint_engine = get_fingerprint_engine()
+                logger.info("[GenericScanDetector] Fingerprint engine enabled")
+            except Exception as e:
+                logger.warning(f"[GenericScanDetector] Fingerprint engine failed: {e}")
 
     def detect(self, src_ip: str, context: dict, metrics: dict, packet) -> Optional[Dict]:
-        """Detect generic scanning patterns"""
+        """Detect generic scanning patterns with fingerprint matching"""
 
         # Need minimum activity
         total_packets = metrics.get('total_packets', 0)
@@ -70,14 +92,82 @@ class GenericScanDetector(BaseNetworkDetector):
 
         # Only report if confidence is above threshold
         if confidence >= 50:
-            return self.create_detection(
-                confidence=confidence,
-                method='behavioral_heuristics',
-                details=details,
-                techniques=self._determine_techniques(details)
-            )
+            # Try fingerprint matching to identify tool family
+            fingerprint_result = self._try_fingerprint_match(context, metrics)
+            
+            if fingerprint_result:
+                # Return with tool family and repo info
+                details.update(fingerprint_result)
+                return self.create_detection(
+                    confidence=max(confidence, fingerprint_result.get('fingerprint_confidence', 0)),
+                    method='fingerprint_match',
+                    details=details,
+                    techniques=self._determine_techniques(details)
+                )
+            else:
+                # Fallback to generic unknown
+                return self.create_detection(
+                    confidence=confidence,
+                    method='behavioral_heuristics',
+                    details=details,
+                    techniques=self._determine_techniques(details)
+                )
 
         return None
+    
+    def _try_fingerprint_match(self, context: dict, metrics: dict) -> Optional[Dict]:
+        """Try to match traffic against known tool fingerprints"""
+        if not self.fingerprint_engine:
+            return None
+        
+        try:
+            # Build HTTP data from context
+            http_data = {
+                'user_agent': context.get('user_agent', ''),
+                'method': context.get('method', ''),
+                'path': context.get('path', ''),
+                'body': context.get('body', ''),
+                'args': context.get('args', {})
+            }
+            
+            # Get fingerprint matches
+            matches = self.fingerprint_engine.match(context, metrics, http_data)
+            
+            if matches:
+                best_match = matches[0]
+                
+                # Get similar tools in same family
+                similar_tools = self.fingerprint_engine.get_similar_tools(
+                    best_match.family, 
+                    exclude_tool=best_match.tool
+                )
+                
+                result = {
+                    'matched_tool': best_match.tool,
+                    'tool_family': best_match.family,
+                    'possible_repos': best_match.repos,
+                    'fingerprint_confidence': int(best_match.confidence * 100),
+                    'matched_patterns': best_match.matched_patterns,
+                    'similar_tools': similar_tools[:3]  # Top 3 similar
+                }
+                
+                # Add all matches for transparency
+                if len(matches) > 1:
+                    result['all_matches'] = [
+                        {
+                            'tool': m.tool,
+                            'family': m.family,
+                            'confidence': int(m.confidence * 100)
+                        }
+                        for m in matches[:5]  # Top 5
+                    ]
+                
+                return result
+        except Exception as e:
+            logger.error(f"[GenericScanDetector] Fingerprint matching error: {e}")
+        
+        return None
+
 
     def _score_packet_rate(self, metrics: dict) -> Dict:
         """Score based on packet rate"""

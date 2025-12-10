@@ -1,0 +1,24 @@
+name: wpscan
+family: cms_scanner
+description: WordPress security scanner
+repos:
+  - https://github.com/wpscanteam/wpscan
+patterns:
+  user_agent:
+    contains:
+      - "WPScan"
+      - "wpscan"
+  http:
+    methods: ["GET", "HEAD"]
+  paths:
+    contains:
+      - "/wp-admin/"
+      - "/wp-content/"
+      - "/wp-includes/"
+      - "/wp-login.php"
+      - "/xmlrpc.php"
+      - "/wp-json/"
+  behavior:
+    wordpress_specific: true
+    plugin_enumeration: true
+weight: 1.0

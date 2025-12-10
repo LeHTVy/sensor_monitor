@@ -26,19 +26,24 @@ export const useAttackersStore = defineStore('attackers', () => {
     const error = ref<string | null>(null)
     const reconJobs = ref({})
     const reconResults = ref({})
+    const reconStats = ref({ active: 0, completed: 0, failed: 0, total: 0 })
 
-    // Computed
-    const activeReconJobs = computed(() => {
-        return Object.values(reconJobs.value).filter(
-            (job: any) => job.status === 'running' || job.status === 'queued'
-        ).length
-    })
+    // Computed - now uses API-fetched stats
+    const activeReconJobs = computed(() => reconStats.value.active)
+    const completedScans = computed(() => reconStats.value.completed)
 
-    const completedScans = computed(() => {
-        return Object.values(reconJobs.value).filter(
-            (job: any) => job.status === 'completed'
-        ).length
-    })
+    // Fetch recon stats from API (persisted in Elasticsearch)
+    async function fetchReconStats() {
+        try {
+            const apiKey = getApiKey()
+            const response = await axios.get(`${API_URL}/api/recon/stats`, {
+                headers: { 'X-API-Key': apiKey }
+            })
+            reconStats.value = response.data
+        } catch (err) {
+            console.error('Failed to fetch recon stats:', err)
+        }
+    }
 
     // Actions
     async function fetchAttackers(params: FetchAttackersParams = {}) {
@@ -248,12 +253,14 @@ export const useAttackersStore = defineStore('attackers', () => {
         attackers,
         reconJobs,
         reconResults,
+        reconStats,
         total,
         loading,
         error,
         activeReconJobs,
         completedScans,
         fetchAttackers,
+        fetchReconStats,
         startRecon,
         pollReconStatus,
         fetchReconResults,

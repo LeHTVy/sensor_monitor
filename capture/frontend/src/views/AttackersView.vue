@@ -304,9 +304,12 @@ const formatDate = (dateStr: string): string => {
 // Lifecycle
 onMounted(() => {
   fetchAttackers()
-  // Poll for active recon jobs every 10 seconds
+  attackersStore.fetchReconStats()  // Fetch persisted recon stats
+  
+  // Periodically update recon job status and stats
   setInterval(() => {
     attackersStore.updateReconJobsStatus()
+    attackersStore.fetchReconStats()  // Refresh from Elasticsearch
   }, 10000)
 })
 </script>

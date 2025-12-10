@@ -1,0 +1,18 @@
+name: zmap
+family: port_scanner
+description: Fast single packet network scanner
+repos:
+  - https://github.com/zmap/zmap
+patterns:
+  network:
+    pps_min: 100000
+    single_port: true
+    syn_only: true
+    no_retries: true
+  tcp:
+    flags: ["SYN"]
+    ttl_range: [64, 64]
+  behavior:
+    extremely_high_rate: true
+    stateless_scanning: true
+weight: 1.0

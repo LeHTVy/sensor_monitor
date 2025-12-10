@@ -1,0 +1,17 @@
+name: nuclei
+family: vuln_scanner
+description: Fast and customizable vulnerability scanner
+repos:
+  - https://github.com/projectdiscovery/nuclei
+patterns:
+  user_agent:
+    contains:
+      - "Nuclei"
+      - "nuclei"
+  http:
+    rate_min: 20
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  behavior:
+    template_based_scanning: true
+    multi_protocol: true
+weight: 1.0

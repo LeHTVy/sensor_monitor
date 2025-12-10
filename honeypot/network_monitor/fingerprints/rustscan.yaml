@@ -1,0 +1,17 @@
+name: rustscan
+family: port_scanner
+description: Fast port scanner written in Rust
+repos:
+  - https://github.com/RustScan/RustScan
+patterns:
+  network:
+    pps_min: 10000
+    multi_port: true
+    syn_only: true
+  tcp:
+    flags: ["SYN"]
+    batch_scanning: true
+  behavior:
+    high_rate_scanning: true
+    adaptive_timing: true
+weight: 0.9
