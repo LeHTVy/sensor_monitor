@@ -99,18 +99,16 @@ const processData = () => {
   const logs = dashboardStore.logs
   if (logs.length === 0) return { nodes: [], links: [] }
 
-  // Build nodes and links
-  const nodeMap = new Map<string, number>()
-  const linkMap = new Map<string, { value: number; severity: string }>()
-  const nodes: SankeyNodeData[] = []
+  // Build nodes and links using unique node IDs (category:name)
+  const nodeMap = new Map<string, { name: string; category: 'source' | 'tool' | 'target'; id: string }>()
+  const linkMap = new Map<string, { source: string; target: string; value: number; severity: string }>()
 
-  const addNode = (name: string, category: 'source' | 'tool' | 'target'): number => {
-    const key = `${category}:${name}`
-    if (!nodeMap.has(key)) {
-      nodeMap.set(key, nodes.length)
-      nodes.push({ name, category })
+  const addNode = (name: string, category: 'source' | 'tool' | 'target'): string => {
+    const id = `${category}:${name}`
+    if (!nodeMap.has(id)) {
+      nodeMap.set(id, { name, category, id })
     }
-    return nodeMap.get(key)!
+    return id
   }
 
   logs.forEach((log: Log) => {
@@ -140,62 +138,52 @@ const processData = () => {
       targetName = 'Unknown Target'
     }
 
-    const sourceIdx = addNode(sourceName, 'source')
-    const toolIdx = addNode(toolName, 'tool')
-    const targetIdx = addNode(targetName, 'target')
+    const sourceId = addNode(sourceName, 'source')
+    const toolId = addNode(toolName, 'tool')
+    const targetId = addNode(targetName, 'target')
 
     const severity = getSeverity(log)
 
     // Link: Source → Tool
-    const link1Key = `${sourceIdx}-${toolIdx}`
+    const link1Key = `${sourceId}|${toolId}`
     if (linkMap.has(link1Key)) {
       linkMap.get(link1Key)!.value++
     } else {
-      linkMap.set(link1Key, { value: 1, severity })
+      linkMap.set(link1Key, { source: sourceId, target: toolId, value: 1, severity })
     }
 
     // Link: Tool → Target
-    const link2Key = `${toolIdx}-${targetIdx}`
+    const link2Key = `${toolId}|${targetId}`
     if (linkMap.has(link2Key)) {
       linkMap.get(link2Key)!.value++
     } else {
-      linkMap.set(link2Key, { value: 1, severity })
+      linkMap.set(link2Key, { source: toolId, target: targetId, value: 1, severity })
     }
   })
 
-  // Convert links map to array
-  const links: SankeyLinkData[] = Array.from(linkMap.entries()).map(([key, data]) => {
-    const [source, target] = key.split('-').map(Number)
-    return { source, target, value: data.value, severity: data.severity }
-  })
+  // Convert maps to arrays
+  const allNodes = Array.from(nodeMap.values())
+  const allLinks = Array.from(linkMap.values())
 
   // Limit to top flows for readability
-  const topLinks = links
+  const topLinks = allLinks
     .sort((a, b) => b.value - a.value)
     .slice(0, 50)
 
-  // Get referenced nodes only
-  const usedNodeIndices = new Set<number>()
+  // Get referenced node IDs only
+  const usedNodeIds = new Set<string>()
   topLinks.forEach(link => {
-    usedNodeIndices.add(link.source)
-    usedNodeIndices.add(link.target)
+    usedNodeIds.add(link.source)
+    usedNodeIds.add(link.target)
   })
 
-  // Remap node indices
-  const indexMap = new Map<number, number>()
-  const filteredNodes: SankeyNodeData[] = []
-  Array.from(usedNodeIndices).sort((a, b) => a - b).forEach((oldIdx, newIdx) => {
-    indexMap.set(oldIdx, newIdx)
-    filteredNodes.push(nodes[oldIdx])
-  })
+  // Filter nodes to only include those referenced by links
+  const filteredNodes = allNodes.filter(node => usedNodeIds.has(node.id))
 
-  const remappedLinks = topLinks.map(link => ({
-    ...link,
-    source: indexMap.get(link.source)!,
-    target: indexMap.get(link.target)!
-  }))
-
-  return { nodes: filteredNodes, links: remappedLinks }
+  return { 
+    nodes: filteredNodes.map(n => ({ name: n.id, displayName: n.name, category: n.category })),
+    links: topLinks.map(l => ({ source: l.source, target: l.target, value: l.value, severity: l.severity }))
+  }
 }
 
 const renderChart = () => {
@@ -205,7 +193,7 @@ const renderChart = () => {
   d3.select(chartContainer.value).selectAll('*').remove()
 
   const data = processData()
-  if (data.nodes.length === 0) return
+  if (data.nodes.length === 0 || data.links.length === 0) return
 
   const containerRect = chartContainer.value.getBoundingClientRect()
   const width = containerRect.width || 800
@@ -219,9 +207,9 @@ const renderChart = () => {
     .attr('viewBox', [0, 0, width, height])
     .attr('class', 'sankey-svg')
 
-  // Create Sankey generator
-  const sankeyGenerator = sankey<SankeyNodeData, SankeyLinkData>()
-    .nodeId((d: SankeyNodeData) => d.name)
+  // Create Sankey generator using node name as ID
+  const sankeyGenerator = sankey<{ name: string; displayName: string; category: string }, { source: string; target: string; value: number; severity: string }>()
+    .nodeId(d => d.name)
     .nodeWidth(20)
     .nodePadding(12)
     .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]])
@@ -245,12 +233,12 @@ const renderChart = () => {
     .attr('class', 'links')
     .attr('fill', 'none')
     .selectAll('path')
-    .data(links as ProcessedLink[])
+    .data(links)
     .join('path')
     .attr('d', sankeyLinkHorizontal())
-    .attr('stroke', (d: ProcessedLink) => severityColors[d.severity] || '#999')
+    .attr('stroke', (d: any) => severityColors[d.severity] || '#999')
     .attr('stroke-opacity', 0.4)
-    .attr('stroke-width', (d: ProcessedLink) => Math.max(1, d.width || 1))
+    .attr('stroke-width', (d: any) => Math.max(1, d.width || 1))
     .on('mouseover', function(this: SVGPathElement) {
       d3.select(this).attr('stroke-opacity', 0.8)
     })
@@ -260,25 +248,25 @@ const renderChart = () => {
 
   // Add link titles (tooltips)
   link.append('title')
-    .text((d: ProcessedLink) => {
-      const source = d.source as ProcessedNode
-      const target = d.target as ProcessedNode
-      return `${source.name} → ${target.name}\n${d.value} attacks`
+    .text((d: any) => {
+      const sourceName = typeof d.source === 'object' ? d.source.displayName || d.source.name : d.source
+      const targetName = typeof d.target === 'object' ? d.target.displayName || d.target.name : d.target
+      return `${sourceName} → ${targetName}\n${d.value} attacks`
     })
 
   // Draw nodes
   const node = svg.append('g')
     .attr('class', 'nodes')
     .selectAll('g')
-    .data(nodes as ProcessedNode[])
+    .data(nodes)
     .join('g')
-    .attr('transform', (d: ProcessedNode) => `translate(${d.x0},${d.y0})`)
+    .attr('transform', (d: any) => `translate(${d.x0},${d.y0})`)
 
   // Node rectangles
   node.append('rect')
-    .attr('height', (d: ProcessedNode) => (d.y1 || 0) - (d.y0 || 0))
-    .attr('width', (d: ProcessedNode) => (d.x1 || 0) - (d.x0 || 0))
-    .attr('fill', (d: ProcessedNode) => categoryColors[d.category] || '#999')
+    .attr('height', (d: any) => (d.y1 || 0) - (d.y0 || 0))
+    .attr('width', (d: any) => (d.x1 || 0) - (d.x0 || 0))
+    .attr('fill', (d: any) => categoryColors[d.category] || '#999')
     .attr('stroke', '#fff')
     .attr('stroke-width', 1)
     .attr('rx', 3)
@@ -293,18 +281,18 @@ const renderChart = () => {
 
   // Node labels
   node.append('text')
-    .attr('x', (d: ProcessedNode) => d.category === 'source' ? -6 : ((d.x1 || 0) - (d.x0 || 0)) + 6)
-    .attr('y', (d: ProcessedNode) => ((d.y1 || 0) - (d.y0 || 0)) / 2)
+    .attr('x', (d: any) => d.category === 'source' ? -6 : ((d.x1 || 0) - (d.x0 || 0)) + 6)
+    .attr('y', (d: any) => ((d.y1 || 0) - (d.y0 || 0)) / 2)
     .attr('dy', '0.35em')
-    .attr('text-anchor', (d: ProcessedNode) => d.category === 'source' ? 'end' : 'start')
+    .attr('text-anchor', (d: any) => d.category === 'source' ? 'end' : 'start')
     .attr('font-size', '11px')
     .attr('fill', 'currentColor')
-    .text((d: ProcessedNode) => {
-      const name = d.name
+    .text((d: any) => {
+      const name = d.displayName || d.name
       return name.length > 15 ? name.substring(0, 15) + '...' : name
     })
     .append('title')
-    .text((d: ProcessedNode) => `${d.name}\n${d.value || 0} attacks`)
+    .text((d: any) => `${d.displayName || d.name}\n${d.value || 0} attacks`)
 
   // Add category labels at top
   const categories = [
