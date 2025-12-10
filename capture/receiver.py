@@ -421,10 +421,10 @@ def es_get_stats(hours=24):
                         }
                     }
                 },
-                # Unique attacker IPs (src_ip in sensor-logs-attacks)
+                # Unique attacker IPs (src_ip is IP type, no .keyword needed)
                 "unique_attackers": {
                     "cardinality": {
-                        "field": "src_ip.keyword"
+                        "field": "src_ip"
                     }
                 },
                 # Top attack tools (attack_tool is already keyword type, no .keyword needed)
