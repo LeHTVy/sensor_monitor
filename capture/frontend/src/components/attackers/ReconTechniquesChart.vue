@@ -83,25 +83,24 @@ function getBarColor(index: number): string {
 
 async function fetchTechniques() {
   try {
-    // Fetch attackers to aggregate techniques
-    const response = await fetch('/api/attackers?limit=500', {
+    // Fetch logs to aggregate techniques from attack_tool field
+    const response = await fetch('/api/logs?limit=1000', {
       headers: { 'X-API-Key': API_KEY }
     })
     
     if (response.ok) {
       const data = await response.json()
-      const attackers = data.attackers || []
+      const logs = data.logs || []
       
-      // Aggregate techniques from attack logs
+      // Aggregate techniques from attack_tool field in logs
       const techMap = new Map<string, number>()
       
-      attackers.forEach((attacker: any) => {
-        // Get attack tools from the attacker
-        const tools = attacker.attack_tools || []
-        tools.forEach((tool: string) => {
+      logs.forEach((log: any) => {
+        const tool = log.attack_tool
+        if (tool && tool !== 'unknown' && tool !== '') {
           const technique = toolToTechnique[tool.toLowerCase()] || tool
           techMap.set(technique, (techMap.get(technique) || 0) + 1)
-        })
+        }
       })
       
       // Convert to array and sort

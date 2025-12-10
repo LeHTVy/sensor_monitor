@@ -407,18 +407,23 @@ def es_get_stats(hours=24):
                 }
             },
             "aggs": {
-                # High severity events (threat_score >= 70)
+                # High severity events (threat_score >= 70 OR threat_level = high/critical)
                 "high_severity": {
                     "filter": {
-                        "range": {
-                            "threat_score": {"gte": 70}
+                        "bool": {
+                            "should": [
+                                {"range": {"threat_score": {"gte": 70}}},
+                                {"term": {"threat_level.keyword": "high"}},
+                                {"term": {"threat_level.keyword": "critical"}}
+                            ],
+                            "minimum_should_match": 1
                         }
                     }
                 },
-                # Unique attacker IPs
+                # Unique attacker IPs (try src_ip first, fallback to ip)
                 "unique_attackers": {
                     "cardinality": {
-                        "field": "ip.keyword"
+                        "field": "src_ip.keyword"
                     }
                 },
                 # Top attack tools
@@ -429,10 +434,10 @@ def es_get_stats(hours=24):
                         "exclude": ["unknown", ""]
                     }
                 },
-                # Most targeted ports
+                # Most targeted ports (dst_port)
                 "top_targeted_ports": {
                     "terms": {
-                        "field": "port",
+                        "field": "dst_port",
                         "size": 5
                     }
                 },
