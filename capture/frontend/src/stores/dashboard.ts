@@ -198,7 +198,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
       toolScans,
       interactiveAttacks,
       unknownTools,
-      totalLogs: allLogs.length
+      // Use actual total from Elasticsearch API, not capped array length
+      totalLogs: stats.value.total_logs_received || allLogs.length
     }
   })
 

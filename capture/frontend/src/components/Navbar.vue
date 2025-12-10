@@ -84,15 +84,6 @@
     <v-spacer />
 
     <div class="header-actions mr-4">
-      <v-btn icon variant="text" size="small" class="header-btn">
-        <v-icon>mdi-bell-outline</v-icon>
-        <v-badge color="error" content="3" floating />
-      </v-btn>
-
-      <v-btn icon variant="text" size="small" class="header-btn">
-        <v-icon>mdi-cog-outline</v-icon>
-      </v-btn>
-
       <v-btn 
         icon 
         variant="text" 
