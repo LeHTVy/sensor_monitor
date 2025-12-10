@@ -360,19 +360,18 @@ class BbotScanner:
         self.target = target
     
     def comprehensive_scan(self, timeout: int = 300) -> Dict:
-        """Run passive subdomain enumeration with bbot"""
-        logger.info(f"[BBOT] Starting passive subdomain scan for {self.target}")
+        """Run passive subdomain enumeration with bbot (lightweight mode)"""
+        logger.info(f"[BBOT] Starting lightweight passive scan for {self.target}")
         
         try:
-            # Use subdomain-enum preset with passive-only flag (fastest)
-            # -p subdomain-enum: subdomain enumeration preset
-            # -rf passive: only run passive modules (no active scanning)
-            # --silent: minimal output
+            # Use ONLY the fastest/lightest modules to avoid timeout
+            # -m: specify individual modules instead of heavy presets
+            # crt: Certificate Transparency logs (fast)
+            # hackertarget: HackerTarget API (fast)
             # --yes: auto-confirm prompts
             cmd = [
                 'bbot', '-t', self.target,
-                '-p', 'subdomain-enum',    # Subdomain enumeration preset
-                '-rf', 'passive',          # Passive only (fast, no active probing)
+                '-m', 'crt', 'hackertarget',   
                 '-o', '/tmp/bbot',
                 '--silent',
                 '--yes'
@@ -527,7 +526,7 @@ class ReconOrchestrator:
                 self._update_progress('bbot', 'running')
                 
                 scanner = BbotScanner(domain)
-                bbot_result = scanner.comprehensive_scan(timeout=1800)
+                bbot_result = scanner.comprehensive_scan(timeout=300)  # 5 min timeout for lightweight scan
                 self.results['tools']['bbot'] = bbot_result
                 
                 self._update_progress('bbot', 'completed')
