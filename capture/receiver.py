@@ -371,8 +371,16 @@ def get_logs():
         'timestamp': datetime.now().isoformat()
     })
 
-def es_get_stats():
-    """Get statistics from Elasticsearch"""
+def es_get_stats(hours=24):
+    """Get actionable SOC statistics from Elasticsearch
+    
+    Returns:
+        - high_severity_count: Events with threat_score >= 70
+        - unique_attackers: Distinct attacker IPs in time window
+        - top_attack_type: Most common attack tool
+        - most_targeted_port: Most targeted port
+        - total_logs_received: Total logs in ES
+    """
     if not es_client:
         return stats
     
@@ -380,108 +388,58 @@ def es_get_stats():
         # Search in all indices
         query_index = f"{ES_PREFIX}-*"
         
-        # Get total count
+        # Calculate time range
+        now = datetime.now()
+        time_from = (now - timedelta(hours=hours)).isoformat()
+        
+        # Get total count (all time)
         total_res = es_client.count(index=query_index)
         total_logs = total_res['count']
         
-        # Debug: Check what attack_tool values exist
-        debug_body = {
-            "size": 0,
-            "aggs": {
-                "attack_tools": {
-                    "terms": {
-                        "field": "attack_tool.keyword",
-                        "size": 50,
-                        "missing": "NO_FIELD"
-                    }
-                }
-            }
-        }
-        debug_res = es_client.search(index=query_index, body=debug_body)
-        attack_tool_buckets = debug_res.get('aggregations', {}).get('attack_tools', {}).get('buckets', [])
-        print(f"🔍 DEBUG - attack_tool values in ES: {[(b['key'], b['doc_count']) for b in attack_tool_buckets]}")
-        
-        # Build comprehensive aggregation query for all stat categories
+        # Build SOC-focused aggregation query with time filter
         body = {
             "size": 0,
+            "query": {
+                "range": {
+                    "timestamp": {
+                        "gte": time_from
+                    }
+                }
+            },
             "aggs": {
-                "by_category": {
+                # High severity events (threat_score >= 70)
+                "high_severity": {
+                    "filter": {
+                        "range": {
+                            "threat_score": {"gte": 70}
+                        }
+                    }
+                },
+                # Unique attacker IPs
+                "unique_attackers": {
+                    "cardinality": {
+                        "field": "ip.keyword"
+                    }
+                },
+                # Top attack tools
+                "top_attack_types": {
                     "terms": {
-                        "field": "log_category.keyword",
-                        "size": 10
+                        "field": "attack_tool.keyword",
+                        "size": 5,
+                        "exclude": ["unknown", ""]
                     }
                 },
-                # Count logs with security tools (explicit list of known tools)
-                "tool_scans": {
-                    "filter": {
-                        "bool": {
-                            "should": [
-                                {"term": {"attack_tool.keyword": "nmap"}},
-                                {"term": {"attack_tool.keyword": "masscan"}},
-                                {"term": {"attack_tool.keyword": "nikto"}},
-                                {"term": {"attack_tool.keyword": "sqlmap"}},
-                                {"term": {"attack_tool.keyword": "gobuster"}},
-                                {"term": {"attack_tool.keyword": "dirbuster"}},
-                                {"term": {"attack_tool.keyword": "wfuzz"}},
-                                {"term": {"attack_tool.keyword": "burpsuite"}},
-                                {"term": {"attack_tool.keyword": "hydra"}},
-                                {"term": {"attack_tool.keyword": "metasploit"}},
-                                {"term": {"attack_tool.keyword": "nuclei"}},
-                                {"term": {"attack_tool.keyword": "bbot"}},
-                                {"term": {"attack_tool.keyword": "amass"}},
-                                {"term": {"attack_tool.keyword": "subfinder"}},
-                                {"term": {"attack_tool.keyword": "httpx"}},
-                                {"term": {"attack_tool.keyword": "ffuf"}},
-                                {"term": {"attack_tool.keyword": "zap"}},
-                                {"term": {"attack_tool.keyword": "acunetix"}},
-                                {"term": {"attack_tool.keyword": "nessus"}},
-                                {"term": {"attack_tool.keyword": "openvas"}},
-                                {"term": {"attack_tool.keyword": "zgrab"}},
-                                {"term": {"attack_tool.keyword": "wpscan"}},
-                                {"term": {"attack_tool.keyword": "joomscan"}}
-                            ],
-                            "minimum_should_match": 1
-                        }
+                # Most targeted ports
+                "top_targeted_ports": {
+                    "terms": {
+                        "field": "port",
+                        "size": 5
                     }
                 },
-                # Count interactive attacks (POST, file uploads, command shells, browser-based attacks)
-                "interactive_attacks": {
-                    "filter": {
-                        "bool": {
-                            "should": [
-                                {"term": {"method.keyword": "POST"}},
-                                {"term": {"method.keyword": "PUT"}},
-                                {"term": {"method.keyword": "DELETE"}},
-                                {"exists": {"field": "form_data"}},
-                                {"wildcard": {"path.keyword": "*upload*"}},
-                                {"wildcard": {"path.keyword": "*shell*"}},
-                                {"wildcard": {"path.keyword": "*cmd*"}},
-                                {"wildcard": {"path.keyword": "*exec*"}},
-                                {"wildcard": {"path.keyword": "*eval*"}},
-                                {"wildcard": {"user_agent.keyword": "*curl*"}},
-                                {"wildcard": {"user_agent.keyword": "*wget*"}},
-                                {"wildcard": {"user_agent.keyword": "*python*"}},
-                                # Browser-based attacks (XSS, SQL injection in URL, etc.)
-                                {"wildcard": {"path.keyword": "*<script*"}},
-                                {"wildcard": {"path.keyword": "*union*select*"}},
-                                {"wildcard": {"path.keyword": "*' OR*"}},
-                                {"wildcard": {"path.keyword": "*../../../*"}}
-                            ],
-                            "minimum_should_match": 1
-                        }
-                    }
-                },
-                # Count logs where attack tool is unknown
-                "unknown_tools": {
-                    "filter": {
-                        "bool": {
-                            "should": [
-                                {"term": {"attack_tool.keyword": "unknown"}},
-                                {"term": {"attack_tool.keyword": ""}},
-                                {"bool": {"must_not": [{"exists": {"field": "attack_tool"}}]}}
-                            ],
-                            "minimum_should_match": 1
-                        }
+                # Logs in time window
+                "logs_in_period": {
+                    "value_count": {
+                        "field": "timestamp"
                     }
                 }
             }
@@ -490,38 +448,33 @@ def es_get_stats():
         res = es_client.search(index=query_index, body=body)
         
         # Parse aggregations
-        attack_logs = 0
-        honeypot_logs = 0
-        traffic_logs = 0
-        
-        # Check if aggregations exist
-        if 'aggregations' in res and 'by_category' in res['aggregations']:
-            buckets = res['aggregations']['by_category'].get('buckets', [])
-            for bucket in buckets:
-                category = bucket.get('key', '')
-                count = bucket.get('doc_count', 0)
-                
-                if category == 'attack':
-                    attack_logs = count
-                elif category == 'honeypot':
-                    honeypot_logs = count
-                elif category == 'traffic':
-                    traffic_logs = count
-        
-        # Get new stat categories
-        tool_scan_logs = 0
-        interactive_attack_logs = 0
-        unknown_tools_logs = 0
+        high_severity_count = 0
+        unique_attackers = 0
+        top_attack_type = "None detected"
+        most_targeted_port = 0
+        logs_in_period = 0
         
         if 'aggregations' in res:
-            if 'tool_scans' in res['aggregations']:
-                tool_scan_logs = res['aggregations']['tool_scans'].get('doc_count', 0)
+            aggs = res['aggregations']
             
-            if 'interactive_attacks' in res['aggregations']:
-                interactive_attack_logs = res['aggregations']['interactive_attacks'].get('doc_count', 0)
+            # High severity count
+            high_severity_count = aggs.get('high_severity', {}).get('doc_count', 0)
             
-            if 'unknown_tools' in res['aggregations']:
-                unknown_tools_logs = res['aggregations']['unknown_tools'].get('doc_count', 0)
+            # Unique attackers
+            unique_attackers = aggs.get('unique_attackers', {}).get('value', 0)
+            
+            # Top attack type
+            attack_buckets = aggs.get('top_attack_types', {}).get('buckets', [])
+            if attack_buckets:
+                top_attack_type = attack_buckets[0].get('key', 'Unknown')
+            
+            # Most targeted port
+            port_buckets = aggs.get('top_targeted_ports', {}).get('buckets', [])
+            if port_buckets:
+                most_targeted_port = port_buckets[0].get('key', 0)
+            
+            # Logs in period
+            logs_in_period = aggs.get('logs_in_period', {}).get('value', 0)
         
         # Get latest timestamp
         latest_res = es_client.search(
@@ -534,21 +487,23 @@ def es_get_stats():
         
         last_received = None
         if latest_res['hits']['hits']:
-            last_received = latest_res['hits']['hits'][0]['_source']['timestamp']
+            last_received = latest_res['hits']['hits'][0]['_source'].get('timestamp')
         
-        print(f"📊 Stats calculated - Tool scans: {tool_scan_logs}, Interactive: {interactive_attack_logs}, Unknown tools: {unknown_tools_logs}, Total: {total_logs}")
+        print(f"📊 SOC Stats (last {hours}h) - High severity: {high_severity_count}, Unique attackers: {unique_attackers}, Top tool: {top_attack_type}, Top port: {most_targeted_port}")
         
         return {
+            # New SOC-focused stats
+            'high_severity_count': high_severity_count,
+            'unique_attackers': int(unique_attackers),
+            'top_attack_type': top_attack_type,
+            'most_targeted_port': int(most_targeted_port),
+            'logs_in_period': int(logs_in_period),
+            # Keep backwards compatibility
             'total_logs_received': total_logs,
-            'attack_logs': attack_logs,
-            'honeypot_logs': honeypot_logs,
-            'traffic_logs': traffic_logs,
-            'tool_scan_logs': tool_scan_logs,
-            'interactive_attack_logs': interactive_attack_logs,
-            'normal_browsing_logs': unknown_tools_logs,  # Now counts unknown tools
             'last_received': last_received,
             'start_time': stats['start_time'],
-            'uptime': (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds()
+            'uptime': (datetime.now() - datetime.fromisoformat(stats['start_time'])).total_seconds(),
+            'time_window_hours': hours
         }
     except Exception as e:
         logging.error(f"Elasticsearch stats error: {e}")
@@ -559,10 +514,14 @@ def es_get_stats():
 @app.route('/api/stats')
 @api_key_required
 def get_stats():
-    """Get statistics"""
+    """Get SOC statistics with optional time window"""
+    # Get time window from query params (default 24 hours)
+    hours = request.args.get('hours', 24, type=int)
+    hours = max(1, min(hours, 8760))  # Clamp between 1 hour and 365 days
+    
     if USE_ELASTICSEARCH:
-        es_stats = es_get_stats()
-        print(f"📊 Stats API called - ES: {es_stats}")
+        es_stats = es_get_stats(hours=hours)
+        print(f"📊 Stats API called - ES (hours={hours}): {es_stats}")
         return jsonify({
             'stats': es_stats,
             'kafka_stats': {'source': 'elasticsearch'},

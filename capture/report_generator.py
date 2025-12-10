@@ -310,9 +310,24 @@ class ReconReportGenerator:
                     tool_data = self.recon_data['tools'][tool]
                     
                     if tool_data.get('status') == 'completed':
-                        count = tool_data.get('count', 0)
+                        subdomains = tool_data.get('subdomains', [])
+                        count = tool_data.get('count', len(subdomains))
                         story.append(Paragraph(f'Subdomains Found: {count}', styles['Normal']))
                         story.append(Spacer(1, 10))
+                        
+                        # List subdomains (up to 50)
+                        if subdomains:
+                            for i, subdomain in enumerate(subdomains[:50], 1):
+                                story.append(Paragraph(f'• {subdomain}', styles['Normal']))
+                            
+                            if len(subdomains) > 50:
+                                story.append(Paragraph(f'... and {len(subdomains) - 50} more', styles['Italic']))
+                        
+                        story.append(Spacer(1, 10))
+                    else:
+                        story.append(Paragraph(f'Status: {tool_data.get("status", "unknown")}', styles['Normal']))
+                        if 'error' in tool_data:
+                            story.append(Paragraph(f'Error: {tool_data["error"]}', styles['Normal']))
             
             story.append(PageBreak())
         
@@ -323,17 +338,27 @@ class ReconReportGenerator:
         return filepath
     
     def _add_nmap_pdf(self, story, styles, nmap_data: Dict):
-        """Add Nmap results to PDF"""
+        """Add Nmap results to PDF - Full details like DOCX"""
+        
+        # Host Discovery
+        if 'host_discovery' in nmap_data:
+            story.append(Paragraph('Host Discovery', styles['Heading3']))
+            host_disc = nmap_data['host_discovery']
+            host_up = host_disc.get('host_up', False)
+            story.append(Paragraph(f'Host Status: {"UP" if host_up else "DOWN"}', styles['Normal']))
+            story.append(Spacer(1, 10))
         
         # Port Scan Results
         if 'port_scan' in nmap_data and nmap_data['port_scan'].get('status') == 'completed':
+            story.append(Paragraph('Port Scan', styles['Heading3']))
             open_ports = [p for p in nmap_data['port_scan'].get('open_ports', []) if p.get('state') == 'open']
             
-            story.append(Paragraph(f'Open Ports: {len(open_ports)}', styles['Heading3']))
+            story.append(Paragraph(f'Total Open Ports: {len(open_ports)}', styles['Normal']))
+            story.append(Spacer(1, 10))
             
-            if open_ports[:20]:  # Limit to 20 for PDF
+            if open_ports[:50]:  # Increased to 50 ports like DOCX
                 port_data = [['Port', 'Protocol', 'State', 'Service']]
-                for port in open_ports[:20]:
+                for port in open_ports[:50]:
                     port_data.append([
                         str(port.get('port', '')),
                         port.get('protocol', ''),
@@ -341,7 +366,7 @@ class ReconReportGenerator:
                         port.get('service', 'unknown')
                     ])
                 
-                port_table = Table(port_data)
+                port_table = Table(port_data, colWidths=[0.8*inch, 0.8*inch, 0.8*inch, 2*inch])
                 port_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -352,6 +377,51 @@ class ReconReportGenerator:
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
                 story.append(port_table)
+                story.append(Spacer(1, 15))
+        
+        # Service Detection
+        if 'service_detection' in nmap_data:
+            services = nmap_data['service_detection'].get('services', [])
+            
+            if services:
+                story.append(Paragraph('Service Detection', styles['Heading3']))
+                
+                svc_data = [['Port', 'Service', 'Product', 'Version', 'Extra Info']]
+                for svc in services[:30]:
+                    svc_data.append([
+                        str(svc.get('port', '')),
+                        svc.get('name', ''),
+                        svc.get('product', ''),
+                        svc.get('version', ''),
+                        svc.get('extrainfo', '')[:30]  # Truncate long extra info
+                    ])
+                
+                svc_table = Table(svc_data, colWidths=[0.6*inch, 0.8*inch, 1.2*inch, 0.8*inch, 1.5*inch])
+                svc_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+                ]))
+                story.append(svc_table)
+                story.append(Spacer(1, 15))
+        
+        # OS Fingerprinting
+        if 'os_fingerprinting' in nmap_data:
+            os_matches = nmap_data['os_fingerprinting'].get('os_matches', [])
+            
+            if os_matches:
+                story.append(Paragraph('OS Fingerprinting', styles['Heading3']))
+                
+                for i, match in enumerate(os_matches[:5], 1):
+                    story.append(Paragraph(
+                        f'{i}. {match.get("name", "Unknown")} (Accuracy: {match.get("accuracy", "N/A")}%)',
+                        styles['Normal']
+                    ))
+                story.append(Spacer(1, 10))
         
         story.append(Spacer(1, 20))
 

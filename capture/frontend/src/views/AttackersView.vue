@@ -31,26 +31,13 @@
             <v-col cols="12" md="3">
               <v-card>
                 <v-card-text>
-                  <div class="text-overline mb-1">High Threat</div>
-                  <div class="text-h4 text-error">{{ highThreatCount }}</div>
-                </v-card-text>
-              </v-card>
-            </v-col>
-            <v-col cols="12" md="3">
-              <v-card>
-                <v-card-text>
-                  <div class="text-overline mb-1">Active Recon Jobs</div>
-                  <div class="text-h4 text-info">{{ activeReconJobs }}</div>
-                </v-card-text>
-              </v-card>
-            </v-col>
-            <v-col cols="12" md="3">
-              <v-card>
-                <v-card-text>
                   <div class="text-overline mb-1">Completed Scans</div>
                   <div class="text-h4 text-success">{{ completedScans }}</div>
                 </v-card-text>
               </v-card>
+            </v-col>
+            <v-col cols="12" md="6">
+              <ReconTechniquesChart />
             </v-col>
           </v-row>
         </div>
@@ -191,6 +178,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAttackersStore } from '../stores/attackers'
 import Navbar from '@/components/Navbar.vue'
 import ReconProgressModal from '@/components/ReconProgressModal.vue'
+import ReconTechniquesChart from '@/components/attackers/ReconTechniquesChart.vue'
 
 const attackersStore = useAttackersStore()
 

@@ -78,14 +78,20 @@ export interface Log {
   body?: string | Record<string, unknown>
 }
 
+// SOC-focused stats from Elasticsearch
 export interface Stats {
+  // New SOC metrics
+  high_severity_count: number
+  unique_attackers: number
+  top_attack_type: string
+  most_targeted_port: number
+  logs_in_period: number
+  // Backwards compatibility
   total_logs_received: number
-  attack_logs: number
-  honeypot_logs: number
-  traffic_logs: number
-  tool_scan_logs: number
-  interactive_attack_logs: number
-  normal_browsing_logs: number
+  last_received: string | null
+  start_time: string
+  uptime: number
+  time_window_hours: number
 }
 
 export interface Pattern {
@@ -100,13 +106,16 @@ export const useDashboardStore = defineStore('dashboard', () => {
 
   const logs = ref<Log[]>([])
   const stats = ref<Stats>({
+    high_severity_count: 0,
+    unique_attackers: 0,
+    top_attack_type: 'None',
+    most_targeted_port: 0,
+    logs_in_period: 0,
     total_logs_received: 0,
-    attack_logs: 0,
-    honeypot_logs: 0,
-    traffic_logs: 0,
-    tool_scan_logs: 0,
-    interactive_attack_logs: 0,
-    normal_browsing_logs: 0
+    last_received: null,
+    start_time: new Date().toISOString(),
+    uptime: 0,
+    time_window_hours: 24
   })
   const patterns = ref<Pattern[]>([])
   const currentFilter = ref<'all' | 'attack' | 'honeypot' | 'traffic'>('all')
@@ -114,12 +123,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const dateFrom = ref<string | null>(null)
   const dateTo = ref<string | null>(null)
 
-  const statCards = computed(() => [
-    { title: 'Total Logs', value: stats.value.total_logs_received },
-    { title: 'Attacks', value: stats.value.attack_logs },
-    { title: 'Honeypot', value: stats.value.honeypot_logs },
-    { title: 'Traffic', value: stats.value.traffic_logs }
-  ])
+  // Time period for stats (in hours)
+  const statsPeriod = ref(24)  // Default: 24 hours
 
   // Known security/recon tools for categorization
   const KNOWN_SECURITY_TOOLS = [
@@ -207,7 +212,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     if (!authStore.isLoggedIn || !authStore.apiKey) return
 
     try {
-      const response = await fetch('/api/stats', {
+      const response = await fetch(`/api/stats?hours=${statsPeriod.value}`, {
         method: 'GET',
         headers: {
           'X-API-Key': authStore.apiKey,
@@ -316,6 +321,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
+  // Set stats period and reload
+  function setStatsPeriod(hours: number) {
+    statsPeriod.value = hours
+    loadStats()
+  }
+
   return {
     logs,
     stats,
@@ -324,7 +335,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading,
     dateFrom,
     dateTo,
-    statCards,
+    statsPeriod,
     calculatedStats,
     loadStats,
     loadLogs,
@@ -332,6 +343,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     setFilter,
     setDateFilter,
     clearDateFilter,
+    setStatsPeriod,
     loadAllData
   }
 })
