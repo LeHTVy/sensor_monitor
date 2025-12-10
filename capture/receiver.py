@@ -18,7 +18,7 @@ import hashlib
 from kafka_consumer import CaptureKafkaConsumer
 from security_middleware import CaptureSecurity, admin_required, api_key_required, ip_whitelist_required
 from elasticsearch import Elasticsearch
-from recon_service import create_recon_job, get_recon_status, get_recon_results
+from recon_service import create_recon_job, get_recon_status, get_recon_results, active_recon_jobs
 
 app = Flask(__name__)
 

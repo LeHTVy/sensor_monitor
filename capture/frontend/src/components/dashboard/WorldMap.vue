@@ -4,7 +4,7 @@
       <v-icon icon="mdi-earth" color="primary" class="mr-2" />
       <span>ACTIVE CAPTURES</span>
       <v-chip size="small" variant="outlined" class="ml-3">
-        {{ attackCount }} attacks
+        {{ attackerCount }} unique attackers
       </v-chip>
       <v-spacer />
       <v-btn size="small" icon variant="text" @click="refresh">
@@ -15,7 +15,7 @@
     <v-card-text>
       <div v-if="loading" class="map-loading">
         <v-progress-circular indeterminate color="primary" />
-        <p>Loading attack data...</p>
+        <p>Loading attacker data...</p>
       </div>
 
       <div v-else class="attack-map-container">
@@ -23,17 +23,17 @@
       </div>
       
       <!-- Attack Legend -->
-      <div v-if="!loading && attacks.length > 0" class="mt-4">
-        <div class="text-caption mb-2">Top Attack Origins:</div>
+      <div v-if="!loading && countryData.length > 0" class="mt-4">
+        <div class="text-caption mb-2">Top Attack Origins (Unique IPs):</div>
         <v-chip
-          v-for="attack in attacks.slice(0, 5)"
-          :key="attack.country"
+          v-for="data in countryData.slice(0, 5)"
+          :key="data.country"
           size="small"
           variant="outlined"
           color="primary"
           class="mr-2 mb-2"
         >
-          {{ attack.country }}: {{ attack.count }}
+          {{ data.country }}: {{ data.uniqueIps }} attackers
         </v-chip>
       </div>
     </v-card-text>
@@ -48,18 +48,18 @@ import * as topojson from 'topojson-client'
 const API_KEY = 'capture_secure_key_2024'
 const API_BASE = '/api'
 
-interface Attack {
-  ip: string
+interface CountryAttackers {
+  country: string
   lat: number
   lon: number
-  country: string
-  count: number
+  uniqueIps: number  // Number of unique attacker IPs
+  ips: string[]      // List of IPs (for tooltip)
 }
 
 const mapSvg = ref<SVGSVGElement>()
 const loading = ref(true)
-const attackCount = ref(0)
-const attacks = ref<Attack[]>([])
+const attackerCount = ref(0)
+const countryData = ref<CountryAttackers[]>([])
 let refreshInterval: number | null = null
 let currentProjection: d3.GeoProjection | null = null
 
@@ -94,43 +94,52 @@ const countryCoords: Record<string, { lat: number; lon: number }> = {
 
 async function fetchAttackData() {
   try {
+    // Fetch unique attackers from Elasticsearch via /api/attackers
     const response = await fetch(
-      `${API_BASE}/logs?limit=100`,
+      `${API_BASE}/attackers?limit=500`,
       { headers: { 'X-API-Key': API_KEY } }
     )
 
     if (response.ok) {
       const data = await response.json()
-      const logs = data.logs || []
+      const attackers = data.attackers || []
 
-      // Aggregate attacks by country
-      const locationMap = new Map<string, Attack>()
+      // Aggregate UNIQUE IPs by country
+      const countryMap = new Map<string, { ips: Set<string> }>()
 
-      logs.forEach((log: any) => {
-        const country = log.geoip?.country || 'Unknown'
+      attackers.forEach((attacker: any) => {
+        const country = attacker.country || 'Unknown'
         if (country !== 'Unknown') {
-          const existing = locationMap.get(country)
-          const coords = countryCoords[country] || { lat: 0, lon: 0 }
-
+          const existing = countryMap.get(country)
           if (existing) {
-            existing.count++
+            existing.ips.add(attacker.ip)
           } else {
-            locationMap.set(country, {
-              ip: log.src_ip || log.ip,
-              lat: coords.lat,
-              lon: coords.lon,
-              country: country,
-              count: 1
-            })
+            countryMap.set(country, { ips: new Set([attacker.ip]) })
           }
         }
       })
 
-      attacks.value = Array.from(locationMap.values())
-      attackCount.value = logs.length
+      // Convert to array with coordinates
+      const result: CountryAttackers[] = []
+      countryMap.forEach((data, country) => {
+        const coords = countryCoords[country] || { lat: 0, lon: 0 }
+        result.push({
+          country,
+          lat: coords.lat,
+          lon: coords.lon,
+          uniqueIps: data.ips.size,
+          ips: Array.from(data.ips).slice(0, 5)  // Keep first 5 for tooltip
+        })
+      })
+
+      // Sort by unique IP count descending
+      result.sort((a, b) => b.uniqueIps - a.uniqueIps)
+
+      countryData.value = result
+      attackerCount.value = attackers.length  // Total unique attackers
     }
   } catch (error) {
-    console.error('Error fetching attack data:', error)
+    console.error('Error fetching attacker data:', error)
   } finally {
     loading.value = false
   }
@@ -222,30 +231,35 @@ async function renderMap() {
     } as any)
   }
 
-  // Draw attack markers
+  // Draw attack markers based on unique IPs per country
   const markersGroup = svg.append('g').attr('class', 'markers')
 
-  attacks.value.forEach((attack) => {
+  countryData.value.forEach((data) => {
     // Use the same projection as the map for accurate positioning
-    const coords = currentProjection ? currentProjection([attack.lon, attack.lat]) : null
+    const coords = currentProjection ? currentProjection([data.lon, data.lat]) : null
     if (!coords) return
     
     const [x, y] = coords
     
+    // Calculate circle size based on unique IP count (logarithmic scale for better visualization)
+    const baseRadius = 8
+    const sizeMultiplier = Math.log2(data.uniqueIps + 1) * 4  // Logarithmic scaling
+    
     // Outer pulsing circle
     markersGroup.append('circle')
-      .attr('cx', x).attr('cy', y).attr('r', 8)
+      .attr('cx', x).attr('cy', y).attr('r', baseRadius)
       .attr('fill', getSvgColor(primaryColor))
       .attr('opacity', 0.3)
       .append('animate')
       .attr('attributeName', 'r')
-      .attr('from', 8).attr('to', 25)
+      .attr('from', baseRadius).attr('to', baseRadius + 15)
       .attr('dur', '2s')
       .attr('repeatCount', 'indefinite')
 
+    // Size ring - represents unique attacker count
     markersGroup.append('circle')
       .attr('cx', x).attr('cy', y)
-      .attr('r', 8 + (attack.count * 2))
+      .attr('r', baseRadius + sizeMultiplier)
       .attr('fill', 'none')
       .attr('stroke', getSvgColor(primaryColor))
       .attr('stroke-width', 2).attr('opacity', 0.6)
@@ -258,7 +272,7 @@ async function renderMap() {
       .on('mouseover', function() { d3.select(this).attr('r', 9) })
       .on('mouseout', function() { d3.select(this).attr('r', 6) })
       .append('title')
-      .text(`${attack.country}: ${attack.count} attacks`)
+      .text(`${data.country}: ${data.uniqueIps} unique attackers\n${data.ips.slice(0, 3).join(', ')}${data.ips.length > 3 ? '...' : ''}`)
   })
 }
 
