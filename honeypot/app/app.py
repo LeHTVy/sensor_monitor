@@ -377,21 +377,29 @@ def upload_file():
                 # Fallback: just save file locally
                 file.save(filepath)
             
-            # Log file upload as attack
+            # Log file upload as attack (include analysis if available)
             attack_data = {
                 'type': 'file_upload',
                 'method': 'POST',
                 'path': '/upload',
                 'filename': filename,
+                'original_filename': result.get('filename', filename) if file_handler else filename,
                 'filepath': filepath,
                 'file_id': file_id,
+                'file_size': result.get('size') if file_handler and result else None,
                 'ip': request.headers.get('X-Real-IP', request.remote_addr),
                 'user_agent': request.headers.get('User-Agent', ''),
                 'timestamp': datetime.now().isoformat(),
                 'sent_to_malware_analyzer': sent_to_analyzer,
                 'form_data': dict(request.form),
                 'files': [filename],
-                'log_category': 'attack'
+                'log_category': 'attack',
+                # File analysis results
+                'risk_level': result.get('risk_level') if file_handler and result else None,
+                'risk_score': result.get('risk_score') if file_handler and result else None,
+                'hashes': result.get('hashes') if file_handler and result else None,
+                'file_type': result.get('file_type') if file_handler and result else None,
+                'static_analysis': result.get('static_analysis') if file_handler and result else None
             }
             
             logger.log_attack(attack_data)

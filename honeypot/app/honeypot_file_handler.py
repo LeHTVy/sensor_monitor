@@ -120,7 +120,12 @@ class HoneypotFileHandler:
                 'file_id': unique_id,
                 'filename': original_filename,
                 'size': file_size,
-                'path': file_path
+                'path': file_path,
+                'risk_level': malware_event.get('risk_level'),
+                'risk_score': malware_event.get('risk_score'),
+                'hashes': malware_event.get('hashes'),
+                'file_type': malware_event.get('file_type'),
+                'static_analysis': analysis_result
             }
             
         except Exception as e:
