@@ -162,7 +162,7 @@ services:
       - ./malware_kafka_consumer.py:/app/malware_kafka_consumer.py
       - ./requirements.txt:/app/requirements.txt
     working_dir: /app
-    command: [ "bash", "-c", "pip install --no-cache-dir kafka-python elasticsearch && python -u malware_kafka_consumer.py" ]
+    command: [ "bash", "-c", "pip install --no-cache-dir kafka-python elasticsearch==8.15.1 && python -u malware_kafka_consumer.py" ]
   # ollama:
   #   image: ollama/ollama:latest
   #   container_name: ollama-llm
