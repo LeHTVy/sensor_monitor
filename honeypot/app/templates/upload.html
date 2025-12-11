@@ -21,13 +21,13 @@
                             Supported formats: TXT, PDF, PNG, JPG, JPEG, GIF, PHP, SH, PY, EXE
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="description" class="form-label">Description (Optional)</label>
-                        <textarea class="form-control" id="description" name="description" rows="3" 
-                                  placeholder="Enter file description..."></textarea>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                            placeholder="Enter file description..."></textarea>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="category" class="form-label">Category</label>
                         <select class="form-select" id="category" name="category">
@@ -39,14 +39,14 @@
                             <option value="other">Other</option>
                         </select>
                     </div>
-                    
+
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="overwrite" name="overwrite">
                         <label class="form-check-label" for="overwrite">
                             Overwrite existing files
                         </label>
                     </div>
-                    
+
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-upload"></i> Upload File
                     </button>
@@ -54,7 +54,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-lg-4">
         <div class="card shadow">
             <div class="card-header py-3">
@@ -81,7 +81,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="card shadow mt-3">
             <div class="card-header py-3">
                 <h6 class="m-0 font-weight-bold text-primary">
@@ -92,7 +92,7 @@
                 <div class="alert alert-warning">
                     <small>
                         <i class="fas fa-exclamation-triangle"></i>
-                        <strong>Warning:</strong> Only upload files from trusted sources. 
+                        <strong>Warning:</strong> Only upload files from trusted sources.
                         All uploaded files are scanned for malware.
                     </small>
                 </div>
@@ -136,7 +136,8 @@
                                 <td><span class="badge bg-success">Scanned</span></td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-primary" onclick="downloadFile('database_backup_2024.pdf')">
+                                        <button class="btn btn-primary"
+                                            onclick="downloadFile('database_backup_2024.pdf')">
                                             <i class="fas fa-download"></i>
                                         </button>
                                         <button class="btn btn-info" onclick="viewFile('database_backup_2024.pdf')">
@@ -211,8 +212,8 @@
             </div>
             <div class="modal-body">
                 <div class="progress">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                         role="progressbar" style="width: 0%"></div>
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                        style="width: 0%"></div>
                 </div>
                 <div class="mt-2 text-center">
                     <span id="uploadStatus">Preparing upload...</span>
@@ -225,62 +226,48 @@
 
 {% block scripts %}
 <script>
-    // File upload form handling
-    document.getElementById('uploadForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
+    document.getElementById('uploadForm').addEventListener('submit', function (e) {
         const fileInput = document.getElementById('file');
         const file = fileInput.files[0];
-        
+
         if (!file) {
+            e.preventDefault();
             alert('Please select a file to upload.');
             return;
         }
-        
-        // Show progress modal
+
         const progressModal = new bootstrap.Modal(document.getElementById('uploadProgressModal'));
         progressModal.show();
-        
-        // Simulate upload progress
-        simulateUploadProgress();
-        
-        // Log the upload attempt (this will be caught by our logger)
+
+        animateProgress();
+
         console.log('File upload attempt:', {
             filename: file.name,
             size: file.size,
             type: file.type,
             timestamp: new Date().toISOString()
         });
+
     });
 
-    function simulateUploadProgress() {
+    function animateProgress() {
         const progressBar = document.querySelector('.progress-bar');
         const status = document.getElementById('uploadStatus');
         let progress = 0;
-        
+
         const interval = setInterval(() => {
-            progress += Math.random() * 20;
-            if (progress > 100) progress = 100;
-            
+            progress += 5;
+            if (progress > 90) progress = 90;
             progressBar.style.width = progress + '%';
-            
+
             if (progress < 30) {
                 status.textContent = 'Uploading file...';
             } else if (progress < 70) {
                 status.textContent = 'Processing file...';
-            } else if (progress < 100) {
-                status.textContent = 'Scanning for malware...';
             } else {
-                status.textContent = 'Upload complete!';
-                clearInterval(interval);
-                
-                setTimeout(() => {
-                    bootstrap.Modal.getInstance(document.getElementById('uploadProgressModal')).hide();
-                    alert('File uploaded successfully!');
-                    location.reload();
-                }, 1000);
+                status.textContent = 'Scanning for malware...';
             }
-        }, 200);
+        }, 100);
     }
 
     function downloadFile(filename) {
@@ -304,7 +291,6 @@
         location.reload();
     }
 
-    // Add some realistic console logs
     console.log('File upload manager loaded');
     console.log('Upload directory: /app/uploads/');
     console.log('Max file size: 100MB');
