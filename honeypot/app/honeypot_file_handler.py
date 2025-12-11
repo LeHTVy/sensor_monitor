@@ -29,9 +29,14 @@ class HoneypotFileHandler:
     Saves files and sends events to Kafka for malware analysis
     """
 
-    def __init__(self, upload_dir='uploads', kafka_servers=['kafka:9092']):
+    def __init__(self, upload_dir='uploads', kafka_servers=None):
         self.upload_dir = upload_dir
         os.makedirs(self.upload_dir, exist_ok=True)
+        
+        # Get Kafka servers from env or parameter
+        if kafka_servers is None:
+            kafka_env = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
+            kafka_servers = kafka_env.split(',')
         
         # Initialize Kafka producer
         try:
@@ -39,7 +44,7 @@ class HoneypotFileHandler:
                 bootstrap_servers=kafka_servers,
                 value_serializer=lambda v: json.dumps(v).encode('utf-8')
             )
-            logger.info(f"✅ Kafka producer initialized for file uploads")
+            logger.info(f"✅ Kafka producer initialized: {kafka_servers}")
         except Exception as e:
             logger.error(f"❌ Failed to initialize Kafka producer: {e}")
             self.producer = None
