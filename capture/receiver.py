@@ -242,6 +242,8 @@ def es_search_logs(log_type: str, limit: int, date_from: str = None, date_to: st
                 "protocol": source.get("protocol", ""),
                 "args": source.get("args", {}),
                 "form_data": source.get("form_data", {}),
+                "json_body": source.get("json_body", {}),
+                "raw_body": source.get("raw_body", ""),
                 "message": source.get("payload", source.get("message", "")),
                 "port": source.get("dst_port", source.get("port", 0)),
                 "kafka_topic": source.get("kafka_topic", ""),

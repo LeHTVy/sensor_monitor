@@ -189,7 +189,25 @@ def log_request():
         
         request._log_entry = log_entry
         
-        # Send raw log data to Kafka (enrichment happens on capture server)
+        form_data = dict(request.form) if request.form else {}
+        
+        # Capture JSON body
+        json_body = {}
+        try:
+            if request.is_json:
+                json_body = request.get_json(silent=True) or {}
+        except:
+            pass
+        
+        # Capture raw body for other content types
+        raw_body = ""
+        try:
+            if not form_data and not json_body and request.content_length:
+                if request.content_length < 10240:  # 10KB limit
+                    raw_body = request.get_data(as_text=True)
+        except:
+            pass
+        
         log_data = {
             'type': 'request',
             'method': request.method,
@@ -200,7 +218,9 @@ def log_request():
             'timestamp': datetime.now().isoformat(),
             'headers': dict(request.headers),
             'args': dict(request.args),
-            'form_data': dict(request.form) if request.form else {},
+            'form_data': form_data,
+            'json_body': json_body,
+            'raw_body': raw_body,
             'files': list(request.files.keys()) if request.files else [],
             'log_category': log_entry.get('log_category', 'traffic')
         }

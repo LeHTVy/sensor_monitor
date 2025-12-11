@@ -178,30 +178,6 @@
       </v-card-text>
     </v-card>
 
-    <!-- LLM Analysis -->
-    <v-card v-if="llmAnalysis" elevation="2">
-      <v-card-title class="text-subtitle-1">
-        <v-icon start color="info">mdi-robot</v-icon>
-        AI Analysis
-      </v-card-title>
-      <v-card-text>
-        <div class="mb-3">
-          <strong>Intent:</strong>
-          <p class="text-body-2">{{ llmAnalysis.intent }}</p>
-        </div>
-
-        <div>
-          <strong>Recommendations:</strong>
-          <ul class="mt-2">
-            <li v-for="(rec, index) in llmAnalysis.recommendations" :key="index" class="text-body-2">
-              {{ rec }}
-            </li>
-          </ul>
-        </div>
-      </v-card-text>
-    </v-card>
-
-
   </div>
 
   <div v-else class="pa-6 text-center text-medium-emphasis">

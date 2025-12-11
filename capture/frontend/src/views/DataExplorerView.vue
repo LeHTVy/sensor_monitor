@@ -159,12 +159,71 @@
             <template v-slot:expanded-row="{ columns, item }">
               <tr>
                 <td :colspan="columns.length" class="pa-4 bg-surface-variant">
-                  <div class="d-flex">
-                    <div class="flex-grow-1">
-                      <strong>Full Details:</strong>
-                      <pre class="code-block mt-2">{{ JSON.stringify(item, null, 2) }}</pre>
-                    </div>
-                  </div>
+                  <v-row>
+                    <!-- POST Form Data -->
+                    <v-col v-if="item.form_data && Object.keys(item.form_data).length > 0" cols="12" md="6">
+                      <div class="detail-section">
+                        <v-icon size="small" color="warning" class="mr-1">mdi-form-textbox</v-icon>
+                        <strong>POST Form Data:</strong>
+                        <div class="code-block mt-2 pa-2 rounded bg-warning-lighten-5">
+                          <div v-for="(value, key) in item.form_data" :key="key" class="mb-1">
+                            <span class="text-primary font-weight-bold">{{ key }}:</span> 
+                            <span class="text-error">{{ value }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </v-col>
+
+                    <!-- JSON Body -->
+                    <v-col v-if="item.json_body && Object.keys(item.json_body).length > 0" cols="12" md="6">
+                      <div class="detail-section">
+                        <v-icon size="small" color="info" class="mr-1">mdi-code-json</v-icon>
+                        <strong>JSON Body:</strong>
+                        <pre class="code-block mt-2 pa-2 rounded bg-info-lighten-5">{{ JSON.stringify(item.json_body, null, 2) }}</pre>
+                      </div>
+                    </v-col>
+
+                    <!-- Query Args -->
+                    <v-col v-if="item.args && Object.keys(item.args).length > 0" cols="12" md="6">
+                      <div class="detail-section">
+                        <v-icon size="small" color="success" class="mr-1">mdi-help-circle</v-icon>
+                        <strong>Query Parameters:</strong>
+                        <div class="code-block mt-2 pa-2 rounded bg-success-lighten-5">
+                          <div v-for="(value, key) in item.args" :key="key" class="mb-1">
+                            <span class="text-primary font-weight-bold">{{ key }}:</span> 
+                            <span>{{ value }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </v-col>
+
+                    <!-- Raw Body -->
+                    <v-col v-if="item.raw_body && item.raw_body.length > 0" cols="12" md="6">
+                      <div class="detail-section">
+                        <v-icon size="small" color="error" class="mr-1">mdi-file-document</v-icon>
+                        <strong>Raw Body:</strong>
+                        <pre class="code-block mt-2 pa-2 rounded bg-error-lighten-5">{{ item.raw_body }}</pre>
+                      </div>
+                    </v-col>
+
+                    <!-- Headers -->
+                    <v-col cols="12" md="6">
+                      <div class="detail-section">
+                        <v-icon size="small" class="mr-1">mdi-web</v-icon>
+                        <strong>Headers:</strong>
+                        <pre class="code-block mt-2 pa-2 rounded">{{ JSON.stringify(item.headers, null, 2) }}</pre>
+                      </div>
+                    </v-col>
+
+                    <!-- GeoIP & OSINT -->
+                    <v-col cols="12" md="6">
+                      <div class="detail-section">
+                        <v-icon size="small" color="purple" class="mr-1">mdi-earth</v-icon>
+                        <strong>GeoIP:</strong>
+                        <pre class="code-block mt-2 pa-2 rounded">{{ JSON.stringify(item.geoip, null, 2) }}</pre>
+                      </div>
+                    </v-col>
+                  </v-row>
                 </td>
               </tr>
             </template>

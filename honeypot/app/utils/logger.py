@@ -30,6 +30,26 @@ class HoneypotLogger:
             # Get real IP from nginx headers
             real_ip = request.headers.get('X-Real-IP', request.remote_addr)
             
+            # Capture form data (for application/x-www-form-urlencoded)
+            form_data = dict(request.form) if request.form else {}
+            
+            # Capture JSON body (for application/json)
+            json_body = {}
+            try:
+                if request.is_json:
+                    json_body = request.get_json(silent=True) or {}
+            except:
+                pass
+            
+            # Capture raw body for other content types (limit to 10KB)
+            raw_body = ""
+            try:
+                if not form_data and not json_body and request.content_length:
+                    if request.content_length < 10240:  # 10KB limit
+                        raw_body = request.get_data(as_text=True)
+            except:
+                pass
+            
             # Build raw log entry
             log_entry = {
                 'timestamp': datetime.now().isoformat(),
@@ -43,7 +63,9 @@ class HoneypotLogger:
                 'content_length': request.headers.get('Content-Length', ''),
                 'headers': dict(request.headers),
                 'args': dict(request.args),
-                'form_data': dict(request.form) if request.form else {},
+                'form_data': form_data,
+                'json_body': json_body,
+                'raw_body': raw_body,
                 'files': list(request.files.keys()) if request.files else [],
                 # Simple categorization based on path only
                 'log_category': self._simple_categorize(request.path)
