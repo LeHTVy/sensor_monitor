@@ -63,16 +63,27 @@ class HoneypotFileHandler:
             logger.info(f"   Source IP: {request_info.get('source_ip')}")
             logger.info(f"   Saved to: {file_path}")
             
+            # Read file data for transmission (limit to 10MB)
+            file_data_base64 = None
+            if file_size < 10 * 1024 * 1024:  
+                try:
+                    import base64
+                    with open(file_path, 'rb') as f:
+                        file_data_base64 = base64.b64encode(f.read()).decode('utf-8')
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not read file for base64 encoding: {e}")
+            
             # Prepare malware sample event for Kafka
             malware_event = {
                 'event_type': 'file_upload',
                 'timestamp': timestamp,
                 'file_id': unique_id,
-                'file_path': file_path,  # Absolute path for malware collector
+                'file_path': file_path,  
                 'original_filename': original_filename,
                 'file_size': file_size,
+                'file_data_base64': file_data_base64,  
                 'source_ip': request_info.get('source_ip', 'unknown'),
-                'attack_id': request_info.get('attack_id'),  # Link to attack log
+                'attack_id': request_info.get('attack_id'), 
                 'context': {
                     'user_agent': request_info.get('user_agent'),
                     'referer': request_info.get('referer'),
@@ -86,7 +97,7 @@ class HoneypotFileHandler:
             if self.producer:
                 self.producer.send('malware-samples', value=malware_event)
                 self.producer.flush()
-                logger.info(f"✅ Malware sample event sent to Kafka")
+                logger.info(f"✅ Malware sample event sent to Kafka (with file data: {file_data_base64 is not None})")
             
             return {
                 'success': True,
