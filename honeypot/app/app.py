@@ -189,22 +189,29 @@ def log_request():
         
         request._log_entry = log_entry
         
-        form_data = dict(request.form) if request.form else {}
+        # IMPORTANT: Read raw body FIRST (this forces Flask to buffer the stream)
+        raw_body = ""
+        try:
+            if request.content_length and request.content_length < 10240:  # 10KB limit
+                raw_body = request.get_data(as_text=True)
+                print(f"📝 Raw body captured: {raw_body[:200]}...")
+        except Exception as e:
+            print(f"⚠️ Raw body error: {e}")
+        
+        # Now capture form data (Flask parses from buffered data)
+        form_data = {}
+        try:
+            form_data = dict(request.form) if request.form else {}
+            if form_data:
+                print(f"📋 Form data captured: {form_data}")
+        except Exception as e:
+            print(f"⚠️ Form error: {e}")
         
         # Capture JSON body
         json_body = {}
         try:
             if request.is_json:
                 json_body = request.get_json(silent=True) or {}
-        except:
-            pass
-        
-        # Capture raw body for other content types
-        raw_body = ""
-        try:
-            if not form_data and not json_body and request.content_length:
-                if request.content_length < 10240:  # 10KB limit
-                    raw_body = request.get_data(as_text=True)
         except:
             pass
         
