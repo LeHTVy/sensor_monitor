@@ -33,10 +33,8 @@ class CaptureKafkaConsumer:
         try:
             print(f"🔄 Initializing Kafka consumer")
             self.consumer = KafkaConsumer(
-                'honeypot-browser',
                 'honeypot-attacks', 
                 'honeypot-traffic',
-                'honeypot-errors',
                 bootstrap_servers=[self.bootstrap_servers],
                 value_deserializer=lambda m: json.loads(m.decode('utf-8')),
                 key_deserializer=lambda k: k.decode('utf-8') if k else None,

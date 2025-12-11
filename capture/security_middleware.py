@@ -74,11 +74,11 @@ class CaptureSecurity:
         """Verify API key"""
         return api_key == self.app.config['CAPTURE_API_KEY']
     
-    def generate_jwt_token(self, user_id='admin', expires_hours=24):
-        """Generate JWT token for admin access"""
+    def generate_jwt_token(self, user_id='admin', expires_days=7):
+        """Generate JWT token for admin access (7 days default)"""
         payload = {
             'user_id': user_id,
-            'exp': datetime.utcnow() + timedelta(hours=expires_hours),
+            'exp': datetime.utcnow() + timedelta(days=expires_days),
             'iat': datetime.utcnow()
         }
         return jwt.encode(payload, self.app.config['JWT_SECRET'], algorithm='HS256')

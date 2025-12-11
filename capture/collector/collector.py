@@ -18,7 +18,7 @@ from enrichment_engine import EnrichmentEngine
 
 # Configuration from environment
 bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-topics = [t.strip() for t in os.getenv("KAFKA_TOPICS", "honeypot-attacks,honeypot-browser,honeypot-traffic").split(",")]
+topics = [t.strip() for t in os.getenv("KAFKA_TOPICS", "honeypot-attacks,honeypot-traffic").split(",")]
 group_id = os.getenv("KAFKA_GROUP", "capture-es-collector")
 es_host = os.getenv("ES_HOST", "http://elasticsearch:9200")
 index_prefix = os.getenv("ES_INDEX_PREFIX", "sensor-logs")
@@ -72,12 +72,10 @@ def initialize_enrichment():
         return False
 
 def index_name_for_topic(topic: str) -> str:
-    """Generate clean index name without date suffix"""
+    """Generate clean index name (2 topics only)"""
     topic_mapping = {
         'honeypot-attacks': f"{index_prefix}-attacks",
-        'honeypot-browser': f"{index_prefix}-honeypot", 
-        'honeypot-traffic': f"{index_prefix}-traffic",
-        'honeypot-errors': f"{index_prefix}-traffic"
+        'honeypot-traffic': f"{index_prefix}-traffic"
     }
     return topic_mapping.get(topic, f"{index_prefix}-{topic}")
 

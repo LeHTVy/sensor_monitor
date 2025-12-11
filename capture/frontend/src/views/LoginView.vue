@@ -8,6 +8,17 @@
             Capture Server
           </v-card-title>
 
+          <v-alert
+            v-if="sessionExpired"
+            type="warning"
+            variant="tonal"
+            class="mb-4"
+            closable
+            @click:close="sessionExpired = false"
+          >
+            Your session has expired. Please login again.
+          </v-alert>
+
           <v-form @submit.prevent="handleLogin" ref="form">
             <v-text-field
               v-model="username"
@@ -48,6 +59,9 @@
             class="mt-4"
           >
             {{ error }}
+            <span v-if="attemptsRemaining !== null && attemptsRemaining > 0" class="ml-1">
+              ({{ attemptsRemaining }} attempts remaining)
+            </span>
           </v-alert>
         </v-card>
       </v-col>
@@ -56,21 +70,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const username = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
+const sessionExpired = ref(false)
+const attemptsRemaining = ref<number | null>(null)
+
+onMounted(() => {
+  // Check if redirected due to expired session
+  if (route.query.expired === '1') {
+    sessionExpired.value = true
+  }
+})
 
 async function handleLogin() {
   loading.value = true
   error.value = ''
+  attemptsRemaining.value = null
 
   try {
     const result = await authStore.login(username.value, password.value)
@@ -79,6 +104,9 @@ async function handleLogin() {
       router.push('/')
     } else {
       error.value = result.message || 'Login failed'
+      if (result.attemptsRemaining !== undefined) {
+        attemptsRemaining.value = result.attemptsRemaining
+      }
     }
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred'

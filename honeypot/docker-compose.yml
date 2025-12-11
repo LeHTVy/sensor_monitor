@@ -19,16 +19,3 @@ services:
       - NET_RAW
     # Container directly uses host's network, so port 80/443 will be accessible
 
-  network-monitor:
-    build: ./network_monitor
-    container_name: network-monitor
-    network_mode: host
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    volumes:
-      - ./network_monitor:/app
-      - ./app:/app/app
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=10.8.0.1:9093

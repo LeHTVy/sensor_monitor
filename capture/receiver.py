@@ -306,29 +306,67 @@ def index():
         'docs': '/api/health'
     })
 
+# Track failed login attempts (in-memory, resets on restart)
+failed_login_attempts = {}
+LOCK_THRESHOLD = 5
+LOCK_DURATION_MINUTES = 15
+
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    """Login endpoint to get API key"""
+    """Login endpoint to get API key with account lock protection"""
     data = request.get_json()
     username = data.get('username', '')
     password = data.get('password', '')
     
+    # Check if account is locked
+    if username in failed_login_attempts:
+        attempts, lock_time = failed_login_attempts[username]
+        if attempts >= LOCK_THRESHOLD and lock_time:
+            if datetime.now() < lock_time:
+                minutes_left = int((lock_time - datetime.now()).total_seconds() / 60) + 1
+                return jsonify({
+                    'success': False,
+                    'message': f'Account locked after {LOCK_THRESHOLD} attempts. Try again in {minutes_left} minutes.'
+                }), 403
+            else:
+                # Lock expired, reset
+                del failed_login_attempts[username]
+    
     if username == 'admin' and password == 'capture2024':
+        # Clear failed attempts on success
+        if username in failed_login_attempts:
+            del failed_login_attempts[username]
+            
         api_key = os.getenv('CAPTURE_API_KEY', 'capture_secure_key_2024')
         jwt_token = security.generate_jwt_token('admin')
         
-        print(f"Login successful for {username}, API key: {api_key}")
+        print(f"✅ Login successful for {username}")
         
         return jsonify({
             'success': True,
             'api_key': api_key,
             'jwt_token': jwt_token,
+            'expires_in_days': 7,
             'message': 'Login successful'
         })
     
+    # Track failed attempt
+    if username not in failed_login_attempts:
+        failed_login_attempts[username] = (1, None)
+        remaining = LOCK_THRESHOLD - 1
+    else:
+        attempts, _ = failed_login_attempts[username]
+        attempts += 1
+        lock_time = datetime.now() + timedelta(minutes=LOCK_DURATION_MINUTES) if attempts >= LOCK_THRESHOLD else None
+        failed_login_attempts[username] = (attempts, lock_time)
+        remaining = max(0, LOCK_THRESHOLD - attempts)
+    
+    print(f"⚠️ Failed login for {username}, {remaining} attempts remaining")
+    
     return jsonify({
         'success': False,
-        'message': 'Invalid credentials'
+        'message': 'Invalid username or password',
+        'attempts_remaining': remaining
     }), 401
 
 @app.route('/api/health')

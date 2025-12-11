@@ -108,9 +108,9 @@ class HoneypotKafkaProducer:
         
     
     def send_browser_log(self, log_data):
-        """Send browser logs to honeypot-browser topic"""
+        """Send browser logs to honeypot-attacks topic (merged)"""
         print(f"🌐 Sending browser log: {log_data.get('method', 'GET')} {log_data.get('path', '/')} from {log_data.get('ip', 'unknown')}")
-        return self._send_to_topic('honeypot-browser', log_data, key=log_data.get('ip'))
+        return self._send_to_topic('honeypot-attacks', log_data, key=log_data.get('ip'))
     
     def send_attack_log(self, log_data):
         """Send attack logs to honeypot-attacks topic"""
@@ -118,9 +118,9 @@ class HoneypotKafkaProducer:
         return self._send_to_topic('honeypot-attacks', log_data, key=log_data.get('ip'))
     
     def send_error_log(self, log_data):
-        """Send error logs to honeypot-errors topic"""
+        """Send error logs to honeypot-traffic topic (merged)"""
         print(f"❌ Sending error log: {log_data.get('error', 'unknown error')}")
-        return self._send_to_topic('honeypot-errors', log_data, key=log_data.get('ip'))
+        return self._send_to_topic('honeypot-traffic', log_data, key=log_data.get('ip'))
 
     def send_traffic_log(self, log_data):
         """Send normal traffic logs to honeypot-traffic topic"""

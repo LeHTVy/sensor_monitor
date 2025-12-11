@@ -18,6 +18,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from werkzeug.utils import secure_filename
 from utils.logger import HoneypotLogger
 from utils.kafka_producer import HoneypotKafkaProducer
+from honeypot_file_handler import HoneypotFileHandler
 
 app = Flask(__name__)
 app.secret_key = 'honeypot_secret_key_12345'
@@ -57,6 +58,17 @@ except Exception as e:
     raise SystemExit(1) from e
 
 kafka_queue = queue.Queue(maxsize=1000)
+
+# Initialize file handler for malware sample collection
+try:
+    file_handler = HoneypotFileHandler(
+        upload_dir='/app/uploads',
+        kafka_servers=[os.getenv('KAFKA_BOOTSTRAP_SERVERS', '10.8.0.1:9093')]
+    )
+    print("✅ File handler initialized for malware sample collection")
+except Exception as e:
+    print(f"⚠️ Warning: Failed to initialize file handler: {e}")
+    file_handler = None
 
 def kafka_worker():
     """Background worker to send logs to Kafka without blocking requests"""
@@ -318,17 +330,39 @@ def upload_file():
         
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
+            sent_to_analyzer = False
+            file_id = None
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
             
-            # Log file upload attempt
+            # Use file handler to save and send to malware analyzer
+            if file_handler:
+                request_info = {
+                    'source_ip': request.headers.get('X-Real-IP', request.remote_addr),
+                    'user_agent': request.headers.get('User-Agent', ''),
+                    'referer': request.headers.get('Referer', ''),
+                    'upload_field': 'file',
+                    'form_data': dict(request.form),
+                    'endpoint': request.path
+                }
+                
+                result = file_handler.handle_file_upload(file, request_info)
+                sent_to_analyzer = result.get('success', False)
+                file_id = result.get('file_id', '')
+                filepath = result.get('path', filepath)
+            else:
+                # Fallback: just save file locally
+                file.save(filepath)
+            
+            # Log file upload as attack
             attack_data = {
                 'type': 'file_upload',
                 'filename': filename,
                 'filepath': filepath,
-                'ip': request.remote_addr,
+                'file_id': file_id,
+                'ip': request.headers.get('X-Real-IP', request.remote_addr),
                 'user_agent': request.headers.get('User-Agent', ''),
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'sent_to_malware_analyzer': sent_to_analyzer
             }
             
             logger.log_attack(attack_data)

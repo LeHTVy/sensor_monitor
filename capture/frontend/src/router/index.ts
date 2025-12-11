@@ -43,9 +43,17 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
 
-  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
-    next('/login')
-  } else if (to.path === '/login' && authStore.isLoggedIn) {
+  if (to.meta.requiresAuth) {
+    if (!authStore.isLoggedIn) {
+      next('/login')
+    } else if (authStore.isTokenExpired()) {
+      // Token expired - logout and redirect with message
+      authStore.logout()
+      next({ path: '/login', query: { expired: '1' } })
+    } else {
+      next()
+    }
+  } else if (to.path === '/login' && authStore.isLoggedIn && !authStore.isTokenExpired()) {
     next('/')
   } else {
     next()
