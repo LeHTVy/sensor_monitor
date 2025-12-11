@@ -418,12 +418,22 @@ def console():
 
         attack_data = {
             'type': 'console_interaction',
+            'method': 'POST',
+            'path': '/console',
             'command': command,
-            'ip': request.remote_addr,
+            'ip': request.headers.get('X-Real-IP', request.remote_addr),
             'user_agent': request.headers.get('User-Agent', ''),
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'form_data': {'command': command},
+            'log_category': 'attack'
         }
         logger.log_attack(attack_data)
+        
+        # Send to Kafka
+        try:
+            kafka_queue.put_nowait(('attack', attack_data))
+        except:
+            pass
 
         # Simple responses for common commands
         cmd_upper = command.strip().upper()
@@ -462,7 +472,7 @@ def console():
 
     return render_template('console.html', output=output)
 
-@app.route('/api/users')
+@app.route('/api/users', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @login_required
 def api_users():
     """API endpoint for user data (vulnerable to injection)"""
@@ -475,17 +485,91 @@ def api_users():
     
     attack_data = {
         'type': 'api_access',
+        'method': request.method,
+        'path': '/api/users',
         'endpoint': '/api/users',
         'search': search,
         'query': query,
-        'ip': request.remote_addr,
+        'ip': request.headers.get('X-Real-IP', request.remote_addr),
         'user_agent': request.headers.get('User-Agent', ''),
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'form_data': dict(request.form) if request.form else {},
+        'json_body': request.get_json(silent=True) or {},
+        'log_category': 'attack'
     }
     
     logger.log_attack(attack_data)
+    
+    # Send to Kafka
+    try:
+        kafka_queue.put_nowait(('attack', attack_data))
+    except:
+        pass
 
+    # Return fake response based on method
+    if request.method == 'DELETE':
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+    elif request.method in ['POST', 'PUT']:
+        return jsonify({'success': True, 'message': 'User saved successfully', 'id': 999})
     return jsonify(FAKE_DATABASES['users'])
+
+
+@app.route('/api/products', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@login_required
+def api_products():
+    """API endpoint for product data"""
+    attack_data = {
+        'type': 'api_access',
+        'method': request.method,
+        'path': '/api/products',
+        'ip': request.headers.get('X-Real-IP', request.remote_addr),
+        'user_agent': request.headers.get('User-Agent', ''),
+        'timestamp': datetime.now().isoformat(),
+        'form_data': dict(request.form) if request.form else {},
+        'json_body': request.get_json(silent=True) or {},
+        'args': dict(request.args),
+        'log_category': 'attack'
+    }
+    logger.log_attack(attack_data)
+    try:
+        kafka_queue.put_nowait(('attack', attack_data))
+    except:
+        pass
+    
+    if request.method == 'DELETE':
+        return jsonify({'success': True, 'message': 'Product deleted'})
+    elif request.method in ['POST', 'PUT']:
+        return jsonify({'success': True, 'message': 'Product saved', 'id': 999})
+    return jsonify(FAKE_DATABASES['products'])
+
+
+@app.route('/api/orders', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@login_required
+def api_orders():
+    """API endpoint for order data"""
+    attack_data = {
+        'type': 'api_access',
+        'method': request.method,
+        'path': '/api/orders',
+        'ip': request.headers.get('X-Real-IP', request.remote_addr),
+        'user_agent': request.headers.get('User-Agent', ''),
+        'timestamp': datetime.now().isoformat(),
+        'form_data': dict(request.form) if request.form else {},
+        'json_body': request.get_json(silent=True) or {},
+        'args': dict(request.args),
+        'log_category': 'attack'
+    }
+    logger.log_attack(attack_data)
+    try:
+        kafka_queue.put_nowait(('attack', attack_data))
+    except:
+        pass
+    
+    if request.method == 'DELETE':
+        return jsonify({'success': True, 'message': 'Order deleted'})
+    elif request.method in ['POST', 'PUT']:
+        return jsonify({'success': True, 'message': 'Order created', 'id': 999})
+    return jsonify(FAKE_DATABASES['orders'])
 
 @app.route('/admin')
 @login_required
