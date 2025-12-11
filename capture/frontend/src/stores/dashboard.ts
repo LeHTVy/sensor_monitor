@@ -78,6 +78,28 @@ export interface Log {
   size?: number
   payload?: string
   body?: string | Record<string, unknown>
+  // File analysis fields (from honeypot)
+  risk_level?: string
+  risk_score?: number
+  original_filename?: string
+  filename?: string
+  file_size?: number
+  file_type?: {
+    extension?: string
+    magic?: string
+    mime?: string
+    extension_mismatch?: boolean
+  }
+  hashes?: {
+    md5?: string
+    sha1?: string
+    sha256?: string
+  }
+  static_analysis?: {
+    suspicious_patterns?: Record<string, string[]>
+    [key: string]: unknown
+  }
+  event_type?: string
 }
 
 // SOC-focused stats from Elasticsearch

@@ -2,6 +2,7 @@
 """
 Honeypot File Upload Handler
 Integrates with malware_collector to capture uploaded files
+Runs static analysis locally and sends results to capture server
 """
 
 import os
@@ -11,6 +12,13 @@ from datetime import datetime
 from kafka import KafkaProducer
 from werkzeug.utils import secure_filename
 import logging
+
+try:
+    from utils.static_analyzer import SimpleStaticAnalyzer
+    analyzer = SimpleStaticAnalyzer()
+except Exception as e:
+    print(f"⚠️ Could not load static analyzer: {e}")
+    analyzer = None
 
 logger = logging.getLogger(__name__)
 
@@ -63,27 +71,30 @@ class HoneypotFileHandler:
             logger.info(f"   Source IP: {request_info.get('source_ip')}")
             logger.info(f"   Saved to: {file_path}")
             
-            # Read file data for transmission (limit to 10MB)
-            file_data_base64 = None
-            if file_size < 10 * 1024 * 1024:  
+            # Run static analysis on the file (on honeypot)
+            analysis_result = None
+            if analyzer:
                 try:
-                    import base64
-                    with open(file_path, 'rb') as f:
-                        file_data_base64 = base64.b64encode(f.read()).decode('utf-8')
+                    analysis_result = analyzer.analyze(file_path)
+                    logger.info(f"🔬 Analysis complete: Risk {analysis_result.get('risk_level', 'UNKNOWN')}")
                 except Exception as e:
-                    logger.warning(f"⚠️ Could not read file for base64 encoding: {e}")
+                    logger.warning(f"⚠️ Analysis error: {e}")
             
-            # Prepare malware sample event for Kafka
+            # Prepare malware sample event for Kafka (with analysis results)
             malware_event = {
                 'event_type': 'file_upload',
                 'timestamp': timestamp,
                 'file_id': unique_id,
-                'file_path': file_path,  
                 'original_filename': original_filename,
                 'file_size': file_size,
-                'file_data_base64': file_data_base64,  
                 'source_ip': request_info.get('source_ip', 'unknown'),
-                'attack_id': request_info.get('attack_id'), 
+                'attack_id': request_info.get('attack_id'),
+                # Include analysis results from honeypot
+                'static_analysis': analysis_result,
+                'risk_score': analysis_result.get('risk_score', 0) if analysis_result else 0,
+                'risk_level': analysis_result.get('risk_level', 'UNKNOWN') if analysis_result else 'UNKNOWN',
+                'hashes': analysis_result.get('hashes', {}) if analysis_result else {},
+                'file_type': analysis_result.get('file_type', {}) if analysis_result else {},
                 'context': {
                     'user_agent': request_info.get('user_agent'),
                     'referer': request_info.get('referer'),
@@ -97,7 +108,7 @@ class HoneypotFileHandler:
             if self.producer:
                 self.producer.send('malware-samples', value=malware_event)
                 self.producer.flush()
-                logger.info(f"✅ Malware sample event sent to Kafka (with file data: {file_data_base64 is not None})")
+                logger.info(f"✅ Malware analysis sent to Kafka: {unique_id} - Risk: {malware_event.get('risk_level')}")
             
             return {
                 'success': True,

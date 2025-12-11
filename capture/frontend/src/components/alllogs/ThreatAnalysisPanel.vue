@@ -165,6 +165,69 @@
       </v-card-text>
     </v-card>
 
+    <!-- File Analysis (for file uploads) -->
+    <v-card v-if="isFileUpload(log)" class="mb-4" elevation="2">
+      <v-card-title class="text-subtitle-1">
+        <v-icon start>mdi-file-search</v-icon>
+        File Analysis
+        <v-chip v-if="log.risk_level" :color="getRiskColor(log.risk_level)" size="small" class="ml-2">
+          {{ log.risk_level }}
+        </v-chip>
+      </v-card-title>
+      <v-card-text>
+        <!-- Basic File Info -->
+        <div class="mb-3">
+          <div class="text-caption text-medium-emphasis">Filename</div>
+          <div class="font-weight-medium">{{ log.original_filename || log.filename || 'Unknown' }}</div>
+        </div>
+        
+        <div v-if="log.file_size" class="mb-3">
+          <div class="text-caption text-medium-emphasis">File Size</div>
+          <div>{{ formatFileSize(log.file_size) }}</div>
+        </div>
+
+        <!-- File Type -->
+        <div v-if="log.file_type" class="mb-3">
+          <div class="text-caption text-medium-emphasis">File Type</div>
+          <div>{{ log.file_type.magic || log.file_type.mime || 'Unknown' }}</div>
+          <v-chip v-if="log.file_type.extension_mismatch" color="warning" size="x-small" class="mt-1">
+            Extension Mismatch
+          </v-chip>
+        </div>
+
+        <!-- Risk Score -->
+        <div v-if="log.risk_score !== undefined" class="mb-3">
+          <div class="text-caption text-medium-emphasis">Risk Score</div>
+          <v-progress-linear
+            :model-value="log.risk_score"
+            :color="getRiskColor(log.risk_level)"
+            height="20"
+            class="mb-1"
+          >
+            <strong>{{ log.risk_score }}/100</strong>
+          </v-progress-linear>
+        </div>
+
+        <!-- Hashes -->
+        <div v-if="log.hashes" class="mb-3">
+          <div class="text-caption text-medium-emphasis">File Hashes</div>
+          <div class="code-block text-caption" style="font-family: monospace; word-break: break-all;">
+            <div v-if="log.hashes.md5"><strong>MD5:</strong> {{ log.hashes.md5 }}</div>
+            <div v-if="log.hashes.sha256"><strong>SHA256:</strong> {{ log.hashes.sha256 }}</div>
+          </div>
+        </div>
+
+        <!-- Suspicious Patterns -->
+        <div v-if="hasSuspiciousPatterns(log)" class="mb-3">
+          <div class="text-caption text-medium-emphasis">Suspicious Patterns</div>
+          <div v-for="(values, key) in getSuspiciousPatterns(log)" :key="key" class="mt-1">
+            <v-chip color="error" size="x-small" class="mr-1">{{ key }}</v-chip>
+            <span class="text-caption">{{ values.slice(0, 3).join(', ') }}</span>
+          </div>
+        </div>
+      </v-card-text>
+    </v-card>
+
     <!-- Raw Payload -->
     <v-card class="mb-4" elevation="2">
       <v-card-title class="text-subtitle-1">
@@ -222,7 +285,6 @@ function getScoreColor(score?: number) {
 }
 
 function formatPayload(log: Log) {
-  // Check if this is a network log (has protocol/flags)
   if (log.protocol || log.flags !== undefined) {
     return JSON.stringify({
       protocol: log.protocol,
@@ -235,7 +297,6 @@ function formatPayload(log: Log) {
     }, null, 2)
   }
 
-  // Default to HTTP log - include form_data, json_body, raw_body
   return JSON.stringify({
     method: log.method,
     path: log.path,
@@ -246,6 +307,45 @@ function formatPayload(log: Log) {
     headers: log.headers,
     user_agent: log.user_agent,
   }, null, 2)
+}
+
+// File Analysis Helpers
+function isFileUpload(log: Log): boolean {
+  const logAny = log as any
+  return logAny.type === 'file_upload' || 
+         logAny.event_type === 'file_upload' ||
+         (log.path === '/upload' && log.method === 'POST') ||
+         !!logAny.original_filename ||
+         !!logAny.hashes
+}
+
+function getRiskColor(riskLevel?: string): string {
+  if (!riskLevel) return 'grey'
+  switch (riskLevel.toUpperCase()) {
+    case 'CRITICAL': return 'error'
+    case 'HIGH': return 'deep-orange'
+    case 'MEDIUM': return 'warning'
+    case 'LOW': return 'info'
+    case 'CLEAN': return 'success'
+    default: return 'grey'
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+function hasSuspiciousPatterns(log: Log): boolean {
+  const logAny = log as any
+  const patterns = logAny.static_analysis?.suspicious_patterns || logAny.suspicious_patterns
+  return patterns && Object.keys(patterns).length > 0
+}
+
+function getSuspiciousPatterns(log: Log): Record<string, string[]> {
+  const logAny = log as any
+  return logAny.static_analysis?.suspicious_patterns || logAny.suspicious_patterns || {}
 }
 </script>
 
