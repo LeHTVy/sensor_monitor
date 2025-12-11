@@ -221,7 +221,7 @@ def es_search_logs(log_type: str, limit: int, date_from: str = None, date_to: st
                 "dst_ip": source.get("dst_ip", ""),
                 "attack_tool": source.get("attack_tool", "unknown"),
                 "attack_tool_info": source.get("attack_tool_info", {}),
-                "attack_technique": source.get("attack_technique", []),
+                "attack_technique": source.get("attack_techniques", source.get("attack_technique", [])),
                 "geoip": {
                     "country": source.get("geoip", {}).get("country", "") if isinstance(source.get("geoip"), dict) else "",
                     "city": source.get("geoip", {}).get("city", "") if isinstance(source.get("geoip"), dict) else "",

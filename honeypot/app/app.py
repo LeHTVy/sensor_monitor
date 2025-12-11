@@ -379,16 +379,27 @@ def upload_file():
             # Log file upload as attack
             attack_data = {
                 'type': 'file_upload',
+                'method': 'POST',
+                'path': '/upload',
                 'filename': filename,
                 'filepath': filepath,
                 'file_id': file_id,
                 'ip': request.headers.get('X-Real-IP', request.remote_addr),
                 'user_agent': request.headers.get('User-Agent', ''),
                 'timestamp': datetime.now().isoformat(),
-                'sent_to_malware_analyzer': sent_to_analyzer
+                'sent_to_malware_analyzer': sent_to_analyzer,
+                'form_data': dict(request.form),
+                'files': [filename],
+                'log_category': 'attack'
             }
             
             logger.log_attack(attack_data)
+            
+            # Send to Kafka for capture server
+            try:
+                kafka_queue.put_nowait(('attack', attack_data))
+            except:
+                pass
             
             flash(f'File {filename} uploaded successfully!', 'success')
             return redirect(url_for('upload_file'))
