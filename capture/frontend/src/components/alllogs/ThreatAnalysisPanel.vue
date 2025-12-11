@@ -235,12 +235,15 @@ function formatPayload(log: Log) {
     }, null, 2)
   }
 
-  // Default to HTTP log
+  // Default to HTTP log - include form_data, json_body, raw_body
   return JSON.stringify({
     method: log.method,
     path: log.path,
+    args: log.args,
+    form_data: log.form_data,
+    json_body: log.json_body,
+    raw_body: log.raw_body,
     headers: log.headers,
-    body: log.body,
     user_agent: log.user_agent,
   }, null, 2)
 }

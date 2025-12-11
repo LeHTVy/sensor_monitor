@@ -59,6 +59,8 @@ export interface Log {
   headers?: Record<string, unknown>
   args?: Record<string, unknown>
   form_data?: Record<string, unknown>
+  json_body?: Record<string, unknown>
+  raw_body?: string
   port?: number
   kafka_topic?: string
   '@ingested_at'?: string
@@ -160,13 +162,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
       }
 
       // Category 2: Interactive Attacks
-      // If attack_tool is web browser OR matches interactive patterns
       if (tool && INTERACTIVE_TOOLS.some(interactiveTool => tool.includes(interactiveTool))) {
         interactiveAttacks++
         return
       }
 
-      // Also count as interactive if method suggests interaction (POST to login/admin)
       const isInteractiveMethod = (
         method === 'POST' ||
         method === 'PUT' ||
@@ -182,20 +182,16 @@ export const useDashboardStore = defineStore('dashboard', () => {
         path.includes('/api')
       )
 
-      // If it's an interactive method to an interactive path, and NOT already a known tool
       if (isInteractiveMethod && isInteractivePath && !tool) {
         interactiveAttacks++
         return
       }
 
-      // If has form data, it's interactive
       if (log.form_data) {
         interactiveAttacks++
         return
       }
 
-      // Category 3: Unknown Tools
-      // Everything else - either attack_tool is "unknown", empty, or not recognized
       unknownTools++
     })
 
@@ -203,7 +199,6 @@ export const useDashboardStore = defineStore('dashboard', () => {
       toolScans,
       interactiveAttacks,
       unknownTools,
-      // Use actual total from Elasticsearch API, not capped array length
       totalLogs: stats.value.total_logs_received || allLogs.length
     }
   })
@@ -245,7 +240,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       if (dateTo.value) {
         params.append('date_to', dateTo.value)
       }
-      params.append('limit', '1000')  // Tăng limit để hiển thị nhiều logs hơn
+      params.append('limit', '2000')
 
       const url = `/api/logs?${params.toString()}`
 
@@ -321,7 +316,6 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
-  // Set stats period and reload
   function setStatsPeriod(hours: number) {
     statsPeriod.value = hours
     loadStats()

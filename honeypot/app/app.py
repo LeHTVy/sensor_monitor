@@ -189,23 +189,20 @@ def log_request():
         
         request._log_entry = log_entry
         
-        # IMPORTANT: Read raw body FIRST (this forces Flask to buffer the stream)
+        # Read raw body FIRST 
         raw_body = ""
         try:
             if request.content_length and request.content_length < 10240:  # 10KB limit
                 raw_body = request.get_data(as_text=True)
-                print(f"📝 Raw body captured: {raw_body[:200]}...")
-        except Exception as e:
-            print(f"⚠️ Raw body error: {e}")
+        except:
+            pass
         
-        # Now capture form data (Flask parses from buffered data)
+        # Now capture form data 
         form_data = {}
         try:
             form_data = dict(request.form) if request.form else {}
-            if form_data:
-                print(f"📋 Form data captured: {form_data}")
-        except Exception as e:
-            print(f"⚠️ Form error: {e}")
+        except:
+            pass
         
         # Capture JSON body
         json_body = {}
@@ -260,7 +257,6 @@ def log_request():
 @app.after_request
 def update_response_context(response):
     """Lightweight response handler (no heavy processing)"""
-    # Just return response - no tool processor in lightweight mode
     return response
 
 def login_required(f):
