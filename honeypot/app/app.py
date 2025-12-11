@@ -186,16 +186,17 @@ def log_request():
     
     try:
         log_entry = logger.log_request(request)
-        
         request._log_entry = log_entry
+        content_type = request.headers.get('Content-Type', '')
+        is_file_upload = 'multipart/form-data' in content_type
         
-        # Read raw body FIRST 
         raw_body = ""
-        try:
-            if request.content_length and request.content_length < 10240:  # 10KB limit
-                raw_body = request.get_data(as_text=True)
-        except:
-            pass
+        if not is_file_upload:
+            try:
+                if request.content_length and request.content_length < 10240:  # 10KB limit
+                    raw_body = request.get_data(as_text=True)
+            except:
+                pass
         
         # Now capture form data 
         form_data = {}
