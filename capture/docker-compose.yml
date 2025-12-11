@@ -156,15 +156,26 @@ services:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - ES_INDEX_PREFIX=malware
       - QUARANTINE_PATH=/data/malware_quarantine
+      - YARA_RULES_PATH=/app/yara_rules
     networks:
       - sensor-network
     volumes:
       - ./malware_quarantine:/data/malware_quarantine
+      - ./yara_rules:/app/yara_rules
       - ./malware_collector.py:/app/malware_collector.py
       - ./malware_kafka_consumer.py:/app/malware_kafka_consumer.py
+      - ./static_analyzer.py:/app/static_analyzer.py
       - ./requirements.txt:/app/requirements.txt
     working_dir: /app
-    command: [ "bash", "-c", "apt-get update && apt-get install -y libmagic1 file && pip install --no-cache-dir -r requirements.txt && python -u malware_kafka_consumer.py" ]
+    command: >
+      bash -c "
+        apt-get update && 
+        apt-get install -y --no-install-recommends 
+          libmagic1 file exiftool binutils binwalk yara clamav clamav-daemon
+          poppler-utils antiword catdoc &&
+        pip install --no-cache-dir -r requirements.txt python-magic yara-python oletools pdfid &&
+        python -u malware_kafka_consumer.py
+      "
   # ollama:
   #   image: ollama/ollama:latest
   #   container_name: ollama-llm
