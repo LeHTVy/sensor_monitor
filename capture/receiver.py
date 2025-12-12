@@ -252,7 +252,17 @@ def es_search_logs(log_type: str, limit: int, date_from: str = None, date_to: st
                 "defense_playbook": source.get("defense_playbook", None),
                 "threat_level": source.get("threat_level", ""),
                 "threat_score": source.get("threat_score", 0),
-                "osint": source.get("osint", {})
+                "osint": source.get("osint", {}),
+                # File analysis fields
+                "original_filename": source.get("original_filename", ""),
+                "filename": source.get("filename", ""),
+                "file_size": source.get("file_size", None),
+                "file_id": source.get("file_id", ""),
+                "risk_level": source.get("risk_level", ""),
+                "risk_score": source.get("risk_score", None),
+                "hashes": source.get("hashes", None),
+                "file_type": source.get("file_type", None),
+                "static_analysis": source.get("static_analysis", None)
             }
             logs.append(log)
         
