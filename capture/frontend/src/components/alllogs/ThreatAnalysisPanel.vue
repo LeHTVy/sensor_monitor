@@ -250,11 +250,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { watch } from 'vue'
 import type { Log } from '@/stores/dashboard'
 
 const props = defineProps<{ log: Log | null }>()
-const llmAnalysis = ref<Log['llm_analysis']>(null)
 
 watch(() => props.log, async (newLog) => {
   if (newLog) {
@@ -264,15 +263,16 @@ watch(() => props.log, async (newLog) => {
       hasThreatScore: !!newLog.threat_score,
       osintKeys: newLog.osint ? Object.keys(newLog.osint) : [],
       threatScore: newLog.threat_score,
-      logKeys: Object.keys(newLog).filter(k => k.includes('threat') || k.includes('osint'))
+      logKeys: Object.keys(newLog).filter(k => k.includes('threat') || k.includes('osint')),
+      // File analysis debug
+      isFileUpload: newLog.type === 'file_upload',
+      original_filename: newLog.original_filename,
+      filename: newLog.filename,
+      risk_level: newLog.risk_level,
+      risk_score: newLog.risk_score,
+      hashes: newLog.hashes,
+      file_type: newLog.file_type
     })
-
-    // Check if LLM analysis exists in the log
-    if (newLog.llm_analysis) {
-      llmAnalysis.value = newLog.llm_analysis
-    } else {
-      llmAnalysis.value = null
-    }
   }
 })
 
