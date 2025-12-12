@@ -8,7 +8,8 @@
     <div class="col-12">
         <div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle"></i>
-            <strong>Warning:</strong> This is a restricted admin panel. Only authorized personnel should access this area.
+            <strong>Warning:</strong> This is a restricted admin panel. Only authorized personnel should access this
+            area.
         </div>
     </div>
 </div>
@@ -72,7 +73,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Quick Actions -->
     <div class="col-lg-4">
         <div class="card shadow">
@@ -147,7 +148,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- System Resources -->
     <div class="col-lg-6">
         <div class="card shadow">
@@ -357,94 +358,125 @@
 
 {% block scripts %}
 <script>
-    // Admin panel functions
-    function backupDatabase() {
+    // Helper function to send admin action to server
+    async function sendAdminAction(action, target = '') {
+        try {
+            const response = await fetch('/admin/action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: action, target: target })
+            });
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Admin action failed:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
+    // Admin panel functions - now logged to server
+    async function backupDatabase() {
         if (confirm('Are you sure you want to backup the database? This may take several minutes.')) {
-            alert('Database backup started... This will be completed in the background.');
-            console.log('Database backup initiated');
+            const result = await sendAdminAction('backup_database');
+            alert(`Database backup: ${result.message}\nJob ID: ${result.job_id || 'N/A'}`);
+            console.log('Database backup initiated', result);
         }
     }
-    
-    function restartServices() {
+
+    async function restartServices() {
         if (confirm('Are you sure you want to restart all services? This will cause temporary downtime.')) {
-            alert('Services restart initiated... Please wait for completion.');
-            console.log('Services restart initiated');
+            const result = await sendAdminAction('restart_services');
+            alert(`Services restart: ${result.message}\nETA: ${result.eta || 'Unknown'}`);
+            console.log('Services restart initiated', result);
         }
     }
-    
-    function viewLogs() {
-        alert('Opening system logs... This would redirect to the logs viewer.');
-        console.log('View logs requested');
+
+    async function viewLogs() {
+        const result = await sendAdminAction('view_logs');
+        alert(`Opening logs: ${result.path || '/var/log/'}`);
+        console.log('View logs requested', result);
     }
-    
-    function clearCache() {
+
+    async function clearCache() {
         if (confirm('Are you sure you want to clear all caches?')) {
-            alert('Cache cleared successfully!');
-            console.log('Cache cleared');
+            const result = await sendAdminAction('clear_cache');
+            alert(`Cache cleared! Freed: ${result.freed || 'Unknown'}`);
+            console.log('Cache cleared', result);
         }
     }
-    
-    function emergencyShutdown() {
+
+    async function emergencyShutdown() {
         if (confirm('EMERGENCY SHUTDOWN: This will immediately shut down all services. Are you absolutely sure?')) {
-            alert('EMERGENCY SHUTDOWN INITIATED! All services are being shut down.');
-            console.log('EMERGENCY SHUTDOWN INITIATED');
+            const result = await sendAdminAction('emergency_shutdown');
+            alert(`⚠️ ${result.message}\n${result.warning || ''}`);
+            console.log('EMERGENCY SHUTDOWN INITIATED', result);
         }
     }
-    
-    function optimizeTable(tableName) {
-        alert('Optimizing table: ' + tableName + '\n\nThis would run OPTIMIZE TABLE command.');
-        console.log('Optimize table:', tableName);
+
+    async function optimizeTable(tableName) {
+        const result = await sendAdminAction('optimize_table', tableName);
+        alert(`Optimizing table: ${tableName}\nStatus: ${result.status || 'running'}`);
+        console.log('Optimize table:', tableName, result);
     }
-    
-    function repairTable(tableName) {
-        alert('Repairing table: ' + tableName + '\n\nThis would run REPAIR TABLE command.');
-        console.log('Repair table:', tableName);
+
+    async function repairTable(tableName) {
+        const result = await sendAdminAction('repair_table', tableName);
+        alert(`Repairing table: ${tableName}\nStatus: ${result.status || 'running'}`);
+        console.log('Repair table:', tableName, result);
     }
-    
-    function analyzeTable(tableName) {
-        alert('Analyzing table: ' + tableName + '\n\nThis would run ANALYZE TABLE command.');
-        console.log('Analyze table:', tableName);
+
+    async function analyzeTable(tableName) {
+        const result = await sendAdminAction('analyze_table', tableName);
+        alert(`Analyzing table: ${tableName}\nRows: ${result.rows || 'Unknown'}`);
+        console.log('Analyze table:', tableName, result);
     }
-    
-    function disableAllUsers() {
+
+    async function disableAllUsers() {
         if (confirm('This will disable all user accounts. Are you sure?')) {
-            alert('All users have been disabled!');
-            console.log('All users disabled');
+            const result = await sendAdminAction('disable_all_users');
+            alert(`All users disabled!\nAffected: ${result.affected || 'Unknown'} accounts`);
+            console.log('All users disabled', result);
         }
     }
-    
-    function blockAllIPs() {
+
+    async function blockAllIPs() {
         if (confirm('This will block all IP addresses except yours. Are you sure?')) {
-            alert('All IPs have been blocked!');
-            console.log('All IPs blocked');
+            const result = await sendAdminAction('block_all_ips');
+            alert(`Firewall updated!\nBlocked: ${result.blocked || 'Unknown'} IPs`);
+            console.log('All IPs blocked', result);
         }
     }
-    
-    function dropAllTables() {
+
+    async function dropAllTables() {
         if (confirm('WARNING: This will permanently delete all database tables. This action cannot be undone!')) {
-            alert('All tables have been dropped!');
-            console.log('All tables dropped');
+            const result = await sendAdminAction('drop_all_tables');
+            alert(`⚠️ ${result.message}\n${result.warning || ''}`);
+            console.log('All tables dropped', result);
         }
     }
-    
-    function truncateAllData() {
+
+    async function truncateAllData() {
         if (confirm('WARNING: This will delete all data from all tables. This action cannot be undone!')) {
-            alert('All data has been truncated!');
-            console.log('All data truncated');
+            const result = await sendAdminAction('truncate_all_data');
+            alert(`All data truncated!\nFreed: ${result.freed || 'Unknown'}`);
+            console.log('All data truncated', result);
         }
     }
-    
-    function exportAllData() {
-        alert('Exporting all data... This would create a complete database dump.');
-        console.log('Export all data requested');
+
+    async function exportAllData() {
+        const result = await sendAdminAction('export_all_data');
+        alert(`Export started!\nFile: ${result.file || '/tmp/export.sql'}`);
+        console.log('Export all data requested', result);
     }
-    
+
     // Add some realistic console logs
     console.log('Admin panel loaded');
     console.log('System status: All services online');
     console.log('Security level: High');
     console.log('Last backup: 2024-01-15 14:30:25');
-    
+
     // Simulate real-time updates
     setInterval(() => {
         // Update timestamps

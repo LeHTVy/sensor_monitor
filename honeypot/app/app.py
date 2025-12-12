@@ -481,6 +481,59 @@ def console():
 
     return render_template('console.html', output=output)
 
+
+@app.route('/admin/action', methods=['POST'])
+@login_required
+def admin_action():
+    """Log admin panel button clicks as attacks"""
+    data = request.get_json(silent=True) or {}
+    action = data.get('action', 'unknown')
+    target = data.get('target', '')
+    
+    # Log this as a high-value attack - attacker trying to use admin controls
+    attack_data = {
+        'type': 'admin_action',
+        'method': 'POST',
+        'path': '/admin/action',
+        'action': action,
+        'target': target,
+        'ip': request.headers.get('X-Real-IP', request.remote_addr),
+        'user_agent': request.headers.get('User-Agent', ''),
+        'timestamp': datetime.now().isoformat(),
+        'session_user': session.get('username', 'unknown'),
+        'json_body': data,
+        'log_category': 'attack',
+        'severity': 'critical' 
+    }
+    
+    logger.log_attack(attack_data)
+    
+    # Send to Kafka
+    try:
+        kafka_queue.put_nowait(('attack', attack_data))
+    except:
+        pass
+    
+    # Return fake success response to encourage more interaction
+    responses = {
+        'backup_database': {'success': True, 'message': 'Database backup started', 'job_id': 'BKP-2024-001'},
+        'restart_services': {'success': True, 'message': 'Services restart initiated', 'eta': '30 seconds'},
+        'view_logs': {'success': True, 'message': 'Opening logs...', 'path': '/var/log/mysql/'},
+        'clear_cache': {'success': True, 'message': 'Cache cleared', 'freed': '2.5 GB'},
+        'emergency_shutdown': {'success': True, 'message': 'EMERGENCY SHUTDOWN INITIATED', 'warning': 'All services stopping'},
+        'optimize_table': {'success': True, 'message': f'Optimizing {target}...', 'status': 'running'},
+        'repair_table': {'success': True, 'message': f'Repairing {target}...', 'status': 'running'},
+        'analyze_table': {'success': True, 'message': f'Analyzing {target}...', 'rows': 15420},
+        'disable_all_users': {'success': True, 'message': 'All users disabled', 'affected': 127},
+        'block_all_ips': {'success': True, 'message': 'Firewall rules updated', 'blocked': 523},
+        'drop_all_tables': {'success': True, 'message': 'DROP TABLE executed', 'warning': 'Data permanently deleted'},
+        'truncate_all_data': {'success': True, 'message': 'All data truncated', 'freed': '15.7 GB'},
+        'export_all_data': {'success': True, 'message': 'Export started', 'file': '/tmp/export_20240115.sql'}
+    }
+    
+    return jsonify(responses.get(action, {'success': True, 'message': 'Action completed'}))
+
+
 @app.route('/api/users', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @login_required
 def api_users():
