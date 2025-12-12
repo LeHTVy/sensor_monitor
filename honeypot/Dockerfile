@@ -40,23 +40,23 @@ ENV PYTHONPATH=/app/app:$PYTHONPATH
 
 # Create startup script with proper Gunicorn config and Network Monitor
 RUN echo '#!/bin/bash\n\
-set -e\n\
-echo "🚀 Starting Honeypot Services..."\n\
-# Start nginx in background\n\
-echo "📡 Starting Nginx..."\n\
-nginx &\n\
-# Wait a moment for nginx to start\n\
-sleep 2\n\
-echo "✅ Nginx started"\n\
-# Start Network Monitor in background\n\
-echo "🌐 Starting Network Monitor..."\n\
-cd /app/network_monitor && PYTHONPATH=/app:/app/app:$PYTHONPATH python3 packet_sniffer.py --interface auto --kafka 10.8.0.1:9093 &\n\
-NETWORK_MONITOR_PID=$!\n\
-echo "✅ Network Monitor started (PID: $NETWORK_MONITOR_PID)"\n\
-sleep 2\n\
-# Start Gunicorn with proper configuration (foreground)\n\
-echo "🐍 Starting Gunicorn Flask App..."\n\
-cd /app && exec python -m gunicorn \\\n\
+    set -e\n\
+    echo "🚀 Starting Honeypot Services..."\n\
+    # Start nginx in background\n\
+    echo "📡 Starting Nginx..."\n\
+    nginx &\n\
+    # Wait a moment for nginx to start\n\
+    sleep 2\n\
+    echo "✅ Nginx started"\n\
+    # Start Network Monitor in background\n\
+    echo "🌐 Starting Network Monitor..."\n\
+    cd /app/network_monitor && PYTHONPATH=/app:/app/app:$PYTHONPATH python3 packet_sniffer.py --interface eth0 --kafka 10.8.0.1:9093 &\n\
+    NETWORK_MONITOR_PID=$!\n\
+    echo "✅ Network Monitor started (PID: $NETWORK_MONITOR_PID)"\n\
+    sleep 2\n\
+    # Start Gunicorn with proper configuration (foreground)\n\
+    echo "🐍 Starting Gunicorn Flask App..."\n\
+    cd /app && exec python -m gunicorn \\\n\
     --bind 0.0.0.0:5000 \\\n\
     --workers 2 \\\n\
     --timeout 120 \\\n\
@@ -70,7 +70,7 @@ cd /app && exec python -m gunicorn \\\n\
     --worker-connections 1000 \\\n\
     --config /dev/null \\\n\
     app.app:app\n\
-' > /start.sh && chmod +x /start.sh
+    ' > /start.sh && chmod +x /start.sh
 
 EXPOSE 80 443
 
