@@ -344,12 +344,25 @@ def login():
                 # Lock expired, reset
                 del failed_login_attempts[username]
     
-    if username == 'admin' and password == 'capture2024':
+    # Get credentials from environment (with secure defaults that MUST be changed)
+    admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+    admin_password = os.getenv('ADMIN_PASSWORD')
+    
+    # Security check: Require ADMIN_PASSWORD to be set in environment
+    if not admin_password:
+        print("⚠️ ADMIN_PASSWORD not set in environment! Using insecure default.")
+        admin_password = 'changeme'  # Force users to set proper password
+    
+    if username == admin_username and password == admin_password:
         # Clear failed attempts on success
         if username in failed_login_attempts:
             del failed_login_attempts[username]
             
-        api_key = os.getenv('CAPTURE_API_KEY', 'capture_secure_key_2024')
+        api_key = os.getenv('CAPTURE_API_KEY')
+        if not api_key:
+            print("⚠️ CAPTURE_API_KEY not set! Generating temporary key.")
+            import secrets
+            api_key = secrets.token_hex(32)
         jwt_token = security.generate_jwt_token('admin')
         
         print(f"✅ Login successful for {username}")

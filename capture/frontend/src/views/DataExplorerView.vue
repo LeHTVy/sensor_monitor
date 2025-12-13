@@ -239,12 +239,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useDashboardStore } from '@/stores/dashboard'
+import { useAuthStore } from '@/stores/auth'
 import { formatDateTime } from '@/utils/dateTime'
 import Navbar from '@/components/Navbar.vue'
 import Chart from 'chart.js/auto'
 import 'chartjs-adapter-date-fns'
 
 const dashboardStore = useDashboardStore()
+const authStore = useAuthStore()
 
 // State
 const loading = ref(false)
@@ -325,7 +327,7 @@ async function applyFilters() {
     if (filters.value.type !== 'All') params.append('type', filters.value.type.toLowerCase())
     
     const response = await fetch(`/api/logs?${params.toString()}`, {
-      headers: { 'X-API-Key': 'capture_secure_key_2024' } 
+      headers: { 'X-API-Key': authStore.apiKey || '' } 
     })
     
     if (response.ok) {

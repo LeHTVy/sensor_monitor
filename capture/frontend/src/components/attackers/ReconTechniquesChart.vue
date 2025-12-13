@@ -41,6 +41,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 
 interface Technique {
   name: string
@@ -48,10 +49,9 @@ interface Technique {
   percentage: number
 }
 
+const authStore = useAuthStore()
 const loading = ref(true)
 const techniques = ref<Technique[]>([])
-
-const API_KEY = 'capture_secure_key_2024'
 
 const totalTechniques = computed(() => techniques.value.length)
 
@@ -85,7 +85,7 @@ async function fetchTechniques() {
   try {
     // Fetch logs to aggregate techniques from attack_tool field
     const response = await fetch('/api/logs?limit=1000', {
-      headers: { 'X-API-Key': API_KEY }
+      headers: { 'X-API-Key': authStore.apiKey || '' }
     })
     
     if (response.ok) {

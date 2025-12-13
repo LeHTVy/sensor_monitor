@@ -63,8 +63,9 @@ import Navbar from '@/components/Navbar.vue'
 import Footer from '@/components/Footer.vue'
 import ThreatCapsule from '@/components/alllogs/ThreatCapsule.vue'
 import ThreatAnalysisPanel from '@/components/alllogs/ThreatAnalysisPanel.vue'
+import { useAuthStore } from '@/stores/auth'
 
-const API_KEY = 'capture_secure_key_2024'
+const authStore = useAuthStore()
 const API_BASE = '/api'
 
 const search = ref('')
@@ -77,7 +78,7 @@ async function fetchLogs() {
     loading.value = true
     const response = await fetch(
       `${API_BASE}/logs?limit=5000`,
-      { headers: { 'X-API-Key': API_KEY } }
+      { headers: { 'X-API-Key': authStore.apiKey || '' } }
     )
     
     if (response.ok) {

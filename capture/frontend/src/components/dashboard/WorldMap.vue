@@ -44,8 +44,9 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as d3 from 'd3'
 import * as topojson from 'topojson-client'
+import { useAuthStore } from '@/stores/auth'
 
-const API_KEY = 'capture_secure_key_2024'
+const authStore = useAuthStore()
 const API_BASE = '/api'
 
 interface CountryAttackers {
@@ -97,7 +98,7 @@ async function fetchAttackData() {
     // Fetch unique attackers from Elasticsearch via /api/attackers
     const response = await fetch(
       `${API_BASE}/attackers?limit=500`,
-      { headers: { 'X-API-Key': API_KEY } }
+      { headers: { 'X-API-Key': authStore.apiKey || '' } }
     )
 
     if (response.ok) {

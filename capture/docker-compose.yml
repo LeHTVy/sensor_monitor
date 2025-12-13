@@ -42,12 +42,16 @@ services:
       - "10.8.0.1:8082:8080"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      CAPTURE_API_KEY: capture_secure_key_2024
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: admin123
+      # Credentials from .env file (never commit real values!)
+      CAPTURE_API_KEY: ${CAPTURE_API_KEY}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       USE_ELASTICSEARCH: "true"
       ELASTICSEARCH_URL: http://elasticsearch:9200
       ES_INDEX_PREFIX: sensor-logs
+    env_file:
+      - .env
     networks:
       - sensor-network
     volumes:
