@@ -201,6 +201,29 @@ class PacketSniffer:
             src_ip = ip_layer.src
             dst_ip = ip_layer.dst
 
+            # === FILTERING: Exclude internal/VPN traffic ===
+            # Get own server IP from environment or detect
+            own_ip = os.environ.get('HONEYPOT_IP', '172.235.245.60')
+            
+            # Skip packets FROM our own honeypot IP (outgoing traffic)
+            if src_ip == own_ip:
+                return
+            
+            # Skip VPN traffic (10.8.0.x subnet)
+            if src_ip.startswith('10.8.0.') or dst_ip.startswith('10.8.0.'):
+                return
+            
+            # Skip WireGuard port traffic (51820)
+            if packet.haslayer(UDP):
+                udp_layer = packet[UDP]
+                if udp_layer.dport == 51820 or udp_layer.sport == 51820:
+                    return
+            
+            # Skip localhost traffic
+            if src_ip.startswith('127.') or dst_ip.startswith('127.'):
+                return
+            # === END FILTERING ===
+
             self.stats['packets_captured'] += 1
 
             # Update IP context
