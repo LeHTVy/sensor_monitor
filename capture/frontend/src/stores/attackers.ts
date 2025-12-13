@@ -3,11 +3,14 @@ import { ref, computed } from 'vue'
 import axios from 'axios'
 
 const API_URL = ''
-const DEFAULT_API_KEY = 'capture_secure_key_2024'
 
-// Helper to get API key consistently
+// Helper to get API key consistently (matches auth store key name)
 function getApiKey(): string {
-    return localStorage.getItem('api_key') || DEFAULT_API_KEY
+    const key = localStorage.getItem('capture_api_key')
+    if (!key) {
+        console.warn('No API key found in localStorage. User may need to log in.')
+    }
+    return key || ''
 }
 
 // Interface for fetch params
