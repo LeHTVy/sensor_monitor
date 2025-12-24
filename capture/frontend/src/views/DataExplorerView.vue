@@ -26,7 +26,9 @@
           <v-select
             v-model="filters.type"
             label="Log Type"
-            :items="['All', 'Attack', 'Honeypot', 'Traffic']"
+            :items="logTypes"
+            item-title="title"
+            item-value="value"
             variant="outlined"
             density="compact"
             class="mb-4"
@@ -270,6 +272,15 @@ const timeRanges = [
   { text: 'Last 24 Hours', value: '24h' },
   { text: 'Last 7 Days', value: '7d' },
   { text: 'All Time', value: 'all' }
+]
+
+const logTypes = [
+  { title: 'All', value: 'All' },
+  { title: 'Network Scan', value: 'network_scan' },
+  { title: 'Web Request', value: 'request' },
+  { title: 'Attack', value: 'attack' },
+  { title: 'Honeypot', value: 'honeypot' },
+  { title: 'Traffic', value: 'traffic' }
 ]
 
 const filters = ref({
