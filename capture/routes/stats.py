@@ -56,7 +56,8 @@ def api_stats():
     
     try:
         es_stats = es_get_stats(hours)
-        return jsonify(es_stats)
+        # Wrap in 'stats' key for frontend compatibility
+        return jsonify({'stats': es_stats})
     except Exception as e:
         logging.error(f"Error getting stats: {e}")
         return jsonify({'error': str(e), 'stats': get_stats()}), 500

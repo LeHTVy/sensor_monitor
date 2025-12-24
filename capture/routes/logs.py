@@ -54,8 +54,20 @@ def es_search_logs(log_type, limit, date_from=None, date_to=None):
             must_clauses.append({"range": {"timestamp": date_range}})
         
         # Filter by log type if not 'all'
+        # Use 'type' field and wildcard for partial matching (attack, honeypot, traffic)
         if log_type != 'all':
-            must_clauses.append({"term": {"log_type": log_type}})
+            # Try multiple field variations for compatibility
+            must_clauses.append({
+                "bool": {
+                    "should": [
+                        {"wildcard": {"type": f"*{log_type}*"}},
+                        {"wildcard": {"type.keyword": f"*{log_type}*"}},
+                        {"term": {"type": log_type}},
+                        {"term": {"log_type": log_type}}
+                    ],
+                    "minimum_should_match": 1
+                }
+            })
         
         body = {
             "sort": [{"timestamp": {"order": "desc"}}],
