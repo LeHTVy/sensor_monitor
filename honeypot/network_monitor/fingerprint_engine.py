@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Fingerprint Engine for Tool Detection
 Loads YAML fingerprints and matches traffic patterns against known tools
@@ -294,8 +293,6 @@ class FingerprintEngine:
         # No retries matching
         if network_patterns.get('no_retries'):
             checks += 1
-            # This would need to be calculated from packet analysis
-            # For now, assume high SYN ratio with no ACK means no retries
             syn_ratio = metrics.get('syn_ratio', 0)
             if syn_ratio > 0.95:
                 score += 1.0
@@ -311,7 +308,6 @@ class FingerprintEngine:
         expected_flags = tcp_patterns.get('flags', [])
         if expected_flags:
             checks += 1
-            # Check if traffic shows expected flag patterns
             if 'SYN' in expected_flags:
                 syn_packets = metrics.get('syn_packets', 0)
                 total_packets = metrics.get('total_packets', 1)
@@ -332,14 +328,11 @@ class FingerprintEngine:
         
         if behavior_patterns.get('sequential_paths'):
             checks += 1
-            # Would need path history analysis
-            # Approximate with port diversity
             if metrics.get('port_diversity', 0) < 5:
                 score += 0.5
         
         if behavior_patterns.get('sql_injection_patterns'):
             checks += 1
-            # Already handled by payload matching
             score += 0.5
         
         if behavior_patterns.get('high_rate_scanning'):
