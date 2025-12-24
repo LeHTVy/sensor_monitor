@@ -136,8 +136,13 @@
                 :color="getTypeColor(item.type)"
                 variant="flat"
               >
-                {{ item.type.toUpperCase() }}
+                {{ (item.type || 'unknown').toUpperCase() }}
               </v-chip>
+            </template>
+
+            <template v-slot:item.dst_port="{ item }">
+              <span v-if="item.dst_port" class="text-caption">:{{ item.dst_port }}</span>
+              <span v-else class="text-caption text-medium-emphasis">-</span>
             </template>
 
             <template v-slot:item.threat_score="{ item }">
@@ -276,13 +281,14 @@ const filters = ref({
 
 // Table Headers
 const headers = [
-  { title: 'Time', key: 'timestamp', width: '180px' },
-  { title: 'Type', key: 'type', width: '100px' },
-  { title: 'Source IP', key: 'src_ip', width: '140px' },
-  { title: 'Country', key: 'geoip.country', width: '120px' },
-  { title: 'Tool', key: 'attack_tool', width: '120px' },
-  { title: 'Path/Message', key: 'path', width: '300px' },
-  { title: 'Score', key: 'threat_score', width: '100px' },
+  { title: 'Time', key: 'timestamp', width: '160px' },
+  { title: 'Type', key: 'type', width: '120px' },
+  { title: 'Source IP', key: 'src_ip', width: '130px' },
+  { title: 'Port', key: 'dst_port', width: '80px' },
+  { title: 'Country', key: 'geoip.country', width: '100px' },
+  { title: 'Tool', key: 'attack_tool', width: '100px' },
+  { title: 'Path/Message', key: 'path', width: '250px' },
+  { title: 'Score', key: 'threat_score', width: '80px' },
 ]
 
 // Methods
@@ -291,12 +297,26 @@ function formatDate(dateStr: string) {
 }
 
 function getTypeColor(type: string) {
-  switch (type) {
-    case 'attack': return 'error'
-    case 'honeypot': return 'warning'
-    case 'traffic': return 'info'
-    default: return 'grey'
+  if (!type) return 'grey'
+  const t = type.toLowerCase()
+  
+  // Attack types (red)
+  if (t.includes('attack') || t.includes('scan') || t.includes('exploit') || 
+      t.includes('injection') || t.includes('brute') || t === 'network_scan') {
+    return 'error'
   }
+  
+  // Request/Honeypot types (orange/warning)
+  if (t.includes('request') || t.includes('honeypot') || t.includes('http')) {
+    return 'warning'
+  }
+  
+  // Traffic/Info types (blue)
+  if (t.includes('traffic') || t.includes('info') || t.includes('log')) {
+    return 'info'
+  }
+  
+  return 'grey'
 }
 
 function getScoreColor(score: number) {
