@@ -4,6 +4,18 @@
       <v-icon icon="mdi-transit-connection-variant" color="primary" class="mr-2" />
       <span class="text-h6 font-weight-bold">Attack Flow Analysis</span>
       <v-spacer />
+      <v-select
+        v-model="flowLimit"
+        :items="flowLimitOptions"
+        item-title="text"
+        item-value="value"
+        label="Flows"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 100px;"
+        class="mr-2"
+      ></v-select>
       <v-btn-toggle v-model="viewMode" mandatory density="compact" variant="outlined">
         <v-btn value="country" size="small">By Country</v-btn>
         <v-btn value="ip" size="small">By IP</v-btn>
@@ -74,6 +86,13 @@ interface ProcessedLink extends SankeyLink<SankeyNodeData, SankeyLinkData> {
 }
 
 const viewMode = ref<'country' | 'ip'>('country')
+const flowLimit = ref<number>(50)  // Default: show top 50 flows
+const flowLimitOptions = [
+  { text: '25', value: 25 },
+  { text: '50', value: 50 },
+  { text: '100', value: 100 },
+  { text: 'All', value: 0 }  // 0 means no limit
+]
 const chartContainer = ref<HTMLElement>()
 let resizeObserver: ResizeObserver | null = null
 
@@ -165,9 +184,11 @@ const processData = () => {
   const allNodes = Array.from(nodeMap.values())
   const allLinks = Array.from(linkMap.values())
 
-  // Show all flows (no limit)
-  const topLinks = allLinks
-    .sort((a, b) => b.value - a.value)
+  // Apply flow limit (0 = no limit)
+  let topLinks = allLinks.sort((a, b) => b.value - a.value)
+  if (flowLimit.value > 0) {
+    topLinks = topLinks.slice(0, flowLimit.value)
+  }
 
   // Get referenced node IDs only
   const usedNodeIds = new Set<string>()
@@ -346,8 +367,8 @@ onUnmounted(() => {
   }
 })
 
-// Watch for data or view mode changes
-watch([() => dashboardStore.logs, viewMode], () => {
+// Watch for data, view mode, or flow limit changes
+watch([() => dashboardStore.logs, viewMode, flowLimit], () => {
   nextTick(() => {
     renderChart()
   })
