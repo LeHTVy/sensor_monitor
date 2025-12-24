@@ -19,7 +19,14 @@ from kafka_consumer import CaptureKafkaConsumer
 from security_middleware import CaptureSecurity, admin_required, api_key_required, ip_whitelist_required
 from elasticsearch import Elasticsearch
 from recon_service import create_recon_job, get_recon_status, get_recon_results, active_recon_jobs
-from stix_formatter import get_stix_formatter, STIXFormatter
+
+# STIX formatter - optional import (won't crash if missing)
+try:
+    from stix_formatter import get_stix_formatter, STIXFormatter
+    STIX_AVAILABLE = True
+except ImportError:
+    STIX_AVAILABLE = False
+    print("⚠️  STIX formatter not available - STIX API endpoints will be disabled")
 
 app = Flask(__name__)
 
@@ -1529,8 +1536,11 @@ def lookup_ip(ip_address):
         
         # Return STIX format if requested
         if output_format.lower() == 'stix':
-            stix = get_stix_formatter()
-            result['stix'] = stix.ip_to_stix_object(ip_address, hits[0]['_source'])
+            if not STIX_AVAILABLE:
+                result['stix_error'] = 'STIX formatter not available on this server'
+            else:
+                stix = get_stix_formatter()
+                result['stix'] = stix.ip_to_stix_object(ip_address, hits[0]['_source'])
         
         return jsonify(result)
         
@@ -1559,6 +1569,9 @@ def get_stix_indicators():
     
     if not USE_ELASTICSEARCH or not es_client:
         return jsonify({'error': 'Elasticsearch not available'}), 503
+    
+    if not STIX_AVAILABLE:
+        return jsonify({'error': 'STIX formatter not available on this server'}), 503
     
     try:
         # Calculate time range
@@ -1620,6 +1633,9 @@ def get_stix_for_ip(ip_address):
     """
     if not USE_ELASTICSEARCH or not es_client:
         return jsonify({'error': 'Elasticsearch not available'}), 503
+    
+    if not STIX_AVAILABLE:
+        return jsonify({'error': 'STIX formatter not available on this server'}), 503
     
     try:
         # Search for logs from this IP
