@@ -19,6 +19,7 @@ from kafka_consumer import CaptureKafkaConsumer
 from security_middleware import CaptureSecurity, admin_required, api_key_required, ip_whitelist_required
 from elasticsearch import Elasticsearch
 from recon_service import create_recon_job, get_recon_status, get_recon_results, active_recon_jobs
+from stix_formatter import get_stix_formatter, STIXFormatter
 
 app = Flask(__name__)
 
@@ -1323,25 +1324,345 @@ def receive_bulk_logs():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
-    # Initialize database
-    init_database()
+# =============================================================================
+# STIX 2.1 THREAT INTELLIGENCE API
+# =============================================================================
+
+@app.route('/api/v1/threats/latest')
+@api_key_required
+def get_latest_threats():
+    """
+    Get latest threat indicators in simple JSON format
     
-    # Start log processing thread
-    log_thread = threading.Thread(target=process_log_queue)
-    log_thread.daemon = True
-    log_thread.start()
+    Query params:
+        - limit: Number of results (default 50, max 200)
+        - hours: Time window in hours (default 24)
+        - tool: Filter by attack tool (optional)
     
-    # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler('logs/receiver.log'),
-            logging.StreamHandler()
-        ]
-    )
+    Returns:
+        JSON list of threat indicators with IP, tool, threat score, and location
+    """
+    limit = min(request.args.get('limit', 50, type=int), 200)
+    hours = request.args.get('hours', 24, type=int)
+    tool_filter = request.args.get('tool', None)
     
+    if not USE_ELASTICSEARCH or not es_client:
+        return jsonify({'error': 'Elasticsearch not available'}), 503
+    
+    try:
+        # Calculate time range
+        time_from = (datetime.now() - timedelta(hours=hours)).isoformat()
+        
+        # Build query
+        must = [{"range": {"timestamp": {"gte": time_from}}}]
+        if tool_filter:
+            must.append({"term": {"attack_tool": tool_filter}})
+        
+        query = {
+            "size": limit,
+            "sort": [{"timestamp": {"order": "desc"}}],
+            "query": {"bool": {"must": must}},
+            "_source": ["src_ip", "attack_tool", "threat_score", "threat_level", 
+                       "timestamp", "geoip", "attack_techniques", "method", "path"]
+        }
+        
+        res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+        
+        # Aggregate by IP (deduplicate)
+        ip_threats = {}
+        for hit in res['hits']['hits']:
+            src = hit['_source']
+            ip = src.get('src_ip', src.get('ip', 'unknown'))
+            
+            if ip not in ip_threats:
+                geoip = src.get('geoip', {}) if isinstance(src.get('geoip'), dict) else {}
+                ip_threats[ip] = {
+                    'ip': ip,
+                    'attack_tool': src.get('attack_tool', 'unknown'),
+                    'threat_score': src.get('threat_score', 0),
+                    'threat_level': src.get('threat_level', 'unknown'),
+                    'first_seen': src.get('timestamp'),
+                    'last_seen': src.get('timestamp'),
+                    'country': geoip.get('country', 'Unknown'),
+                    'city': geoip.get('city', ''),
+                    'isp': geoip.get('isp', ''),
+                    'techniques': src.get('attack_techniques', []),
+                    'hit_count': 1
+                }
+            else:
+                ip_threats[ip]['hit_count'] += 1
+                ip_threats[ip]['last_seen'] = src.get('timestamp')
+                # Keep highest threat score
+                if src.get('threat_score', 0) > ip_threats[ip]['threat_score']:
+                    ip_threats[ip]['threat_score'] = src.get('threat_score', 0)
+                    ip_threats[ip]['threat_level'] = src.get('threat_level', 'unknown')
+        
+        # Sort by threat score
+        threats = sorted(ip_threats.values(), key=lambda x: x['threat_score'], reverse=True)
+        
+        return jsonify({
+            'threats': threats[:limit],
+            'total': len(threats),
+            'time_window_hours': hours,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logging.error(f"Error getting latest threats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/ip/<ip_address>')
+@api_key_required
+def lookup_ip(ip_address):
+    """
+    Lookup an IP address for threat intelligence
+    
+    Returns:
+        - threat_summary: Quick threat assessment
+        - attack_history: Historical attacks from this IP
+        - geoip: Location information
+        - osint: External threat intelligence
+        - stix: STIX 2.1 indicator (optional, add ?format=stix)
+    """
+    output_format = request.args.get('format', 'json')
+    limit = min(request.args.get('limit', 20, type=int), 100)
+    
+    if not USE_ELASTICSEARCH or not es_client:
+        return jsonify({'error': 'Elasticsearch not available'}), 503
+    
+    try:
+        # Search for all logs from this IP
+        query = {
+            "size": limit,
+            "sort": [{"timestamp": {"order": "desc"}}],
+            "query": {
+                "bool": {
+                    "should": [
+                        {"term": {"src_ip": ip_address}},
+                        {"term": {"ip": ip_address}}
+                    ],
+                    "minimum_should_match": 1
+                }
+            }
+        }
+        
+        res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+        
+        if res['hits']['total']['value'] == 0:
+            return jsonify({
+                'ip': ip_address,
+                'found': False,
+                'message': 'IP not found in honeypot logs',
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        # Aggregate attack data
+        hits = res['hits']['hits']
+        first_seen = hits[-1]['_source'].get('timestamp')
+        last_seen = hits[0]['_source'].get('timestamp')
+        
+        # Collect attack tools and techniques
+        attack_tools = {}
+        attack_techniques = set()
+        max_threat_score = 0
+        geoip_data = {}
+        osint_data = {}
+        
+        attack_history = []
+        for hit in hits:
+            src = hit['_source']
+            
+            tool = src.get('attack_tool', 'unknown')
+            if tool not in attack_tools:
+                attack_tools[tool] = 0
+            attack_tools[tool] += 1
+            
+            techniques = src.get('attack_techniques', src.get('attack_technique', []))
+            if isinstance(techniques, list):
+                attack_techniques.update(techniques)
+            
+            if src.get('threat_score', 0) > max_threat_score:
+                max_threat_score = src.get('threat_score', 0)
+            
+            if not geoip_data and isinstance(src.get('geoip'), dict):
+                geoip_data = src.get('geoip', {})
+            
+            if not osint_data and isinstance(src.get('osint'), dict):
+                osint_data = src.get('osint', {})
+            
+            attack_history.append({
+                'timestamp': src.get('timestamp'),
+                'attack_tool': tool,
+                'method': src.get('method', ''),
+                'path': src.get('path', ''),
+                'threat_score': src.get('threat_score', 0)
+            })
+        
+        # Determine threat level
+        if max_threat_score >= 70:
+            threat_level = 'critical'
+        elif max_threat_score >= 50:
+            threat_level = 'high'
+        elif max_threat_score >= 30:
+            threat_level = 'medium'
+        else:
+            threat_level = 'low'
+        
+        result = {
+            'ip': ip_address,
+            'found': True,
+            'threat_summary': {
+                'threat_level': threat_level,
+                'threat_score': max_threat_score,
+                'total_attacks': res['hits']['total']['value'],
+                'first_seen': first_seen,
+                'last_seen': last_seen,
+                'attack_tools': attack_tools,
+                'techniques': list(attack_techniques)
+            },
+            'geoip': geoip_data,
+            'osint': osint_data,
+            'attack_history': attack_history[:10],  # Last 10 attacks
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Return STIX format if requested
+        if output_format.lower() == 'stix':
+            stix = get_stix_formatter()
+            result['stix'] = stix.ip_to_stix_object(ip_address, hits[0]['_source'])
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logging.error(f"Error looking up IP {ip_address}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/stix/indicators')
+@api_key_required
+def get_stix_indicators():
+    """
+    Get threat indicators in STIX 2.1 Bundle format
+    
+    Query params:
+        - limit: Number of indicators (default 50, max 100)
+        - hours: Time window in hours (default 24)
+        - min_score: Minimum threat score (default 0)
+    
+    Returns:
+        STIX 2.1 Bundle with Indicator objects
+    """
+    limit = min(request.args.get('limit', 50, type=int), 100)
+    hours = request.args.get('hours', 24, type=int)
+    min_score = request.args.get('min_score', 0, type=int)
+    
+    if not USE_ELASTICSEARCH or not es_client:
+        return jsonify({'error': 'Elasticsearch not available'}), 503
+    
+    try:
+        # Calculate time range
+        time_from = (datetime.now() - timedelta(hours=hours)).isoformat()
+        
+        # Query for high-confidence threats
+        query = {
+            "size": limit * 2,  # Get more to deduplicate
+            "sort": [{"threat_score": {"order": "desc"}}, {"timestamp": {"order": "desc"}}],
+            "query": {
+                "bool": {
+                    "must": [
+                        {"range": {"timestamp": {"gte": time_from}}},
+                        {"range": {"threat_score": {"gte": min_score}}}
+                    ]
+                }
+            }
+        }
+        
+        res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+        
+        # Deduplicate by IP
+        seen_ips = set()
+        logs = []
+        for hit in res['hits']['hits']:
+            src = hit['_source']
+            ip = src.get('src_ip', src.get('ip', ''))
+            if ip and ip not in seen_ips:
+                seen_ips.add(ip)
+                logs.append(src)
+                if len(logs) >= limit:
+                    break
+        
+        # Convert to STIX Bundle
+        stix = get_stix_formatter()
+        bundle = stix.logs_to_bundle(logs)
+        
+        # Set proper content type for STIX
+        response = app.response_class(
+            response=json.dumps(bundle, indent=2),
+            status=200,
+            mimetype='application/stix+json;version=2.1'
+        )
+        return response
+        
+    except Exception as e:
+        logging.error(f"Error generating STIX indicators: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/stix/ip/<ip_address>')
+@api_key_required
+def get_stix_for_ip(ip_address):
+    """
+    Get STIX 2.1 Bundle for a specific IP address
+    
+    Returns:
+        STIX 2.1 Bundle with Indicator, Attack-Pattern, Location, and Relationships
+    """
+    if not USE_ELASTICSEARCH or not es_client:
+        return jsonify({'error': 'Elasticsearch not available'}), 503
+    
+    try:
+        # Search for logs from this IP
+        query = {
+            "size": 1,
+            "sort": [{"timestamp": {"order": "desc"}}],
+            "query": {
+                "bool": {
+                    "should": [
+                        {"term": {"src_ip": ip_address}},
+                        {"term": {"ip": ip_address}}
+                    ],
+                    "minimum_should_match": 1
+                }
+            }
+        }
+        
+        res = es_client.search(index=f"{ES_PREFIX}-*", body=query)
+        
+        if res['hits']['total']['value'] == 0:
+            return jsonify({
+                'error': 'IP not found',
+                'message': f'No attack logs found for IP {ip_address}'
+            }), 404
+        
+        # Generate STIX Bundle
+        log = res['hits']['hits'][0]['_source']
+        stix = get_stix_formatter()
+        bundle = stix.ip_to_stix_object(ip_address, log)
+        
+        # Set proper content type for STIX
+        response = app.response_class(
+            response=json.dumps(bundle, indent=2),
+            status=200,
+            mimetype='application/stix+json;version=2.1'
+        )
+        return response
+        
+    except Exception as e:
+        logging.error(f"Error generating STIX for IP {ip_address}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/test', methods=['GET'])
 def test_endpoint():
     """Test endpoint without authentication"""
