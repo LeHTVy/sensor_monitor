@@ -165,10 +165,9 @@ const processData = () => {
   const allNodes = Array.from(nodeMap.values())
   const allLinks = Array.from(linkMap.values())
 
-  // Limit to top flows for readability
+  // Show all flows (no limit)
   const topLinks = allLinks
     .sort((a, b) => b.value - a.value)
-    .slice(0, 50)
 
   // Get referenced node IDs only
   const usedNodeIds = new Set<string>()
