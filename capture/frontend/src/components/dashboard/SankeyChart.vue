@@ -22,7 +22,7 @@
       </v-btn-toggle>
     </v-card-title>
 
-    <v-card-text class="position-relative" style="min-height: 400px;">
+    <v-card-text class="position-relative" style="min-height: 550px;">
       <!-- No Data State -->
       <div v-if="!hasData" class="d-flex flex-column align-center justify-center position-absolute w-100 h-100" style="top: 0; left: 0; z-index: 10; background: rgba(var(--v-theme-surface), 0.8);">
         <v-icon icon="mdi-transit-connection-variant" size="64" color="grey-lighten-1" />
@@ -217,7 +217,7 @@ const renderChart = () => {
 
   const containerRect = chartContainer.value.getBoundingClientRect()
   const width = containerRect.width || 800
-  const height = 400
+  const height = 550
   const margin = { top: 20, right: 120, bottom: 20, left: 120 }
 
   const svg = d3.select(chartContainer.value)
@@ -382,7 +382,7 @@ watch([() => dashboardStore.logs, viewMode, flowLimit], () => {
 
 .sankey-container {
   width: 100%;
-  height: 400px;
+  height: 550px;
   overflow: hidden;
 }
 
