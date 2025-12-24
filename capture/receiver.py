@@ -63,13 +63,22 @@ recent_logs = deque(maxlen=1000)
 attack_logs = deque(maxlen=500)
 honeypot_logs = deque(maxlen=500)
 
+# Flag to track if logging is initialized
+_logging_initialized = False
+
 
 def setup_logging():
     """
     Setup comprehensive file-based logging for system monitoring:
     - receiver.log: General system events and threat processing
     - security.log: Authentication and API key events (audit trail)
+    
+    This function is idempotent - safe to call multiple times.
     """
+    global _logging_initialized
+    if _logging_initialized:
+        return
+    
     log_dir = 'logs'
     os.makedirs(log_dir, exist_ok=True)
     
@@ -105,6 +114,8 @@ def setup_logging():
         level=logging.INFO,
         handlers=[main_handler, console_handler]
     )
+    
+    _logging_initialized = True
     
     # Log startup info
     logging.info("=" * 60)
@@ -181,6 +192,10 @@ def process_log_queue():
 # =============================================================================
 # REGISTER BLUEPRINTS
 # =============================================================================
+# =============================================================================
+# INITIALIZE LOGGING AT MODULE LOAD (works in Docker/gunicorn)
+# =============================================================================
+setup_logging()
 
 log_server_event("INIT", "Registering route blueprints")
 
