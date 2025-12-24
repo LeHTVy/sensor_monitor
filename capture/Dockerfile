@@ -38,17 +38,44 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install BBOT (comprehensive OSINT/reconnaissance tool)
 RUN pip install --no-cache-dir bbot
 
-# Copy application code
-COPY receiver.py .
-COPY analyzer.py .
-COPY kafka_consumer.py .
-COPY security_middleware.py .
-COPY recon_service.py .
-COPY report_generator.py .
+# Create application directory structure
+RUN mkdir -p /app/core /app/services /app/recon /app/malware /app/routes
 
-# Create directories
+# Copy main application
+COPY receiver.py .
+
+# Copy core modules
+COPY core/__init__.py core/
+COPY core/kafka_consumer.py core/
+COPY core/security_middleware.py core/
+
+# Copy service modules
+COPY services/__init__.py services/
+COPY services/analyzer.py services/
+COPY services/api_keys_manager.py services/
+COPY services/stix_formatter.py services/
+
+# Copy recon modules
+COPY recon/__init__.py recon/
+COPY recon/recon_service.py recon/
+COPY recon/report_generator.py recon/
+
+# Copy malware modules
+COPY malware/__init__.py malware/
+COPY malware/malware_collector.py malware/
+COPY malware/malware_kafka_consumer.py malware/
+
+# Copy route modules
+COPY routes/__init__.py routes/
+COPY routes/auth.py routes/
+COPY routes/stats.py routes/
+COPY routes/logs.py routes/
+COPY routes/attackers.py routes/
+COPY routes/stix.py routes/
+
+# Create log directories
 RUN mkdir -p /app/logs/packets /app/logs/analysis /app/logs/honeypot /app/logs/reports /app/recon_reports \
-    && chmod 777 /app/recon_reports
+    && chmod 777 /app/recon_reports /app/logs
 
 # Create startup script
 RUN echo '#!/bin/bash\n\
